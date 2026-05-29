@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm ls *)",
+      "Bash(cd C:\\\\Users\\\\luthf\\\\OneDrive\\\\Desktop\\\\KULIAH\\\\semester 6\\\\KKN\\\\sistem-absensi\\\\frontend *)",
+      "Bash(npm show *)",
+      "Bash(dir /s /b \"c:\\\\Users\\\\luthf\\\\OneDrive\\\\Desktop\\\\KULIAH\\\\semester 6\\\\KKN\\\\sistem-absensi\\\\frontend\\\\src\")",
+      "Bash(findstr /i \"\\\\.tsx \\\\.ts\")"
+    ]
+  }
+}

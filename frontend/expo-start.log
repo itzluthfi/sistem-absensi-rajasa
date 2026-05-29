@@ -1,0 +1,6 @@
+env: load .env
+env: export EXPO_PUBLIC_API_URL EXPO_PUBLIC_APP_NAME EXPO_PUBLIC_APP_VERSION EXPO_PUBLIC_ENABLE_QR_SCANNER EXPO_PUBLIC_ENABLE_NOTIFICATIONS EXPO_PUBLIC_ENABLE_GPS_VALIDATION EXPO_PUBLIC_ENABLE_FACE_RECOGNITION EXPO_PUBLIC_NOTIFICATION_ENABLED EXPO_PUBLIC_DEBUG_MODE
+Starting project at C:\Users\luthf\OneDrive\Desktop\KULIAH\semester 6\KKN\sistem-absensi\frontend
+Starting Metro Bundler
+Waiting on http://localhost:8081
+Logs for your project will appear below.

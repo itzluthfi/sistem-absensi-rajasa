@@ -1,0 +1,226 @@
+<?php
+
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\StudentsController;
+use App\Http\Controllers\Api\TeachersController;
+use App\Http\Controllers\Api\ClassesController;
+use App\Http\Controllers\Api\AttendanceController;
+use App\Http\Controllers\Api\RoleController;
+use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\LeaveRequestController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\QRController;
+use Illuminate\Support\Facades\Route;
+
+/**
+ * API Routes - Sistem Absensi Digital SMKS Rajasa
+ *
+ * All routes defined here are prefixed with '/api'
+ */
+
+// ============================================
+// PUBLIC ROUTES (No Authentication Required)
+// ============================================
+Route::post('/auth/register', [AuthController::class, 'register']);
+Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/forgot-password', [AuthController::class, 'forgotPassword']);
+
+// ============================================
+// PROTECTED ROUTES (Requires Authentication)
+// ============================================
+Route::middleware('auth:sanctum')->group(function () {
+
+    // ----------------------------------------
+    // Auth Routes - All authenticated users
+    // ----------------------------------------
+    Route::prefix('auth')->group(function () {
+        Route::post('/logout', [AuthController::class, 'logout']);
+        Route::get('/me', [AuthController::class, 'me']);
+        Route::post('/refresh-token', [AuthController::class, 'refreshToken']);
+        Route::post('/change-password', [AuthController::class, 'changePassword']);
+    });
+
+    // ============================================
+    // STUDENTS - Role-based Access
+    // ============================================
+    // Admin & Super Admin: Full CRUD
+    // Wali Kelas: Read (hanya kelas sendiri)
+    // Guru: Read (hanya kelas sendiri)
+    // Siswa: Read (hanya profil sendiri)
+    // Kepala Sekolah: Read all
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::post('students', [StudentsController::class, 'store']);
+        Route::put('students/{id}', [StudentsController::class, 'update']);
+        Route::delete('students/{id}', [StudentsController::class, 'destroy']);
+    });
+
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah,siswa')->group(function () {
+        Route::get('students', [StudentsController::class, 'index']);
+        Route::get('students/{id}', [StudentsController::class, 'show']);
+    });
+
+    // ============================================
+    // TEACHERS - Role-based Access
+    // ============================================
+    // Admin & Super Admin: Full CRUD
+    // Guru: Read
+    // Kepala Sekolah: Read all
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::post('teachers', [TeachersController::class, 'store']);
+        Route::put('teachers/{id}', [TeachersController::class, 'update']);
+        Route::delete('teachers/{id}', [TeachersController::class, 'destroy']);
+    });
+
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah')->group(function () {
+        Route::get('teachers', [TeachersController::class, 'index']);
+        Route::get('teachers/{id}', [TeachersController::class, 'show']);
+    });
+
+    // ============================================
+    // CLASSES - Role-based Access
+    // ============================================
+    // Admin & Super Admin: Full CRUD
+    // Wali Kelas: Read (kelas sendiri)
+    // Kepala Sekolah: Read all
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::post('classes', [ClassesController::class, 'store']);
+        Route::put('classes/{id}', [ClassesController::class, 'update']);
+        Route::delete('classes/{id}', [ClassesController::class, 'destroy']);
+    });
+
+    Route::middleware('role:super_admin,admin,wali_kelas,kepala_sekolah')->group(function () {
+        Route::get('classes', [ClassesController::class, 'index']);
+        Route::get('classes/{id}', [ClassesController::class, 'show']);
+    });
+
+    // ============================================
+    // ATTENDANCE - Role-based Access
+    // ============================================
+    // Admin & Super Admin: Full access
+    // Guru: Create (absen siswa), Read
+    // Wali Kelas: Create, Read (kelas sendiri)
+    // Siswa: Create (absen sendiri), Read (profil sendiri)
+    // Kepala Sekolah: Read all
+
+    // Create attendance - Guru, Wali Kelas, Siswa
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa')->group(function () {
+        Route::post('attendance', [AttendanceController::class, 'store']);
+        Route::post('attendance/qr-scan', [AttendanceController::class, 'qrScan']);
+        Route::post('attendance/qr-student-scan', [AttendanceController::class, 'qrStudentScan']);
+        Route::get('attendance', [AttendanceController::class, 'index']);
+        Route::get('attendance/{id}', [AttendanceController::class, 'show']);
+        
+        // Attendance sessions routes
+        Route::get('attendance-sessions', [\App\Http\Controllers\Api\AttendanceSessionController::class, 'index']);
+        Route::post('attendance-sessions', [\App\Http\Controllers\Api\AttendanceSessionController::class, 'store']);
+        Route::get('attendance-sessions/{id}', [\App\Http\Controllers\Api\AttendanceSessionController::class, 'show']);
+        Route::post('attendance-sessions/{id}/close', [\App\Http\Controllers\Api\AttendanceSessionController::class, 'close']);
+    });
+
+    // Delete attendance - Admin only
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::delete('attendance/{id}', [AttendanceController::class, 'destroy']);
+    });
+
+    // ============================================
+    // REPORTS - Role-based Access
+    // ============================================
+    // Admin, Guru, Wali Kelas, Kepala Sekolah: Can export
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah')->group(function () {
+        Route::get('reports/attendance/csv', [ReportController::class, 'attendanceCsv']);
+        Route::get('reports/attendance/pdf', [ReportController::class, 'attendancePdf']);
+        Route::get('reports/attendance/summary', [ReportController::class, 'attendanceSummary']);
+    });
+
+    // ============================================
+    // LEAVE REQUESTS - Role-based Access
+    // ============================================
+    // All authenticated users can view and create
+    Route::get('leave-requests', [LeaveRequestController::class, 'index']);
+    Route::get('leave-requests/{id}', [LeaveRequestController::class, 'show']);
+    Route::post('leave-requests', [LeaveRequestController::class, 'store']);
+
+    // Approve/Reject - Guru, Wali Kelas, Admin, Super Admin
+    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+        Route::post('leave-requests/{id}/approve', [LeaveRequestController::class, 'approve']);
+        Route::post('leave-requests/{id}/reject', [LeaveRequestController::class, 'reject']);
+    });
+
+    // ============================================
+    // NOTIFICATIONS - Role-based Access
+    // ============================================
+    // All authenticated users can view their notifications
+    Route::get('notifications', [NotificationController::class, 'index']);
+    Route::put('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::put('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+
+    // Send notification - Admin & Super Admin only
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::post('notifications/send', [NotificationController::class, 'sendTest']);
+        Route::post('notifications/broadcast', [NotificationController::class, 'broadcast']);
+    });
+
+    // ============================================
+    // QR CODE GENERATION
+    // ============================================
+    // Admin: Generate all QR codes
+    // Guru: Generate QR for their students
+    // Wali Kelas: Generate QR for their class
+    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+        Route::get('qr/student/{id}', [QRController::class, 'studentQr']);
+        Route::get('qr/class/{classId}', [QRController::class, 'classQr']);
+    });
+
+    // Students can view their own QR
+    Route::middleware('role:siswa')->group(function () {
+        Route::get('qr/my-qr', [QRController::class, 'myQr']);
+    });
+
+    // ============================================
+    // ROLES & PERMISSIONS - Admin Only
+    // ============================================
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::get('roles', [RoleController::class, 'index']);
+        Route::get('roles/{id}', [RoleController::class, 'show']);
+        Route::post('roles', [RoleController::class, 'store']);
+        Route::put('roles/{id}', [RoleController::class, 'update']);
+        Route::delete('roles/{id}', [RoleController::class, 'destroy']);
+        Route::post('roles/assign', [RoleController::class, 'assignRole']);
+        Route::post('roles/revoke', [RoleController::class, 'revokeRole']);
+        Route::post('roles/give-permission', [RoleController::class, 'givePermissionToRole']);
+        Route::post('roles/revoke-permission', [RoleController::class, 'revokePermissionFromRole']);
+    });
+
+    // ============================================
+    // AUDIT LOG - Admin Only
+    // ============================================
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::get('audit-logs', [\App\Http\Controllers\Api\AuditLogController::class, 'index']);
+        Route::get('audit-logs/{id}', [\App\Http\Controllers\Api\AuditLogController::class, 'show']);
+    });
+
+    // ============================================
+    // SUBJECTS (Mata Pelajaran)
+    // ============================================
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::apiResource('subjects', \App\Http\Controllers\Api\SubjectController::class);
+    });
+
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah')->group(function () {
+        Route::get('subjects', [\App\Http\Controllers\Api\SubjectController::class, 'index']);
+        Route::get('subjects/{id}', [\App\Http\Controllers\Api\SubjectController::class, 'show']);
+    });
+
+    // ============================================
+    // SCHEDULES (Jadwal Pelajaran)
+    // ============================================
+    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+        Route::apiResource('schedules', \App\Http\Controllers\Api\ScheduleController::class);
+    });
+
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
+        Route::get('schedules/today', [\App\Http\Controllers\Api\ScheduleController::class, 'today']);
+        Route::get('schedules', [\App\Http\Controllers\Api\ScheduleController::class, 'index']);
+        Route::get('schedules/{id}', [\App\Http\Controllers\Api\ScheduleController::class, 'show']);
+    });
+});

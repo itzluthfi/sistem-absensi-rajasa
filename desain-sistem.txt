@@ -1,0 +1,844 @@
+# DESAIN SISTEM ABSENSI DIGITAL SMKS RAJASA
+
+# 1. Overview Sistem
+
+Sistem absensi digital berbasis:
+
+* Laravel 12 sebagai backend REST API
+* React Native Expo sebagai frontend
+* MySQL sebagai database
+
+Sistem dapat berjalan di:
+
+* Android
+* iOS
+* Web
+
+Menggunakan satu codebase frontend.
+
+Tujuan sistem:
+
+* Digitalisasi absensi sekolah
+* Monitoring kehadiran realtime
+* Rekap otomatis
+* Mengurangi manipulasi absensi
+* Mempermudah pihak sekolah
+
+---
+
+# 2. Tech Stack
+
+# Backend
+
+* Laravel 12
+* Laravel Sanctum
+* Laravel Reverb
+* MySQL
+* Redis
+
+---
+
+# Frontend
+
+* Expo React Native
+* Expo Router
+* NativeWind
+* Zustand
+* Axios
+* React Hook Form
+* Zod
+
+---
+
+# Storage
+
+* Laravel Storage
+
+
+---
+
+# Deployment
+
+* VPS Ubuntu
+* Nginx
+* PHP 8.3
+* Vercel (Web Frontend)
+
+---
+
+# 3. Arsitektur Sistem
+
+Frontend (Expo App)
+↓
+Laravel REST API
+↓
+PostgreSQL Database
+
+Realtime:
+Frontend ↔ Laravel Reverb ↔ WebSocket
+
+---
+
+# 4. Multi Platform
+
+Expo React Native mendukung:
+
+* Android APK
+* iOS App
+* Web App
+
+Keuntungan:
+
+* Satu codebase
+* Development cepat
+* Maintenance mudah
+
+---
+
+# 5. Role Sistem
+
+# A. Super Admin
+
+Hak akses:
+
+* Semua fitur
+* Setting sistem
+* Monitoring seluruh data
+
+---
+
+# B. Admin TU
+
+Hak akses:
+
+* CRUD siswa
+* CRUD guru
+* CRUD kelas
+* Rekap laporan
+
+---
+
+# C. Guru
+
+Hak akses:
+
+* Membuka absensi
+* Scan QR
+* Lihat siswa hadir
+* Approval izin
+
+---
+
+# D. Wali Kelas
+
+Hak akses:
+
+* Monitoring kelas
+* Rekap keterlambatan
+
+---
+
+# E. Siswa
+
+Hak akses:
+
+* Scan absensi
+* Lihat riwayat
+* Ajukan izin
+
+---
+
+# F. Kepala Sekolah
+
+Hak akses:
+
+* Dashboard statistik
+* Monitoring sekolah realtime
+
+---
+
+# 6. Fitur Utama Sistem
+
+# Authentication
+
+* Login
+* Logout
+* Multi role
+* Session login
+* Reset password
+
+---
+
+# Dashboard
+
+* Statistik hadir
+* Statistik telat
+* Grafik kehadiran
+* Monitoring realtime
+
+---
+
+# Master Data
+
+* Data siswa
+* Data guru
+* Data kelas
+* Data jurusan
+* Jadwal pelajaran
+
+---
+
+# Sistem Absensi
+
+Metode:
+
+* QR Code
+* RFID (opsional)
+* GPS Validation
+* Face Recognition (future)
+
+---
+
+# Rekap
+
+* Harian
+* Mingguan
+* Bulanan
+* Semester
+
+Export:
+
+* PDF
+* Excel
+
+---
+
+# Izin Online
+
+* Upload surat
+* Approval guru
+* Approval wali kelas
+
+---
+
+# Notifikasi
+
+* Push notification
+* WhatsApp Gateway (opsional)
+* Telegram bot (opsional)
+
+---
+
+# Realtime Monitoring
+
+* Dashboard realtime
+* Absensi realtime
+* Statistik realtime
+
+---
+
+# 7. Teknologi Frontend
+
+# Core
+
+* React Native
+* Expo SDK
+* Expo Router
+
+---
+
+# Styling
+
+* NativeWind
+
+---
+
+# State Management
+
+* Zustand
+
+---
+
+# API
+
+* Axios
+
+---
+
+# Validation
+
+* React Hook Form
+* Zod
+
+---
+
+# QR Scanner
+
+* expo-barcode-scanner
+
+---
+
+# Notification
+
+* expo-notifications
+
+---
+
+# GPS
+
+* expo-location
+
+---
+
+# Storage
+
+* AsyncStorage
+
+---
+
+# 8. Teknologi Backend
+
+# Authentication
+
+* Laravel Sanctum
+
+---
+
+# Role Permission
+
+* Spatie Permission
+
+---
+
+# PDF Export
+
+* barryvdh/laravel-dompdf
+
+---
+
+# Excel Export
+
+* maatwebsite/excel
+
+---
+
+# QR Code
+
+* simplesoftwareio/simple-qrcode
+
+---
+
+# Activity Log
+
+* spatie/laravel-activitylog
+
+---
+
+# Realtime
+
+* Laravel Reverb
+
+---
+
+# 9. Struktur Project Frontend
+
+app/
+├── (auth)
+│   ├── login.tsx
+│
+├── (dashboard)
+│   ├── admin
+│   ├── guru
+│   ├── siswa
+│
+├── attendance
+├── students
+├── teachers
+├── classes
+├── reports
+
+components/
+├── ui
+├── cards
+├── charts
+├── forms
+
+services/
+├── api.ts
+├── auth.ts
+
+store/
+├── authStore.ts
+├── attendanceStore.ts
+
+---
+
+# 10. Struktur Project Laravel
+
+app/
+├── Http
+│   ├── Controllers
+│   ├── Middleware
+│
+├── Models
+├── Services
+├── Repositories
+
+routes/
+├── api.php
+
+database/
+├── migrations
+├── seeders
+
+---
+
+# 11. Desain Database
+
+# roles
+
+| Field | Type    |
+| ----- | ------- |
+| id    | bigint  |
+| name  | varchar |
+
+---
+
+# users
+
+| Field     | Type      |
+| --------- | --------- |
+| id        | bigint    |
+| role_id   | bigint FK |
+| name      | varchar   |
+| email     | varchar   |
+| password  | varchar   |
+| avatar    | text      |
+| is_active | boolean   |
+
+---
+
+# majors
+
+| Field      | Type    |
+| ---------- | ------- |
+| id         | bigint  |
+| major_name | varchar |
+| major_code | varchar |
+
+---
+
+# classes
+
+| Field               | Type      |
+| ------------------- | --------- |
+| id                  | bigint    |
+| major_id            | bigint FK |
+| homeroom_teacher_id | bigint FK |
+| class_name          | varchar   |
+| academic_year       | varchar   |
+
+---
+
+# students
+
+| Field        | Type      |
+| ------------ | --------- |
+| id           | bigint    |
+| user_id      | bigint FK |
+| class_id     | bigint FK |
+| nisn         | varchar   |
+| nis          | varchar   |
+| full_name    | varchar   |
+| gender       | enum      |
+| birth_place  | varchar   |
+| birth_date   | date      |
+| address      | text      |
+| parent_name  | varchar   |
+| parent_phone | varchar   |
+| photo        | text      |
+| qr_code      | text      |
+| status       | enum      |
+
+---
+
+# teachers
+
+| Field     | Type      |
+| --------- | --------- |
+| id        | bigint    |
+| user_id   | bigint FK |
+| nip       | varchar   |
+| full_name | varchar   |
+| gender    | enum      |
+| phone     | varchar   |
+| address   | text      |
+| photo     | text      |
+
+---
+
+# subjects
+
+| Field        | Type    |
+| ------------ | ------- |
+| id           | bigint  |
+| subject_name | varchar |
+| subject_code | varchar |
+
+---
+
+# schedules
+
+| Field      | Type      |
+| ---------- | --------- |
+| id         | bigint    |
+| class_id   | bigint FK |
+| teacher_id | bigint FK |
+| subject_id | bigint FK |
+| day_name   | varchar   |
+| start_time | time      |
+| end_time   | time      |
+
+---
+
+# attendance_sessions
+
+| Field           | Type      |
+| --------------- | --------- |
+| id              | bigint    |
+| class_id        | bigint FK |
+| teacher_id      | bigint FK |
+| subject_id      | bigint FK |
+| qr_token        | text      |
+| attendance_date | date      |
+| open_time       | timestamp |
+| close_time      | timestamp |
+| is_active       | boolean   |
+
+---
+
+# attendances
+
+| Field                 | Type      |
+| --------------------- | --------- |
+| id                    | bigint    |
+| attendance_session_id | bigint FK |
+| student_id            | bigint FK |
+| attendance_type       | enum      |
+| status                | enum      |
+| check_in_time         | timestamp |
+| latitude              | decimal   |
+| longitude             | decimal   |
+| late_minutes          | integer   |
+| device_info           | text      |
+| notes                 | text      |
+
+---
+
+# permissions
+
+| Field           | Type      |
+| --------------- | --------- |
+| id              | bigint    |
+| student_id      | bigint FK |
+| permission_type | enum      |
+| start_date      | date      |
+| end_date        | date      |
+| reason          | text      |
+| attachment      | text      |
+| approval_status | enum      |
+| approved_by     | bigint FK |
+| approved_at     | timestamp |
+
+---
+
+# notifications
+
+| Field   | Type      |
+| ------- | --------- |
+| id      | bigint    |
+| user_id | bigint FK |
+| title   | varchar   |
+| message | text      |
+| is_read | boolean   |
+
+---
+
+# activity_logs
+
+| Field       | Type      |
+| ----------- | --------- |
+| id          | bigint    |
+| user_id     | bigint FK |
+| action      | varchar   |
+| description | text      |
+| ip_address  | varchar   |
+| user_agent  | text      |
+
+---
+
+# 12. Relasi Database
+
+users
+
+* belongsTo roles
+* hasOne students
+* hasOne teachers
+
+students
+
+* belongsTo classes
+* belongsTo users
+* hasMany attendances
+
+teachers
+
+* belongsTo users
+* hasMany schedules
+
+classes
+
+* belongsTo majors
+* hasMany students
+
+attendances
+
+* belongsTo students
+* belongsTo attendance_sessions
+
+---
+
+# 13. Sistem QR Code
+
+# Flow
+
+1. Guru membuka session absensi
+2. Laravel generate QR token
+3. Siswa scan QR via Expo app
+4. API validasi:
+
+   * token
+   * waktu
+   * lokasi
+   * status absensi
+5. Simpan data attendance
+
+---
+
+# QR Berisi
+
+* session_id
+* timestamp
+* secure token
+
+---
+
+# Validasi
+
+* Belum absen
+* Dalam radius sekolah
+* Session aktif
+* Tidak melewati jam
+
+---
+
+# 14. Sistem GPS
+
+Menggunakan:
+
+* expo-location
+
+Digunakan untuk:
+
+* Validasi area sekolah
+* Mencegah absen dari luar sekolah
+
+---
+
+# 15. Sistem RFID (Opsional)
+
+Hardware:
+
+* ESP32
+* RFID RC522
+
+Flow:
+
+1. Siswa tap kartu
+2. ESP32 kirim data ke Laravel API
+3. Data attendance tersimpan
+
+---
+
+# 16. Realtime System
+
+Menggunakan:
+
+* Laravel Reverb
+* WebSocket
+
+Fitur:
+
+* Dashboard realtime
+* Update absensi realtime
+* Statistik realtime
+
+---
+
+# 17. Security
+
+# Backend
+
+* Sanctum token
+* Middleware role
+* Request validation
+* Rate limiting
+* Password hashing
+
+---
+
+# Frontend
+
+* Secure token storage
+* Session validation
+
+---
+
+# Database
+
+* Backup otomatis
+* Redis cache
+
+---
+
+# 18. UI/UX Design
+
+# Tema
+
+* Modern
+* Minimalis
+* Responsive
+
+---
+
+# Warna
+
+* Biru sekolah
+* Putih
+* Abu soft
+
+---
+
+# Style
+
+* Dashboard card
+* Sidebar responsive
+* Mobile friendly
+
+---
+
+# 19. Deployment
+
+# Backend
+
+Server:
+
+* Ubuntu 24.04
+* Nginx
+* PHP 8.3
+* PostgreSQL
+* Redis
+
+---
+
+# Frontend
+
+Mobile:
+
+* Expo EAS Build
+
+Web:
+
+* Vercel / Netlify
+
+---
+
+# 20. Tahapan Development
+
+# Phase 1
+
+* Authentication
+* CRUD master data
+* Multi role
+
+---
+
+# Phase 2
+
+* QR attendance
+* Dashboard
+* Rekap laporan
+
+---
+
+# Phase 3
+
+* Realtime
+* Push notification
+* GPS validation
+
+---
+
+# Phase 4
+
+* RFID integration
+* Face recognition
+* AI analytics
+
+---
+
+# 21. Kebutuhan dari Sekolah
+
+Sekolah perlu menyediakan:
+
+* Data siswa
+* Data guru
+* Jadwal pelajaran
+* Struktur kelas
+* Kalender akademik
+* Jam operasional sekolah
+
+---
+
+# 22. Rekomendasi MVP
+
+Versi awal yang disarankan:
+
+* Login multi-role
+* CRUD siswa/guru
+* QR attendance
+* Dashboard
+* Rekap PDF/Excel
+
+Sudah cukup untuk implementasi awal sekolah.
+
+---
+
+# 23. Kesimpulan
+
+Stack Laravel + Expo React Native sangat cocok untuk sistem absensi sekolah modern karena:
+
+* Cross platform
+* Modern UI
+* Realtime
+* Mudah scaling
+* Aman
+* Cepat dikembangkan
+
+Sistem ini sudah siap dikembangkan menjadi:
+
+* Sistem absensi utama sekolah
+* Monitoring realtime sekolah
+* Integrasi RFID
+* Integrasi AI
+* Sistem akademik lanjutan
