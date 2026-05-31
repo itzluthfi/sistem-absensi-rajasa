@@ -18,6 +18,7 @@ return new class extends Migration
             $table->time('time');
             $table->enum('status', ['hadir', 'telat', 'izin', 'sakit', 'alpha', 'ditolak']);
             $table->integer('late_minutes')->default(0);
+            $table->time('checkout_time')->nullable();
             $table->json('location')->nullable();
             $table->text('device_info')->nullable();
             $table->text('notes')->nullable();

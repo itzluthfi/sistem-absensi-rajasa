@@ -19,6 +19,7 @@ class Attendance extends Model
         'time', 
         'status', 
         'late_minutes', 
+        'checkout_time',
         'location', 
         'device_info', 
         'notes'
@@ -28,6 +29,7 @@ class Attendance extends Model
         'location' => 'array',
         'date' => 'date',
         'time' => 'datetime:H:i:s',
+        'checkout_time' => 'datetime:H:i:s',
         'late_minutes' => 'integer',
     ];
 

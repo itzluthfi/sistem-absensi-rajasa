@@ -20,6 +20,7 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
   attendance_type?: AttendanceType;
   check_in_time?: string;
+  checkout_time?: string;
   latitude?: number;
   longitude?: number;
   late_minutes?: number;

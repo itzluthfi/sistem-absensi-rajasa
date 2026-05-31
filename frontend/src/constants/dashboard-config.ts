@@ -83,6 +83,7 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
       { label: 'Kelola Izin', icon: 'document-text-outline', route: '/(tabs)/leave-request', description: 'Approve izin siswa' },
       { label: 'Laporan Kelas', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Statistik kelas' },
       { label: 'Lihat Siswa', icon: 'people-outline', route: '/admin/students', description: 'Data siswa kelas' },
+      { label: 'Jadwal Kelas', icon: 'calendar-outline', route: '/admin/schedules', description: 'Jadwal pelajaran kelas bimbingan' },
     ],
   },
   [ROLES.SISWA]: {

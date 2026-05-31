@@ -346,7 +346,7 @@ class AttendanceController extends BaseController
             
             if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
                 $status = 'telat';
-                $lateMinutes = max(0, $now->diffInMinutes($startTime));
+                $lateMinutes = (int) $startTime->diffInMinutes($now);
             }
 
             $attendanceData = [
@@ -455,7 +455,7 @@ class AttendanceController extends BaseController
             
             if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
                 $status = 'telat';
-                $lateMinutes = max(0, $now->diffInMinutes($startTime));
+                $lateMinutes = (int) $startTime->diffInMinutes($now);
             }
 
             $attendanceData = [
@@ -642,7 +642,7 @@ class AttendanceController extends BaseController
             
             if ($now->format('H:i:s') > $schoolStartTime->format('H:i:s')) {
                 $status = 'telat';
-                $lateMinutes = max(0, $now->diffInMinutes($schoolStartTime));
+                $lateMinutes = (int) $schoolStartTime->diffInMinutes($now);
             }
             
             $attendance = Attendance::create([
@@ -677,6 +677,116 @@ class AttendanceController extends BaseController
             );
         } catch (\Exception $e) {
             return $this->sendError('Gagal melakukan absen masuk sekolah: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Daily School Check-out (Absen Harian Pulang Sekolah)
+     */
+    public function dailyCheckOut(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user->hasRole('siswa') || !$user->student) {
+                return $this->sendError('Hanya siswa yang dapat melakukan absen pulang sekolah.', [], 403);
+            }
+            
+            $student = $user->student;
+            $today = now()->toDateString();
+            
+            // Check if checked in today for school entry (schedule_id is null)
+            $attendance = Attendance::where('student_id', $student->id)
+                ->whereNull('schedule_id')
+                ->where('date', $today)
+                ->where('status', '!=', 'ditolak')
+                ->first();
+                
+            if (!$attendance) {
+                return $this->sendError('Anda belum melakukan absen masuk sekolah hari ini.', [], 422);
+            }
+            
+            if ($attendance->checkout_time) {
+                return $this->sendError('Anda sudah melakukan absen pulang hari ini.', [], 422);
+            }
+
+            // GPS Geofencing (Multi-Location Geofencing from gps_locations table)
+            if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
+                $userLat = (double) $request->location['latitude'];
+                $userLng = (double) $request->location['longitude'];
+
+                $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
+
+                if ($activeLocations->isEmpty()) {
+                    $activeLocations = collect([[
+                        'name'          => 'Sekolah',
+                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
+                    ]])->map(fn($a) => (object) $a);
+                }
+
+                $withinAny = false;
+                $minDistance = PHP_INT_MAX;
+                $nearestName = '';
+
+                foreach ($activeLocations as $loc) {
+                    $dist = $this->calculateDistance($userLat, $userLng, $loc->latitude, $loc->longitude);
+                    if ($dist < $minDistance) {
+                        $minDistance = $dist;
+                        $nearestName = $loc->name;
+                    }
+                    if ($dist <= $loc->radius_meters) {
+                        $withinAny = true;
+                        break;
+                    }
+                }
+
+                if (!$withinAny) {
+                    return $this->sendError(
+                        'Anda berada di luar semua zona absensi (' . round($minDistance) . 'm dari titik terdekat: ' . $nearestName . ').',
+                        [], 422
+                    );
+                }
+            }
+
+            // Verify if student is allowed to check out yet
+            $schedules = \App\Models\Schedule::where('class_id', $student->class_id)
+                ->where('day_name', now()->format('l'))
+                ->get();
+                
+            $checkoutThreshold = '14:00:00';
+            if ($schedules->isNotEmpty()) {
+                $checkoutThreshold = $schedules->max('end_time');
+            }
+            
+            $now = now();
+            $currentTimeStr = $now->format('H:i:s');
+            
+            if ($currentTimeStr < $checkoutThreshold) {
+                return $this->sendError('Absen pulang belum dibuka. Anda baru bisa absen pulang setelah jam pelajaran terakhir berakhir (pukul ' . substr($checkoutThreshold, 0, 5) . ').', [], 422);
+            }
+            
+            $attendance->checkout_time = $now->format('H:i:s');
+            $attendance->save();
+            
+            // Audit Log
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => AuditLog::ACTION_UPDATE,
+                'description' => "Student #{$student->id} completed Daily School Check-Out",
+                'model_type' => Attendance::class,
+                'model_id' => $attendance->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+            
+            return $this->sendResponse(
+                $attendance->load(['student', 'class']),
+                'Absen pulang sekolah berhasil dicatat.'
+            );
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal melakukan absen pulang sekolah: ' . $e->getMessage());
         }
     }
 }

@@ -21,7 +21,7 @@ import {
   useAttendanceStore,
   type ScheduleRecord,
 } from "../../store/attendanceStore";
-import { attendanceApi } from "../../services/api";
+import { attendanceApi, schedulesApi, leaveRequestsApi } from "../../services/api";
 import { formatRoleLabel } from "../../src/hooks/use-role-access";
 import { getDashboardConfig } from "../../src/constants/dashboard-config";
 import { useWindowDimensions } from "react-native";
@@ -72,6 +72,44 @@ export default function HomeScreen() {
     attendances,
     dailyCheckIn,
   } = useAttendanceStore();
+
+  const isSiswa = user?.roles?.includes("siswa");
+  const isGuru =
+    user?.roles?.includes("guru") || user?.roles?.includes("wali_kelas");
+  const isAdminOrSuper =
+    user?.roles?.includes("super_admin") || user?.roles?.includes("admin");
+  const isKepalaSekolah = user?.roles?.includes("kepala_sekolah");
+
+  const [allSchedules, setAllSchedules] = useState<ScheduleRecord[]>([]);
+  const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [dailyCheckOutLoading, setDailyCheckOutLoading] = useState(false);
+
+  const DAY_MAP_ENG_TO_IND: Record<string, string> = {
+    Monday: "Senin",
+    Tuesday: "Selasa",
+    Wednesday: "Rabu",
+    Thursday: "Kamis",
+    Friday: "Jumat",
+    Saturday: "Sabtu",
+    Sunday: "Minggu"
+  };
+
+  const DAY_MAP_IND_TO_ENG: Record<string, string> = {
+    Senin: "Monday",
+    Selasa: "Tuesday",
+    Rabu: "Wednesday",
+    Kamis: "Thursday",
+    Jumat: "Friday"
+  };
+
+  const DAYS_OF_WEEK = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
+
+  const getTodayDayNameInd = () => {
+    const dayNameEng = new Date().toLocaleDateString("en-US", { weekday: "long" });
+    return DAY_MAP_ENG_TO_IND[dayNameEng] || "Senin";
+  };
+
+  const [selectedDayTab, setSelectedDayTab] = useState<string>(getTodayDayNameInd());
 
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
@@ -183,16 +221,33 @@ export default function HomeScreen() {
     });
   }, [attendances, todayDateStr]);
 
-  const loadData = () => {
-    const roles = user?.roles || [];
-    const isSiswa = roles.includes("siswa");
-    const isGuru = roles.includes("guru") || roles.includes("wali_kelas");
-
+  const loadData = async () => {
     if (isSiswa || isGuru) {
       fetchTodaySchedules();
+      
+      try {
+        let params: any = {};
+        if (isSiswa && user?.student_info?.class_id) {
+          params.class_id = user.student_info.class_id;
+        }
+        const res = await schedulesApi.getAll(params);
+        const list = res.data ?? res ?? [];
+        setAllSchedules(Array.isArray(list) ? list : []);
+      } catch (err) {
+        console.error("Failed to load all schedules:", err);
+      }
     }
+
     if (isSiswa) {
       fetchAttendances();
+
+      try {
+        const res = await leaveRequestsApi.getAll();
+        const list = res.data?.data ?? res.data ?? res ?? [];
+        setLeaveRequests(Array.isArray(list) ? list : []);
+      } catch (err) {
+        console.error("Failed to load leave requests:", err);
+      }
     }
   };
 
@@ -242,6 +297,80 @@ export default function HomeScreen() {
       setDailyCheckInLoading(false);
     }
   };
+
+  const handleDailyCheckOut = async () => {
+    setDailyCheckOutLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Izin Lokasi Diperlukan",
+          "Kami memerlukan akses lokasi Anda untuk memastikan Anda berada di area sekolah.",
+        );
+        setDailyCheckOutLoading(false);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+
+      const result = await attendanceApi.dailyCheckOut({ location: coords });
+      toast.success(result.message || "Absen pulang sekolah berhasil dicatat.");
+      loadData();
+    } catch (e: any) {
+      toast.error(
+        e.response?.data?.message || "Gagal mencatat absen pulang."
+      );
+    } finally {
+      setDailyCheckOutLoading(false);
+    }
+  };
+
+  const activeApprovedLeave = useMemo(() => {
+    if (!isSiswa) return null;
+    const todayStr = new Date().toISOString().split("T")[0];
+    return leaveRequests.find((lr: any) => {
+      return lr.approval_status === "approved" &&
+             todayStr >= lr.start_date &&
+             todayStr <= lr.end_date;
+    });
+  }, [leaveRequests, isSiswa]);
+
+  const { isCheckoutEligible, checkoutThresholdTime } = useMemo(() => {
+    let threshold = "14:00:00";
+    if (todaySchedules.length > 0) {
+      const endTimes = todaySchedules.map((s) => s.end_time).filter(Boolean);
+      if (endTimes.length > 0) {
+        threshold = endTimes.reduce((max, current) => current > max ? current : max, "00:00:00");
+      }
+    }
+    const now = new Date();
+    const currentTimeStr = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    return {
+      isCheckoutEligible: currentTimeStr >= threshold,
+      checkoutThresholdTime: threshold
+    };
+  }, [todaySchedules]);
+
+  const filteredSchedulesForDay = useMemo(() => {
+    const dayInEng = DAY_MAP_IND_TO_ENG[selectedDayTab] || "Monday";
+    const daySchedules = allSchedules.filter((s) => s.day_name === dayInEng);
+    
+    if (isGuru) {
+      const teacherId = user?.teacher_info?.id;
+      const classIds = user?.teacher_info?.class_ids || [];
+      return daySchedules.filter((s) => {
+        return s.teacher_id === teacherId || classIds.includes(s.class_id);
+      });
+    }
+    
+    return daySchedules;
+  }, [allSchedules, selectedDayTab, isGuru, user]);
 
   useEffect(() => {
     loadData();
@@ -315,12 +444,7 @@ export default function HomeScreen() {
     );
   }
 
-  const isSiswa = user?.roles?.includes("siswa");
-  const isGuru =
-    user?.roles?.includes("guru") || user?.roles?.includes("wali_kelas");
-  const isAdminOrSuper =
-    user?.roles?.includes("super_admin") || user?.roles?.includes("admin");
-  const isKepalaSekolah = user?.roles?.includes("kepala_sekolah");
+  // Roles check already performed at the top
 
   const renderSubjectDetailModal = () => {
     if (!selectedSubjectSchedule) return null;
@@ -949,32 +1073,76 @@ export default function HomeScreen() {
                   Kehadiran Sekolah Hari Ini
                 </Text>
 
-                {dailyCheckInRecord ? (
+                {activeApprovedLeave ? (
+                  <View style={[styles.dailyCheckInCard, styles.dailyCheckInPending, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', padding: 20 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 10 }}>
+                      <Ionicons name="document-text" size={24} color="#3B82F6" />
+                      <Text style={{ fontSize: 15, fontWeight: '800', color: '#1E40AF' }}>
+                        Izin / Sakit Disetujui
+                      </Text>
+                    </View>
+                    <Text style={{ fontSize: 13, color: '#1E40AF', lineHeight: 18, fontWeight: '600' }}>
+                      Status Anda hari ini adalah {activeApprovedLeave.permission_type === 'sakit' ? 'Sakit' : 'Izin'} ({activeApprovedLeave.reason}) yang berlaku dari tanggal {new Date(activeApprovedLeave.start_date).toLocaleDateString('id-ID')} hingga {new Date(activeApprovedLeave.end_date).toLocaleDateString('id-ID')}. Anda dibebaskan dari absensi harian dan mapel hari ini.
+                    </Text>
+                  </View>
+                ) : dailyCheckInRecord ? (
                   <View
                     style={[
                       styles.dailyCheckInCard,
-                      styles.dailyCheckInSuccess,
+                      dailyCheckInRecord.status === "telat" ? styles.dailyCheckInWarning : styles.dailyCheckInSuccess,
+                      { flexDirection: 'column', alignItems: 'stretch' }
                     ]}
                   >
-                    <View style={styles.dailyCheckInIconSuccess}>
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={22}
-                        color="#10B981"
-                      />
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <View style={dailyCheckInRecord.status === "telat" ? styles.dailyCheckInIconWarning : styles.dailyCheckInIconSuccess}>
+                        <Ionicons
+                          name={dailyCheckInRecord.status === "telat" ? "warning" : "checkmark-circle"}
+                          size={22}
+                          color={dailyCheckInRecord.status === "telat" ? "#D97706" : "#10B981"}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={dailyCheckInRecord.status === "telat" ? styles.dailyCheckInTitleWarning : styles.dailyCheckInTitleSuccess}>
+                          {dailyCheckInRecord.status === "telat" ? "Absen Masuk Terlambat" : "Absen Masuk Berhasil"}
+                        </Text>
+                        <Text style={dailyCheckInRecord.status === "telat" ? styles.dailyCheckInTimeTextWarning : styles.dailyCheckInTimeText}>
+                          Jam Masuk: {dailyCheckInRecord.time ? dailyCheckInRecord.time.substring(0, 5) : "-"} WIB • Status: {dailyCheckInRecord.status === "hadir" ? "Hadir" : `Terlambat (${dailyCheckInRecord.late_minutes}m)`}
+                        </Text>
+                        {dailyCheckInRecord.checkout_time && (
+                          <Text style={dailyCheckInRecord.status === "telat" ? styles.dailyCheckInTimeTextWarning : styles.dailyCheckInTimeText}>
+                            Jam Pulang: {dailyCheckInRecord.checkout_time.substring(0, 5)} WIB
+                          </Text>
+                        )}
+                      </View>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.dailyCheckInTitleSuccess}>
-                        Absen Masuk Sekolah Hari Ini Berhasil
-                      </Text>
-                      <Text style={styles.dailyCheckInTimeText}>
-                        Jam Masuk: {dailyCheckInRecord.time?.substring(0, 5)}{" "}
-                        WIB • Status:{" "}
-                        {dailyCheckInRecord.status === "hadir"
-                          ? "Hadir Tepat Waktu"
-                          : `Terlambat (${dailyCheckInRecord.late_minutes}m)`}
-                      </Text>
-                    </View>
+
+                    {!dailyCheckInRecord.checkout_time && (
+                      <View style={{ borderTopWidth: 1, borderTopColor: dailyCheckInRecord.status === "telat" ? "rgba(217, 119, 6, 0.15)" : "rgba(16, 185, 129, 0.15)", marginTop: 12, paddingTop: 12 }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.dailyCheckInButton,
+                            { backgroundColor: isCheckoutEligible ? "#EF4444" : "#9CA3AF" }
+                          ]}
+                          onPress={handleDailyCheckOut}
+                          disabled={dailyCheckOutLoading}
+                        >
+                          {dailyCheckOutLoading ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="log-out-outline"
+                                size={14}
+                                color="#fff"
+                              />
+                              <Text style={styles.dailyCheckInButtonText}>
+                                {isCheckoutEligible ? "Absen Pulang Sekarang" : `Absen Pulang (Menunggu jam ${checkoutThresholdTime.substring(0, 5)})`}
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    )}
                   </View>
                 ) : (
                   <View
@@ -1166,7 +1334,7 @@ export default function HomeScreen() {
                         </View>
                       )}
 
-                      {isSiswa && isActive && !isFinished && (
+                      {isSiswa && isActive && !isFinished && !activeApprovedLeave && (
                         <View style={styles.cardActions}>
                           <TouchableOpacity
                             style={styles.studentAbsenButton}
@@ -1199,6 +1367,125 @@ export default function HomeScreen() {
                 </Text>
               </View>
             )}
+
+            {/* Weekly Calendar Section */}
+            <View style={[styles.calendarContainer, { marginTop: 24 }]}>
+              <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>
+                Jadwal Mingguan (Senin - Jumat)
+              </Text>
+              
+              {/* Day Tabs */}
+              <View style={styles.calendarTabsRow}>
+                {DAYS_OF_WEEK.map((day) => {
+                  const isTabSelected = selectedDayTab === day;
+                  const isDayToday = getTodayDayNameInd() === day;
+                  return (
+                    <TouchableOpacity
+                      key={day}
+                      style={[
+                        styles.calendarTabButton,
+                        isTabSelected && styles.calendarTabButtonActive,
+                        isDayToday && !isTabSelected && styles.calendarTabButtonTodayOutline,
+                      ]}
+                      onPress={() => setSelectedDayTab(day)}
+                    >
+                      <Text
+                        style={[
+                          styles.calendarTabText,
+                          isTabSelected && styles.calendarTabTextActive,
+                          isDayToday && { fontWeight: '800' }
+                        ]}
+                      >
+                        {day}
+                      </Text>
+                      {isDayToday && (
+                        <View style={[styles.todayIndicatorDot, isTabSelected && { backgroundColor: '#3B82F6' }]} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              {/* Day Schedules List */}
+              {filteredSchedulesForDay.length > 0 ? (
+                <View style={{ gap: 12, marginTop: 12 }}>
+                  {filteredSchedulesForDay.map((schedule) => {
+                    const isScheduleToday = getTodayDayNameInd() === selectedDayTab;
+                    const isActive = isScheduleToday && !!schedule.active_session;
+                    
+                    return (
+                      <View
+                        key={schedule.id}
+                        style={[
+                          styles.calendarScheduleCard,
+                          isActive && styles.activeScheduleCard,
+                          isScheduleToday && styles.calendarScheduleCardToday,
+                        ]}
+                      >
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <View style={styles.timeContainer}>
+                            <Ionicons
+                              name="time-outline"
+                              size={13}
+                              color="#6B7280"
+                            />
+                            <Text style={styles.timeText}>
+                              {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                            </Text>
+                          </View>
+                          {isScheduleToday && (
+                            <View style={{ alignSelf: 'flex-start' }}>
+                              {isSiswa ? (
+                                <StudentStatusBadge
+                                  status={schedule.attendance_status}
+                                  time={schedule.attendance_time}
+                                />
+                              ) : (
+                                <TeacherSessionBadge isActive={isActive} />
+                              )}
+                            </View>
+                          )}
+                        </View>
+
+                        <Text style={[styles.subjectName, { fontSize: 15, marginTop: 8 }]}>
+                          {schedule.subject?.subject_name || "Mata Pelajaran"}
+                        </Text>
+
+                        <View style={[styles.classInfo, { borderBottomWidth: 0, marginTop: 4 }]}>
+                          <Ionicons
+                            name="business-outline"
+                            size={13}
+                            color="#6B7280"
+                          />
+                          <Text style={styles.classNameText}>
+                            {schedule.class?.class_name || "Rombel"}
+                          </Text>
+                          <View style={styles.bulletSeparator} />
+                          <Ionicons
+                            name="person-outline"
+                            size={13}
+                            color="#6B7280"
+                          />
+                          <Text style={styles.teacherNameText} numberOfLines={1}>
+                            {isSiswa
+                              ? schedule.teacher?.full_name || "Guru"
+                              : "Mengajar"}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={[styles.emptyState, { paddingVertical: 24, marginTop: 12 }]}>
+                  <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
+                  <Text style={[styles.emptyTitle, { fontSize: 14 }]}>Tidak Ada Jadwal Hari {selectedDayTab}</Text>
+                  <Text style={[styles.emptyText, { fontSize: 11 }]}>
+                    Tidak ada jadwal belajar mengajar untuk hari {selectedDayTab}.
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -1639,6 +1926,90 @@ const styles = StyleSheet.create({
   dailyCheckInPending: {
     backgroundColor: "#EFF6FF",
     borderColor: "#BFDBFE",
+  },
+  dailyCheckInWarning: {
+    backgroundColor: "#FEF3C7",
+    borderColor: "#FCD34D",
+  },
+  dailyCheckInTitleWarning: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#92400E",
+    marginBottom: 2,
+  },
+  dailyCheckInTimeTextWarning: {
+    fontSize: 12,
+    color: "#B45309",
+    fontWeight: "700",
+  },
+  dailyCheckInIconWarning: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FDE68A",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  calendarContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  calendarTabsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+  },
+  calendarTabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: 8,
+    position: 'relative',
+  },
+  calendarTabButtonActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  calendarTabButtonTodayOutline: {
+    borderColor: '#3B82F6',
+    borderWidth: 1,
+  },
+  calendarTabText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  calendarTabTextActive: {
+    color: '#3B82F6',
+    fontWeight: '800',
+  },
+  todayIndicatorDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#9CA3AF',
+    position: 'absolute',
+    bottom: 3,
+  },
+  calendarScheduleCard: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  calendarScheduleCardToday: {
+    borderColor: '#D1D5DB',
   },
   dailyCheckInIconSuccess: {
     width: 40,

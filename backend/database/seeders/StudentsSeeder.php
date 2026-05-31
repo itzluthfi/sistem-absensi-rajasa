@@ -16,13 +16,26 @@ class StudentsSeeder extends Seeder
 
         if ($classes->isEmpty()) return;
 
-        // Names list for realistic mock student data
+        // Expanded list of 70 realistic mock names
         $names = [
             'Ahmad Fauzi', 'Bambang Hermawan', 'Cici Paramida', 'Dedi Wijaya', 
             'Eka Saputra', 'Fahri Hamzah', 'Gita Gutawa', 'Hendra Setiawan', 
             'Indah Permatasari', 'Joko Susilo', 'Kartika Putri', 'Lukman Hakim', 
             'Muhammad Ridwan', 'Novi Andriani', 'Oki Setiana', 'Putra Siregar',
-            'Rian Dwi', 'Santi Wulandari', 'Taufik Hidayat', 'Wahyudi Pratama'
+            'Rian Dwi', 'Santi Wulandari', 'Taufik Hidayat', 'Wahyudi Pratama',
+            'Aditya Pratama', 'Bella Saputri', 'Cahyo Utomo', 'Dewi Lestari',
+            'Eko Prasetyo', 'Fitriani', 'Galang Ramadhan', 'Hesti Wulandari',
+            'Irfan Hakim', 'Julia Perez', 'Kevin Sanjaya', 'Larasati',
+            'Mulyono', 'Nabila Syakieb', 'Octavia', 'Panji Petualang',
+            'Qori', 'Rizky Billar', 'Sule', 'Tukul Arwana',
+            'Udin Sedunia', 'Vicky Prasetyo', 'Wulan Guritno', 'Xena',
+            'Yuni Shara', 'Zaskia Gotik', 'Agus Harimurti', 'Bunga Citra',
+            'Chelsea Olivia', 'Deddy Corbuzier', 'Elly Sugigi', 'Fatin Shidqia',
+            'Gading Marten', 'Hesti Purwadinata', 'Indra Herlambang', 'Jessica Iskandar',
+            'Kaesang Pangarep', 'Luna Maya', 'Mulan Jameela', 'Nikita Mirzani',
+            'Olga Syahputra', 'Pevita Pearce', 'Raffi Ahmad', 'Syahrini',
+            'Tora Sudiro', 'Uus', 'Valerie Thomas', 'Wendi Cagur',
+            'Yuki Kato', 'Zumi Zola'
         ];
 
         // Seed a primary test student account that is easy to remember
@@ -50,7 +63,13 @@ class StudentsSeeder extends Seeder
         foreach ($names as $index => $name) {
             $studentNum = $index + 1;
             $email = "siswa{$studentNum}@example.com";
-            $class = $classes->values()->get($index % $classes->count());
+            
+            // First 9 students go to X TKJ 1 to make it a populated test class (total 10 students with Siswa Test Rajasa)
+            if ($index < 9) {
+                $class = $tkjClass;
+            } else {
+                $class = $classes->values()->get($index % $classes->count());
+            }
 
             $user = User::firstOrCreate([
                 'email' => $email,

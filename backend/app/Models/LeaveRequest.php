@@ -9,7 +9,7 @@ class LeaveRequest extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['student_id', 'reason', 'file_path', 'status'];
+    protected $fillable = ['student_id', 'permission_type', 'start_date', 'end_date', 'reason', 'attachment', 'approval_status', 'approved_by', 'approved_at'];
 
     public function student()
     {

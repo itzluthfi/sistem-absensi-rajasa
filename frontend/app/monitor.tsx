@@ -24,7 +24,8 @@ type MonitorRecord = {
   id: number;
   date: string;
   time: string;
-  status: "hadir" | "telat" | "izin" | "sakit" | "alpha";
+  status: "hadir" | "telat" | "izin" | "sakit" | "alpha" | "ditolak";
+  checkout_time?: string;
   late_minutes?: number;
   class_id?: number | null;
   device_info?: string;
@@ -49,9 +50,18 @@ export default function LiveMonitorScreen() {
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const paddingBottom = 64 + safeBottom + 24;
 
+  const getInitialClassId = () => {
+    const isWali = user?.roles?.includes("wali_kelas");
+    const classIds = user?.teacher_info?.class_ids || [];
+    if (isWali && classIds.length > 0) {
+      return String(classIds[0]);
+    }
+    return "all";
+  };
+
   const [records, setRecords] = useState<MonitorRecord[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
-  const [selectedClassId, setSelectedClassId] = useState<string>("all");
+  const [selectedClassId, setSelectedClassId] = useState<string>(getInitialClassId());
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLive, setIsLive] = useState(true);
@@ -137,6 +147,28 @@ export default function LiveMonitorScreen() {
     }
   };
 
+  const handleRejectAttendance = (id: number) => {
+    Alert.alert(
+      "Tolak Absensi",
+      "Apakah Anda yakin ingin menolak absensi siswa ini? Status absensi akan diubah menjadi 'Ditolak'.",
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Tolak",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await attendanceApi.delete(id);
+              fetchLiveFeed(false);
+            } catch (err: any) {
+              Alert.alert("Gagal", err.response?.data?.message || "Gagal menolak absensi");
+            }
+          }
+        }
+      ]
+    );
+  };
+
   useEffect(() => {
     loadClasses();
     fetchLiveFeed(true);
@@ -204,6 +236,8 @@ export default function LiveMonitorScreen() {
         return { label: "Izin", color: "#3B82F6", bg: "#E0F2FE" };
       case "sakit":
         return { label: "Sakit", color: "#6366F1", bg: "#EEF2FF" };
+      case "ditolak":
+        return { label: "Ditolak", color: "#EF4444", bg: "#FEE2E2" };
       default:
         return { label: "Alpha", color: "#EF4444", bg: "#FEE2E2" };
     }
@@ -438,9 +472,22 @@ export default function LiveMonitorScreen() {
 
                     {/* Time & status badge */}
                     <View style={{ alignItems: "flex-end", gap: 6 }}>
-                      <Text style={styles.timeLabel}>{item.time.substring(0, 8)}</Text>
-                      <View style={[styles.statusBadge, { backgroundColor: conf.bg }]}>
-                        <Text style={[styles.statusText, { color: conf.color }]}>{conf.label}</Text>
+                      <Text style={styles.timeLabel}>Masuk: {item.time.substring(0, 5)}</Text>
+                      {item.checkout_time && (
+                        <Text style={[styles.timeLabel, { color: "#EF4444" }]}>Pulang: {item.checkout_time.substring(0, 5)}</Text>
+                      )}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        {item.status !== 'ditolak' && (user?.roles?.includes('guru') || user?.roles?.includes('wali_kelas') || user?.roles?.includes('super_admin') || user?.roles?.includes('admin')) && (
+                          <TouchableOpacity
+                            style={styles.tolakButton}
+                            onPress={() => handleRejectAttendance(item.id)}
+                          >
+                            <Text style={styles.tolakButtonText}>Tolak</Text>
+                          </TouchableOpacity>
+                        )}
+                        <View style={[styles.statusBadge, { backgroundColor: conf.bg }]}>
+                          <Text style={[styles.statusText, { color: conf.color }]}>{conf.label}</Text>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -853,5 +900,18 @@ const styles = StyleSheet.create({
   showroomClockBadgeText: {
     fontSize: 8,
     fontWeight: "800",
+  },
+  tolakButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  tolakButtonText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#EF4444',
   },
 });

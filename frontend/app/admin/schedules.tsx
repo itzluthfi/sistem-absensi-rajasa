@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { schedulesApi, importExportApi } from "../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../hooks/useToast";
+import { useAuthStore } from "../../store/authStore";
 
 type ScheduleRecord = {
   id: number;
@@ -47,8 +48,13 @@ const emptyForm = {
 
 export default function SchedulesAdminScreen() {
   const toast = useToast();
+  const { user } = useAuthStore();
+  const isWali = user?.roles?.includes("wali_kelas");
+  const classNames = user?.teacher_info?.class_names || [];
+  const initialQuery = isWali && classNames.length > 0 ? classNames[0] : "";
+
   const [records, setRecords] = useState<ScheduleRecord[]>([]);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [isLoading, setIsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);

@@ -39,13 +39,39 @@ export default function HistoryScreen() {
       const data = response.data?.data ?? response.data ?? [];
 
       const studentId = user?.student_info?.id;
-      if (isSiswa && studentId) {
+      const isSuperAdmin = user?.roles?.includes("super_admin");
+      const isAdmin = user?.roles?.includes("admin");
+      const isKepalaSekolah = user?.roles?.includes("kepala_sekolah");
+      const isWaliKelas = user?.roles?.includes("wali_kelas");
+      const isGuru = user?.roles?.includes("guru");
+
+      if (isSuperAdmin || isAdmin || isKepalaSekolah) {
+        setAttendanceHistory(data);
+      } else if (isSiswa && studentId) {
         const myAttendance = data.filter(
-          (a: any) => a.student_id === studentId,
+          (a: any) => a.student_id === studentId
         );
         setAttendanceHistory(myAttendance);
       } else {
-        setAttendanceHistory(data);
+        // Teacher / Wali Kelas / Dual Role
+        const classIds = user?.teacher_info?.class_ids || [];
+        const teacherUserId = user?.id;
+
+        const filtered = data.filter((a: any) => {
+          let match = false;
+          if (isWaliKelas && classIds.length > 0) {
+            if (classIds.includes(a.class_id)) {
+              match = true;
+            }
+          }
+          if (isGuru && teacherUserId) {
+            if (a.recorded_by === teacherUserId) {
+              match = true;
+            }
+          }
+          return match;
+        });
+        setAttendanceHistory(filtered);
       }
     } catch (error) {
       console.error("Failed to load attendance:", error);
@@ -120,7 +146,7 @@ export default function HistoryScreen() {
                       Hari & Tanggal
                     </Text>
                     <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                      Jam Absen
+                      Masuk / Pulang
                     </Text>
                     <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
                       Status
@@ -131,8 +157,8 @@ export default function HistoryScreen() {
                     <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>
                       Hari & Tanggal
                     </Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>
-                      Jam Absen
+                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
+                      Masuk / Pulang
                     </Text>
                     <Text style={[styles.tableHeaderCell, { flex: 2 }]}>
                       Nama Siswa
@@ -184,7 +210,7 @@ export default function HistoryScreen() {
                         {formattedDate}
                       </Text>
                       <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                        {item.time || "-"}
+                        {item.time ? item.time.substring(0, 5) : "-"} / {item.checkout_time ? item.checkout_time.substring(0, 5) : "-"}
                       </Text>
                       <View style={{ flex: 1.5, alignItems: "flex-start" }}>
                         <StatusBadge status={item.status} />
@@ -200,8 +226,8 @@ export default function HistoryScreen() {
                       >
                         {formattedDate}
                       </Text>
-                      <Text style={[styles.tableCell, { flex: 1.2 }]}>
-                        {item.time || "-"}
+                      <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                        {item.time ? item.time.substring(0, 5) : "-"} / {item.checkout_time ? item.checkout_time.substring(0, 5) : "-"}
                       </Text>
                       <Text
                         style={[
@@ -235,16 +261,28 @@ export default function HistoryScreen() {
                         year: "numeric",
                       })}
                     </Text>
-                    {item.time && (
+                    <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
+                      {item.time && (
+                        <View style={styles.timeBadge}>
+                          <Ionicons
+                            name="log-in-outline"
+                            size={12}
+                            color="#10B981"
+                          />
+                          <Text style={styles.timeText}>Masuk: {item.time.substring(0, 5)}</Text>
+                        </View>
+                      )}
                       <View style={styles.timeBadge}>
                         <Ionicons
-                          name="time-outline"
+                          name="log-out-outline"
                           size={12}
-                          color="#6B7280"
+                          color="#EF4444"
                         />
-                        <Text style={styles.timeText}>{item.time}</Text>
+                        <Text style={styles.timeText}>
+                          Pulang: {item.checkout_time ? item.checkout_time.substring(0, 5) : "-"}
+                        </Text>
                       </View>
-                    )}
+                    </View>
                   </View>
                   <StatusBadge status={item.status} />
                 </View>
@@ -279,12 +317,13 @@ function StatusBadge({ status }: { status: string }) {
     izin: "#3B82F6",
     sakit: "#EF4444",
     alpha: "#6B7280",
+    ditolak: "#DC2626",
   };
   const color = colors[status] || "#6B7280";
   return (
     <View style={[styles.statusBadge, { backgroundColor: `${color}15` }]}>
       <Text style={[styles.statusBadgeText, { color }]}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {status === "ditolak" ? "Ditolak" : status.charAt(0).toUpperCase() + status.slice(1)}
       </Text>
     </View>
   );

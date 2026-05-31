@@ -69,7 +69,7 @@ export default function TabsLayout() {
 
   // Permission checks for bottom tabs
   const canSeeMasterData = isSuperAdmin || isAdmin || isWaliKelas; // Admin, Super Admin, Wali Kelas
-  const canSeeAttendance = !isKepalaSekolah; // All except Kepala Sekolah
+  const canSeeAttendance = isSiswa || isSuperAdmin || isAdmin; // Only Siswa, Super Admin, Admin TU can see Scan Absensi tab
   const canSeeReports = !isSiswa; // All role except Siswa
   const canSeeLeaveRequest = !isKepalaSekolah; // All except Kepala Sekolah
 

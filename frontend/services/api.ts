@@ -368,6 +368,11 @@ export const attendanceApi = {
     return response.data;
   },
 
+  dailyCheckOut: async (data: { location?: any }) => {
+    const response = await api.post('/attendance/daily-checkout', data);
+    return response.data;
+  },
+
   delete: async (id: number) => {
     const response = await api.delete(`/attendance/${id}`);
     return response.data;

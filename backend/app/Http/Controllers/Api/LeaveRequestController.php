@@ -23,7 +23,7 @@ class LeaveRequestController extends Controller
                     'leave_requests.*',
                     'students.full_name as student_full_name',
                     'students.nis as student_nis',
-                    'approvers.username as approver_username',
+                    'approvers.name as approver_username',
                     'approvers.email as approver_email'
                 ]);
 
@@ -93,7 +93,7 @@ class LeaveRequestController extends Controller
                     'leave_requests.*',
                     'students.full_name as student_full_name',
                     'students.nis as student_nis',
-                    'approvers.username as approver_username',
+                    'approvers.name as approver_username',
                     'approvers.email as approver_email'
                 ])
                 ->where('leave_requests.id', $id)

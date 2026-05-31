@@ -111,6 +111,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('attendance/qr-scan', [AttendanceController::class, 'qrScan']);
         Route::post('attendance/qr-student-scan', [AttendanceController::class, 'qrStudentScan']);
         Route::post('attendance/daily-checkin', [AttendanceController::class, 'dailyCheckIn']);
+        Route::post('attendance/daily-checkout', [AttendanceController::class, 'dailyCheckOut']);
         Route::get('attendance', [AttendanceController::class, 'index']);
         Route::get('attendance/{id}', [AttendanceController::class, 'show']);
         

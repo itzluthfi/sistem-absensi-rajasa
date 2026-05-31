@@ -36,7 +36,11 @@ class TeachersSeeder extends Seeder
                 'full_name' => $t['name'],
             ]);
 
-            $user->syncRoles([$t['role']]);
+            if ($t['role'] === 'wali_kelas') {
+                $user->syncRoles(['wali_kelas', 'guru']);
+            } else {
+                $user->syncRoles([$t['role']]);
+            }
         }
     }
 }
