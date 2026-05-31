@@ -83,48 +83,104 @@ export default function HistoryScreen() {
             />
           }
           contentContainerStyle={[styles.listContent, { paddingBottom }]}
+          ListHeaderComponent={
+            !isMobile && attendanceHistory.length > 0 ? (
+              <View style={styles.tableHeader}>
+                {isSiswa ? (
+                  <>
+                    <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Hari & Tanggal</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Jam Absen</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Status</Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Hari & Tanggal</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Jam Absen</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Nama Siswa</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.3 }]}>Kelas</Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Status</Text>
+                  </>
+                )}
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
+              <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
               <Text style={styles.emptyTitle}>Belum Ada Data</Text>
               <Text style={styles.emptyText}>
                 {isSiswa ? 'Belum ada absensi tercatat untuk Anda' : 'Belum ada absensi tercatat hari ini'}
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <View style={styles.historyCard}>
-              <View style={styles.cardHeader}>
-                <View style={styles.dateSection}>
-                  <Text style={styles.dateText}>
-                    {new Date(item.date).toLocaleDateString('id-ID', {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                    })}
-                  </Text>
-                  {item.time && (
-                    <View style={styles.timeBadge}>
-                      <Ionicons name="time-outline" size={12} color="#6B7280" />
-                      <Text style={styles.timeText}>{item.time}</Text>
-                    </View>
-                  )}
-                </View>
-                <StatusBadge status={item.status} />
-              </View>
+          renderItem={({ item }) => {
+            if (!isMobile) {
+              const formattedDate = new Date(item.date).toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              });
               
-              {!isSiswa && item.student && (
-                <View style={styles.studentSection}>
-                  <Ionicons name="person-outline" size={14} color="#6B7280" />
-                  <Text style={styles.studentName}>{item.student.full_name || 'Siswa'}</Text>
-                  {item.student.class && (
-                    <Text style={styles.className}> • {item.student.class.class_name}</Text>
+              return (
+                <View style={styles.tableRow}>
+                  {isSiswa ? (
+                    <>
+                      <Text style={[styles.tableCell, { flex: 3, fontWeight: '700', color: '#1E293B' }]}>{formattedDate}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.time || '-'}</Text>
+                      <View style={{ flex: 1.5, alignItems: 'flex-start' }}>
+                        <StatusBadge status={item.status} />
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.tableCell, { flex: 2.5, fontWeight: '700', color: '#1E293B' }]}>{formattedDate}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.2 }]}>{item.time || '-'}</Text>
+                      <Text style={[styles.tableCell, { flex: 2, color: '#1E293B', fontWeight: '700' }]}>{item.student?.full_name || '-'}</Text>
+                      <Text style={[styles.tableCell, { flex: 1.3 }]}>{item.student?.class?.class_name || '-'}</Text>
+                      <View style={{ flex: 1.5, alignItems: 'flex-start' }}>
+                        <StatusBadge status={item.status} />
+                      </View>
+                    </>
                   )}
                 </View>
-              )}
-            </View>
-          )}
+              );
+            }
+
+            return (
+              <View style={styles.historyCard}>
+                <View style={styles.cardHeader}>
+                  <View style={styles.dateSection}>
+                    <Text style={styles.dateText}>
+                      {new Date(item.date).toLocaleDateString('id-ID', {
+                        weekday: 'long',
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      })}
+                    </Text>
+                    {item.time && (
+                      <View style={styles.timeBadge}>
+                        <Ionicons name="time-outline" size={12} color="#6B7280" />
+                        <Text style={styles.timeText}>{item.time}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <StatusBadge status={item.status} />
+                </View>
+                
+                {!isSiswa && item.student && (
+                  <View style={styles.studentSection}>
+                    <Ionicons name="person-outline" size={14} color="#6B7280" />
+                    <Text style={styles.studentName}>{item.student.full_name || 'Siswa'}</Text>
+                    {item.student.class && (
+                      <Text style={styles.className}> • {item.student.class.class_name}</Text>
+                    )}
+                  </View>
+                )}
+              </View>
+            );
+          }}
         />
       )}
     </View>
@@ -185,20 +241,24 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 64,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#374151',
-    marginTop: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#9CA3AF',
-    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
     textAlign: 'center',
-    paddingHorizontal: 32,
+    lineHeight: 18,
+    paddingHorizontal: 16,
   },
   historyCard: {
     backgroundColor: '#fff',
@@ -265,5 +325,36 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E2E8F0',
+  },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  tableCell: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
   },
 });

@@ -9,10 +9,16 @@ use Illuminate\Validation\ValidationException;
 
 class StudentsController extends BaseController
 {
-    public function index()
+    public function index(Request $request)
     {
         try {
-            $students = Student::with('user', 'class')->paginate(15);
+            $query = Student::with('user', 'class');
+            if ($request->has('academic_period_id')) {
+                $query->whereHas('class', function ($q) use ($request) {
+                    $q->where('academic_period_id', $request->query('academic_period_id'));
+                });
+            }
+            $students = $query->paginate(15);
             return $this->sendResponse($students);
         } catch (\Exception $e) {
             return $this->sendError('Gagal mengambil data siswa. Silakan coba lagi.');

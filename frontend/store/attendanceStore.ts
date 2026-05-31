@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { attendanceApi, schedulesApi, attendanceSessionsApi } from '../services/api';
 
-export type AttendanceStatus = 'hadir' | 'telat' | 'izin' | 'sakit' | 'alpha';
+export type AttendanceStatus = 'hadir' | 'telat' | 'izin' | 'sakit' | 'alpha' | 'ditolak';
 export type AttendanceType = 'masuk' | 'pulang';
 
 export interface Location {
@@ -25,6 +25,8 @@ export interface AttendanceRecord {
   late_minutes?: number;
   device_info?: string;
   notes?: string;
+  schedule_id?: number | null;
+  attendance_session_id?: number | null;
 }
 
 export interface AttendanceSession {
@@ -37,6 +39,7 @@ export interface AttendanceSession {
   open_time: string;
   close_time: string | null;
   is_active: boolean;
+  require_qr?: boolean;
 }
 
 export interface ScheduleRecord {
@@ -81,11 +84,12 @@ interface AttendanceActions {
   fetchAttendances: (params?: any) => Promise<void>;
   fetchTodaySchedules: (params?: any) => Promise<void>;
   createAttendance: (data: AttendancePayload) => Promise<{ success: boolean; message: string; data?: AttendanceRecord }>;
-  openAttendanceSession: (scheduleId: number) => Promise<{ success: boolean; message: string; data?: AttendanceSession }>;
+  openAttendanceSession: (scheduleId: number, requireQr?: boolean) => Promise<{ success: boolean; message: string; data?: AttendanceSession }>;
   closeAttendanceSession: (sessionId: number) => Promise<{ success: boolean; message: string }>;
   scanTeacherQR: (data: { session_id: number; student_id: number; qr_token: string; location?: Location; device_info?: string; notes?: string }) => Promise<{ success: boolean; message: string; data?: AttendanceRecord }>;
   scanStudentQR: (data: { session_id: number; student_id: number; notes?: string }) => Promise<{ success: boolean; message: string; data?: AttendanceRecord }>;
   deleteAttendance: (id: number) => Promise<{ success: boolean; message: string }>;
+  dailyCheckIn: (data: { location?: Location; device_info?: string }) => Promise<{ success: boolean; message: string; data?: AttendanceRecord }>;
   calculateTodayStats: () => void;
 }
 
@@ -145,10 +149,10 @@ export const useAttendanceStore = create<AttendanceStore>((set, get) => ({
     }
   },
 
-  openAttendanceSession: async (scheduleId) => {
+  openAttendanceSession: async (scheduleId, requireQr = true) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await attendanceSessionsApi.create({ schedule_id: scheduleId });
+      const response = await attendanceSessionsApi.create({ schedule_id: scheduleId, require_qr: requireQr });
       const session = response.data;
       set({ currentSession: session, isLoading: false });
       return { success: true, message: response.message || 'Sesi absensi berhasil dibuka', data: session };
@@ -211,16 +215,32 @@ export const useAttendanceStore = create<AttendanceStore>((set, get) => ({
   deleteAttendance: async (id) => {
     set({ isLoading: true, error: null });
     try {
-      await attendanceApi.delete(id);
+      const response = await attendanceApi.delete(id);
+      const updatedAttendance = response.data;
       set((state) => ({
-        attendances: state.attendances.filter((a) => a.id !== id),
+        attendances: state.attendances.map((a) => a.id === id ? updatedAttendance : a),
         isLoading: false,
       }));
       get().calculateTodayStats();
-      return { success: true, message: 'Absensi berhasil dihapus' };
+      return { success: true, message: 'Absensi berhasil ditolak' };
     } catch (error: any) {
-      set({ isLoading: false, error: error.response?.data?.message || 'Gagal menghapus absensi' });
-      return { success: false, message: error.response?.data?.message || 'Gagal menghapus absensi' };
+      set({ isLoading: false, error: error.response?.data?.message || 'Gagal menolak absensi' });
+      return { success: false, message: error.response?.data?.message || 'Gagal menolak absensi' };
+    }
+  },
+
+  dailyCheckIn: async (data) => {
+    set({ isLoading: true, error: null });
+    try {
+      const response = await attendanceApi.dailyCheckIn(data);
+      const attendance = response.data;
+      get().addAttendance(attendance);
+      get().calculateTodayStats();
+      set({ isLoading: false });
+      return { success: true, message: response.message || 'Absen masuk sekolah berhasil', data: attendance };
+    } catch (error: any) {
+      set({ isLoading: false, error: error.response?.data?.message || 'Gagal melakukan absen masuk sekolah' });
+      return { success: false, message: error.response?.data?.message || 'Gagal melakukan absen masuk sekolah' };
     }
   },
 

@@ -31,8 +31,71 @@ export default function AttendanceScreen() {
     fetchTodaySchedules, 
     scanTeacherQR,
     scanStudentQR,
-    closeAttendanceSession
+    closeAttendanceSession,
+    deleteAttendance
   } = useAttendanceStore();
+
+  const handleRejectAttendance = (attendanceId: number, studentName: string) => {
+    Alert.alert(
+      'Tolak Presensi',
+      `Batalkan presensi siswa ${studentName || ''}? Status kehadiran siswa akan diubah menjadi Ditolak.`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Tolak',
+          style: 'destructive',
+          onPress: async () => {
+            const res = await deleteAttendance(attendanceId);
+            if (res.success) {
+              if (activeSchedule?.active_session) {
+                fetchSessionDetail(activeSchedule.active_session.id);
+              }
+            } else {
+              Alert.alert('Gagal Menolak', res.message);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleSiswaSelfClick = async () => {
+    setIsLoadingSession(true);
+    try {
+      const studentId = (user?.student_info?.id || user?.id || 0) as number;
+      
+      // Request Location for GPS validation
+      const coords = await getGPSLocation();
+      if (!coords) {
+        setIsLoadingSession(false);
+        return;
+      }
+
+      const result = await scanTeacherQR({
+        session_id: activeSchedule!.active_session!.id,
+        student_id: studentId,
+        qr_token: '', // Ignored by backend when require_qr is false
+        location: coords,
+        device_info: 'Expo Web/Mobile Client',
+        notes: 'Mandiri via Klik Tombol',
+      });
+      
+      if (result.success) {
+        setSuccessText(result.message);
+        setShowSuccessModal(true);
+        loadActiveSession();
+        setTimeout(() => {
+          setShowSuccessModal(false);
+        }, 3000);
+      } else {
+        Alert.alert('Absensi Gagal', result.message);
+      }
+    } catch (e: any) {
+      Alert.alert('Gagal', 'Terjadi kesalahan sistem saat memproses absensi.');
+    } finally {
+      setIsLoadingSession(false);
+    }
+  };
 
   const insets = useSafeAreaInsets();
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
@@ -321,7 +384,23 @@ export default function AttendanceScreen() {
               <Text style={styles.sessionTeacher}>Guru: {activeSchedule.teacher?.full_name}</Text>
             </View>
 
-            {studentOpsi === 'menu' ? (
+            {activeSchedule.active_session?.require_qr === false ? (
+              <View style={styles.selfClickCard}>
+                <Ionicons name="finger-print" size={54} color="#10B981" style={{ marginBottom: 12 }} />
+                <Text style={styles.selfClickTitle}>Presensi Klik Mandiri</Text>
+                <Text style={styles.selfClickDesc}>
+                  Guru mengaktifkan mode presensi langsung tanpa pemindaian. Klik tombol hijau di bawah untuk mengirim data kehadiran Anda sekarang.
+                </Text>
+                
+                <TouchableOpacity 
+                  style={styles.selfClickButton}
+                  onPress={handleSiswaSelfClick}
+                >
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                  <Text style={styles.selfClickButtonText}>Kirim Kehadiran</Text>
+                </TouchableOpacity>
+              </View>
+            ) : studentOpsi === 'menu' ? (
               <View style={styles.opsiContainer}>
                 <Text style={styles.opsiTitle}>Pilih Metode Presensi Anda:</Text>
                 
@@ -408,25 +487,35 @@ export default function AttendanceScreen() {
                   <Text style={styles.sessionSubject}>{activeSchedule.subject?.subject_name}</Text>
                   <Text style={styles.sessionClass}>{activeSchedule.class?.class_name} • Jam: {activeSchedule.start_time.substring(0, 5)} - {activeSchedule.end_time.substring(0, 5)}</Text>
                   
-                  {/* Rotating QR Sesi */}
-                  <View style={styles.sessionQrCard}>
-                    <Text style={styles.teacherQrTitle}>QR CODE SESI GURU</Text>
-                    <Text style={styles.teacherQrDesc}>Pasang layar ini di proyektor atau tunjukkan ke siswa untuk dipindai secara instan.</Text>
-                    
-                    <View style={styles.teacherQrWrapper}>
-                      <Image
-                        source={{
-                          uri: `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(
-                            JSON.stringify({
-                              session_id: activeSchedule.active_session!.id,
-                              qr_token: activeSchedule.active_session!.qr_token,
-                            })
-                          )}`
-                        }}
-                        style={styles.qrImage}
-                      />
+                  {/* Rotating QR Sesi / Mode Status */}
+                  {activeSchedule.active_session?.require_qr === false ? (
+                    <View style={[styles.sessionQrCard, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', paddingVertical: 24, gap: 4 }]}>
+                      <Ionicons name="checkbox-outline" size={48} color="#10B981" style={{ marginBottom: 6, alignSelf: 'center' }} />
+                      <Text style={[styles.teacherQrTitle, { color: '#166534', textAlign: 'center' }]}>MODE KLIK MANDIRI AKTIF</Text>
+                      <Text style={[styles.teacherQrDesc, { color: '#15803D', textAlign: 'center', paddingHorizontal: 12 }]}>
+                        Siswa dapat langsung menekan tombol absensi di HP masing-masing tanpa memindai kode QR. Anda dapat memantau daftar hadir di bawah dan membatalkan/menolak siswa yang tidak ada di kelas.
+                      </Text>
                     </View>
-                  </View>
+                  ) : (
+                    <View style={styles.sessionQrCard}>
+                      <Text style={styles.teacherQrTitle}>QR CODE SESI GURU</Text>
+                      <Text style={styles.teacherQrDesc}>Pasang layar ini di proyektor atau tunjukkan ke siswa untuk dipindai secara instan.</Text>
+                      
+                      <View style={styles.teacherQrWrapper}>
+                        <Image
+                          source={{
+                            uri: `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(
+                              JSON.stringify({
+                                session_id: activeSchedule.active_session!.id,
+                                qr_token: activeSchedule.active_session!.qr_token,
+                              })
+                            )}`
+                          }}
+                          style={styles.qrImage}
+                        />
+                      </View>
+                    </View>
+                  )}
 
                   {/* Quick Control Options */}
                   <View style={styles.teacherControlsRow}>
@@ -462,10 +551,10 @@ export default function AttendanceScreen() {
               </View>
             }
             ListEmptyComponent={
-              <View style={styles.emptyAttendanceCard}>
-                <Ionicons name="people-outline" size={36} color="#9CA3AF" />
-                <Text style={styles.emptyListText}>Belum ada siswa yang hadir di sesi ini.</Text>
-                <Text style={styles.emptyListSub}>Siswa dapat melakukan scan QR Sesi Anda atau menunjukkan QR personal mereka untuk Anda scan.</Text>
+              <View style={styles.emptyState}>
+                <Ionicons name="people-outline" size={48} color="#1E3A8A" />
+                <Text style={styles.emptyTitle}>Belum ada siswa yang hadir</Text>
+                <Text style={styles.emptyText}>Siswa dapat melakukan scan QR Sesi Anda atau menunjukkan QR personal mereka untuk Anda scan.</Text>
               </View>
             }
             renderItem={({ item }: { item: AttendanceRecord }) => (
@@ -479,25 +568,43 @@ export default function AttendanceScreen() {
                 </View>
                 <View style={[
                   styles.attendanceListBadge, 
-                  { backgroundColor: item.status === 'hadir' ? '#E6F4EA' : '#FEF3C7' }
+                  { 
+                    backgroundColor: item.status === 'hadir' 
+                      ? '#E6F4EA' 
+                      : (item.status === 'ditolak' ? '#FEE2E2' : '#FEF3C7') 
+                  }
                 ]}>
                   <Text style={[
                     styles.attendanceListBadgeText,
-                    { color: item.status === 'hadir' ? '#10B981' : '#F59E0B' }
+                    { 
+                      color: item.status === 'hadir' 
+                        ? '#10B981' 
+                        : (item.status === 'ditolak' ? '#EF4444' : '#F59E0B') 
+                    }
                   ]}>
-                    {item.status === 'hadir' ? 'Hadir' : `Telat (${item.late_minutes}m)`}
+                    {item.status === 'hadir' 
+                      ? 'Hadir' 
+                      : (item.status === 'ditolak' ? 'Ditolak' : `Telat (${item.late_minutes}m)`)}
                   </Text>
                 </View>
+                {item.status !== 'ditolak' && (
+                  <TouchableOpacity
+                    style={{ marginLeft: 8, padding: 6, backgroundColor: '#FEE2E2', borderRadius: 8, alignSelf: 'center' }}
+                    onPress={() => handleRejectAttendance(item.id, item.student?.full_name)}
+                  >
+                    <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           />
         )
       ) : (
         // NO ACTIVE SESSIONS FOUND FOR TODAY
-        <View style={[styles.emptyContainer, { paddingBottom }]}>
-          <Ionicons name="qr-code-outline" size={72} color="#D1D5DB" />
+        <View style={[styles.emptyState, { paddingBottom }]}>
+          <Ionicons name="qr-code-outline" size={48} color="#1E3A8A" />
           <Text style={styles.emptyTitle}>Sesi Presensi Belum Aktif</Text>
-          <Text style={styles.emptySubtitle}>
+          <Text style={styles.emptyText}>
             {isSiswa 
               ? 'Tidak ada mata pelajaran kelas Anda yang sedang dibuka absensinya oleh Guru saat ini. Tunggu instruksi Guru Anda di dalam kelas.' 
               : 'Belum ada mata pelajaran Anda yang diaktifkan presensinya. Buka Beranda, lalu klik "Buka Presensi Kelas" pada pelajaran yang akan dimulai.'}
@@ -798,28 +905,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#3B82F6',
   },
-  emptyAttendanceCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    gap: 8,
-  },
-  emptyListText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#4B5563',
-    marginTop: 6,
-  },
-  emptyListSub: {
-    fontSize: 11,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 16,
-    paddingHorizontal: 12,
-  },
+
   attendanceListItem: {
     backgroundColor: '#fff',
     borderRadius: 14,
@@ -868,26 +954,27 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  emptyState: {
     alignItems: 'center',
-    padding: 32,
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
     gap: 12,
   },
   emptyTitle: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#1F2937',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
     textAlign: 'center',
+    marginTop: 8,
   },
-  emptySubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
     textAlign: 'center',
     lineHeight: 18,
     paddingHorizontal: 16,
-    fontWeight: '500',
   },
   backToHomeBtn: {
     backgroundColor: '#2563EB',
@@ -923,4 +1010,52 @@ const styles = StyleSheet.create({
   modalIconBg: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#E6F4EA', alignItems: 'center', justifyContent: 'center', marginBottom: 16, paddingTop: 13 },
   modalTitle: { fontSize: 18, fontWeight: '900', color: '#111827', marginBottom: 6, letterSpacing: 0.5 },
   modalText: { fontSize: 12, color: '#4B5563', textAlign: 'center', lineHeight: 18, fontWeight: '600', paddingHorizontal: 8 },
+  selfClickCard: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
+    marginBottom: 20,
+  },
+  selfClickTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  selfClickDesc: {
+    fontSize: 12,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 16,
+    marginBottom: 20,
+    paddingHorizontal: 12,
+  },
+  selfClickButton: {
+    backgroundColor: '#10B981',
+    borderRadius: 10,
+    height: 46,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 24,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  selfClickButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+  },
 });

@@ -132,7 +132,7 @@ export default function NotificationsScreen() {
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadNotifications} />}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons name="notifications-outline" size={62} color="#9CA3AF" />
+            <Ionicons name="notifications-outline" size={48} color="#1E3A8A" />
             <Text style={styles.emptyTitle}>Tidak Ada Notifikasi</Text>
             <Text style={styles.emptyText}>Notifikasi akan muncul di sini ketika ada pembaruan terbaru.</Text>
           </View>
@@ -221,7 +221,26 @@ const styles = StyleSheet.create({
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#3B82F6' },
   notificationMessage: { fontSize: 13, color: '#6B7280', marginBottom: 6, lineHeight: 18 },
   notificationTime: { fontSize: 11, color: '#9CA3AF' },
-  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, paddingHorizontal: 24 },
-  emptyTitle: { fontSize: 18, fontWeight: '800', color: '#374151', marginTop: 16, marginBottom: 8 },
-  emptyText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', lineHeight: 20 },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
+  },
 });

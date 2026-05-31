@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('class_id')->nullable()->constrained('classes')->onDelete('set null');
             $table->date('date');
             $table->time('time');
-            $table->enum('status', ['hadir', 'telat', 'izin', 'sakit', 'alpha']);
+            $table->enum('status', ['hadir', 'telat', 'izin', 'sakit', 'alpha', 'ditolak']);
             $table->integer('late_minutes')->default(0);
             $table->json('location')->nullable();
             $table->text('device_info')->nullable();

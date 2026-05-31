@@ -1,6 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import * as Location from 'expo-location';
 import {
   ActivityIndicator,
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -28,7 +30,10 @@ export default function HomeScreen() {
     fetchTodaySchedules, 
     openAttendanceSession, 
     closeAttendanceSession,
-    isLoading 
+    isLoading,
+    fetchAttendances,
+    attendances,
+    dailyCheckIn
   } = useAttendanceStore();
 
   const { width } = useWindowDimensions();
@@ -38,8 +43,46 @@ export default function HomeScreen() {
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const paddingBottom = 64 + safeBottom + 24;
 
+  const [dailyCheckInLoading, setDailyCheckInLoading] = useState(false);
+  const todayDateStr = new Date().toISOString().split('T')[0];
+
+  const dailyCheckInRecord = useMemo(() => {
+    return attendances.find((att) => {
+      const attDate = typeof att.date === 'string' ? att.date : new Date(att.date).toISOString().split('T')[0];
+      return attDate === todayDateStr && att.schedule_id === null;
+    });
+  }, [attendances]);
+
   const loadData = () => {
     fetchTodaySchedules();
+    fetchAttendances();
+  };
+
+  const handleDailyCheckIn = async () => {
+    setDailyCheckInLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Izin Lokasi Diperlukan', 'Kami memerlukan akses lokasi Anda untuk memastikan Anda berada di area sekolah.');
+        setDailyCheckInLoading(false);
+        return;
+      }
+      
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      
+      const result = await dailyCheckIn({ location: coords });
+      if (result.success) {
+        Alert.alert('Sukses', result.message || 'Absen masuk sekolah berhasil dicatat.');
+        loadData();
+      } else {
+        Alert.alert('Gagal', result.message);
+      }
+    } catch (e: any) {
+      Alert.alert('Gagal', 'Terjadi kesalahan sistem saat memproses absen masuk.');
+    } finally {
+      setDailyCheckInLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -58,13 +101,36 @@ export default function HomeScreen() {
   };
 
   const handleOpenPresensi = async (scheduleId: number) => {
-    const result = await openAttendanceSession(scheduleId);
-    if (result.success) {
-      // Refresh schedule list to update active state
-      fetchTodaySchedules();
-      // Go to scan/session controls tab
-      router.push('/(tabs)/attendance' as never);
-    }
+    Alert.alert(
+      'Pilih Metode Presensi',
+      'Tentukan metode pencatatan kehadiran untuk siswa:',
+      [
+        {
+          text: 'Hanya Klik Tombol (Rekomendasi / Default)',
+          onPress: async () => {
+            const result = await openAttendanceSession(scheduleId, false);
+            if (result.success) {
+              fetchTodaySchedules();
+              router.push('/(tabs)/attendance' as never);
+            }
+          }
+        },
+        {
+          text: 'Wajib Scan QR Code',
+          onPress: async () => {
+            const result = await openAttendanceSession(scheduleId, true);
+            if (result.success) {
+              fetchTodaySchedules();
+              router.push('/(tabs)/attendance' as never);
+            }
+          }
+        },
+        {
+          text: 'Batal',
+          style: 'cancel'
+        }
+      ]
+    );
   };
 
   const handleClosePresensi = async (sessionId: number) => {
@@ -210,6 +276,54 @@ export default function HomeScreen() {
         {/* 2. Siswa & Guru Schedule Feed */}
         {(isSiswa || isGuru) && (
           <View style={styles.scheduleSection}>
+            
+            {/* Daily School Entry Attendance for Students */}
+            {isSiswa && (
+              <View style={styles.dailyCheckInContainer}>
+                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Kehadiran Harian Sekolah</Text>
+                
+                {dailyCheckInRecord ? (
+                  <View style={[styles.dailyCheckInCard, styles.dailyCheckInSuccess]}>
+                    <View style={styles.dailyCheckInIconSuccess}>
+                      <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.dailyCheckInTitleSuccess}>Absen Masuk Sekolah Berhasil</Text>
+                      <Text style={styles.dailyCheckInTimeText}>
+                        Jam Masuk: {dailyCheckInRecord.time?.substring(0, 5)} WIB • Status: {dailyCheckInRecord.status === 'hadir' ? 'Hadir Tepat Waktu' : `Terlambat (${dailyCheckInRecord.late_minutes}m)`}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={[styles.dailyCheckInCard, styles.dailyCheckInPending]}>
+                    <View style={styles.dailyCheckInIconPending}>
+                      <Ionicons name="location-outline" size={22} color="#3B82F6" />
+                    </View>
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <Text style={styles.dailyCheckInTitlePending}>Belum Absen Masuk Sekolah</Text>
+                      <Text style={styles.dailyCheckInDesc}>
+                        Batas toleransi masuk 07:00 pagi. Wajib klik tombol untuk melapor kehadiran harian Anda.
+                      </Text>
+                    </View>
+                    <TouchableOpacity 
+                      style={styles.dailyCheckInButton}
+                      onPress={handleDailyCheckIn}
+                      disabled={dailyCheckInLoading}
+                    >
+                      {dailyCheckInLoading ? (
+                        <ActivityIndicator color="#fff" size="small" />
+                      ) : (
+                        <>
+                          <Ionicons name="finger-print-outline" size={14} color="#fff" />
+                          <Text style={styles.dailyCheckInButtonText}>Absen Masuk</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
+
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
                 {isSiswa ? 'Jadwal Pelajaran Saya Hari Ini' : 'Jadwal Mengajar Saya Hari Ini'}
@@ -305,10 +419,10 @@ export default function HomeScreen() {
                 })}
               </View>
             ) : (
-              <View style={styles.emptyStateCard}>
-                <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
+              <View style={styles.emptyState}>
+                <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
                 <Text style={styles.emptyTitle}>Tidak Ada Jadwal Hari Ini</Text>
-                <Text style={styles.emptySubtitle}>Nikmati hari libur Anda! Tidak ada jadwal mengajar atau pelajaran terdaftar hari ini.</Text>
+                <Text style={styles.emptyText}>Nikmati hari libur Anda! Tidak ada jadwal mengajar atau pelajaran terdaftar hari ini.</Text>
               </View>
             )}
           </View>
@@ -567,29 +681,27 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
-  emptyStateCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    padding: 32,
+  emptyState: {
     alignItems: 'center',
-    textAlign: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
   },
   emptyTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '800',
-    color: '#374151',
+    color: '#0F172A',
+    textAlign: 'center',
     marginTop: 8,
   },
-  emptySubtitle: {
-    fontSize: 12,
-    color: '#6B7280',
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
     textAlign: 'center',
     lineHeight: 18,
-    fontWeight: '500',
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
   },
   shimmerBtnStyle: {
     height: 42,
@@ -681,5 +793,82 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6B7280',
     lineHeight: 15,
+  },
+  dailyCheckInContainer: {
+    marginBottom: 24,
+  },
+  dailyCheckInCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+  },
+  dailyCheckInSuccess: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+  },
+  dailyCheckInPending: {
+    backgroundColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+  },
+  dailyCheckInIconSuccess: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  dailyCheckInIconPending: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  dailyCheckInTitleSuccess: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065F46',
+    marginBottom: 2,
+  },
+  dailyCheckInTitlePending: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1E40AF',
+    marginBottom: 2,
+  },
+  dailyCheckInTimeText: {
+    fontSize: 12,
+    color: '#047857',
+    fontWeight: '700',
+  },
+  dailyCheckInDesc: {
+    fontSize: 11,
+    color: '#1E40AF',
+    lineHeight: 15,
+    fontWeight: '600',
+  },
+  dailyCheckInButton: {
+    backgroundColor: '#2563EB',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    shadowColor: '#2563EB',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  dailyCheckInButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

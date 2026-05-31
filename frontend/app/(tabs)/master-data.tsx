@@ -15,7 +15,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { classesApi, studentsApi, teachersApi } from '../../services/api';
+import { classesApi, studentsApi, teachersApi, academicPeriodsApi } from '../../services/api';
 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -78,14 +78,35 @@ export default function MasterDataScreen() {
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
 
+  const [periods, setPeriods] = useState<any[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | number>('all');
+
+  useEffect(() => {
+    loadPeriods();
+  }, []);
+
+  const loadPeriods = async () => {
+    try {
+      const response = await academicPeriodsApi.getAll();
+      const data = response.data ?? response ?? [];
+      setPeriods(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Failed to load periods:', error);
+    }
+  };
+
   useEffect(() => {
     fetchRecords();
-  }, [activeType]);
+  }, [activeType, selectedPeriodId]);
 
   const fetchRecords = async () => {
     setIsLoading(true);
     try {
-      const response = await apiMap[activeType].getAll();
+      const params: any = {};
+      if ((activeType === 'classes' || activeType === 'students') && selectedPeriodId !== 'all') {
+        params.academic_period_id = selectedPeriodId;
+      }
+      const response = await apiMap[activeType].getAll(params);
       const payload = response.data?.data ?? response.data ?? [];
       setRecords(Array.isArray(payload) ? payload : []);
     } catch (error: any) {
@@ -317,48 +338,153 @@ export default function MasterDataScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Period Filter Selector */}
+      {(activeType === 'classes' || activeType === 'students') && periods.length > 0 && (
+        <View style={styles.filterBar}>
+          <Ionicons name="filter-outline" size={16} color="#374151" style={{ marginRight: 2 }} />
+          <Text style={styles.filterLabel}>Periode:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPills} style={{ flexGrow: 0 }}>
+            <TouchableOpacity
+              style={[styles.filterPill, selectedPeriodId === 'all' && styles.filterPillActive]}
+              onPress={() => setSelectedPeriodId('all')}
+            >
+              <Text style={[styles.filterPillText, selectedPeriodId === 'all' && styles.filterPillTextActive]}>
+                Semua
+              </Text>
+            </TouchableOpacity>
+            {periods.map((p) => (
+              <TouchableOpacity
+                key={p.id}
+                style={[styles.filterPill, selectedPeriodId === p.id && styles.filterPillActive]}
+                onPress={() => setSelectedPeriodId(p.id)}
+              >
+                <Text style={[styles.filterPillText, selectedPeriodId === p.id && styles.filterPillTextActive]}>
+                  {p.name} {p.is_active ? '(Aktif)' : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       <FlatList
         data={filteredRecords}
         keyExtractor={(item) => String(item.id)}
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchRecords} />}
         contentContainerStyle={[styles.listContent, { paddingBottom }]}
+        ListHeaderComponent={
+          !isMobile && filteredRecords.length > 0 ? (
+            <View style={styles.tableHeader}>
+              {activeType === 'students' && (
+                <>
+                  <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Kelas</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>NIS</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>NISN</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'center' }]}>Aksi</Text>
+                </>
+              )}
+              {activeType === 'teachers' && (
+                <>
+                  <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Nama Lengkap</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>NIP</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'center' }]}>Aksi</Text>
+                </>
+              )}
+              {activeType === 'classes' && (
+                <>
+                  <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Nama Kelas</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Jurusan</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>Wali Kelas</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Tahun Ajaran</Text>
+                  <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'center' }]}>Aksi</Text>
+                </>
+              )}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
             {isLoading ? (
-              <ActivityIndicator color="#3B82F6" />
+              <ActivityIndicator color="#2563EB" />
             ) : (
               <>
-                <Ionicons name="file-tray-outline" size={44} color="#9CA3AF" />
+                <Ionicons name="file-tray-outline" size={48} color="#1E3A8A" />
                 <Text style={styles.emptyTitle}>Data belum tersedia</Text>
                 <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah data baru.</Text>
               </>
             )}
           </View>
         }
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardIcon}>
-              <Ionicons
-                name={tabs.find((tab) => tab.key === activeType)?.icon || 'document-outline'}
-                size={22}
-                color="#3B82F6"
-              />
+        renderItem={({ item }) => {
+          if (!isMobile) {
+            return (
+              <View style={styles.tableRow}>
+                {activeType === 'students' && (
+                  <>
+                    <Text style={[styles.tableCell, { flex: 0.8, fontWeight: '700' }]}>{item.id}</Text>
+                    <Text style={[styles.tableCell, { flex: 2.5, fontWeight: '700', color: '#1E293B' }]}>{item.full_name || '-'}</Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.class?.class_name || '-'}</Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nis || '-'}</Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nisn || '-'}</Text>
+                  </>
+                )}
+                {activeType === 'teachers' && (
+                  <>
+                    <Text style={[styles.tableCell, { flex: 0.8, fontWeight: '700' }]}>{item.id}</Text>
+                    <Text style={[styles.tableCell, { flex: 3, fontWeight: '700', color: '#1E293B' }]}>{item.full_name || '-'}</Text>
+                    <Text style={[styles.tableCell, { flex: 2.2 }]}>{item.nip || '-'}</Text>
+                  </>
+                )}
+                {activeType === 'classes' && (
+                  <>
+                    <Text style={[styles.tableCell, { flex: 0.8, fontWeight: '700' }]}>{item.id}</Text>
+                    <Text style={[styles.tableCell, { flex: 2, fontWeight: '700', color: '#1E293B' }]}>{item.class_name || '-'}</Text>
+                    <Text style={[styles.tableCell, { flex: 2 }]}>{item.major?.major_name || '-'}</Text>
+                    <Text style={[styles.tableCell, { flex: 2.2 }]}>{item.homeroom_teacher?.full_name || '-'}</Text>
+                    <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.academic_year || '-'}</Text>
+                  </>
+                )}
+                <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                  <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
+                    <Ionicons name="create-outline" size={16} color="#3B82F6" />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
+                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          }
+
+          return (
+            <View style={styles.card}>
+              <View style={styles.cardIcon}>
+                <Ionicons
+                  name={tabs.find((tab) => tab.key === activeType)?.icon || 'document-outline'}
+                  size={22}
+                  color="#3B82F6"
+                />
+              </View>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{getTitle(item)}</Text>
+                <Text style={styles.cardSubtitle}>{getSubtitle(item)}</Text>
+                <Text style={styles.cardMeta}>ID: {item.id}</Text>
+              </View>
+              <View style={styles.cardActions}>
+                <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
+                  <Ionicons name="create-outline" size={18} color="#3B82F6" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
+                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.cardBody}>
-              <Text style={styles.cardTitle}>{getTitle(item)}</Text>
-              <Text style={styles.cardSubtitle}>{getSubtitle(item)}</Text>
-              <Text style={styles.cardMeta}>ID: {item.id}</Text>
-            </View>
-            <View style={styles.cardActions}>
-              <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
-                <Ionicons name="create-outline" size={18} color="#3B82F6" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
-                <Ionicons name="trash-outline" size={18} color="#EF4444" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
+          );
+        }}
       />
 
       {renderForm()}
@@ -516,19 +642,24 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 72,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#374151',
-    marginTop: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 8,
   },
   emptyText: {
     fontSize: 13,
-    color: '#9CA3AF',
-    marginTop: 6,
+    fontWeight: '600',
+    color: '#1E293B',
     textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
   },
   modalOverlay: {
     flex: 1,
@@ -612,5 +743,73 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#fff',
     fontWeight: '700',
+  },
+  filterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 12,
+    gap: 6,
+  },
+  filterLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  filterPills: {
+    gap: 8,
+    paddingRight: 16,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  filterPillActive: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#3B82F6',
+  },
+  filterPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  filterPillTextActive: {
+    color: '#fff',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E2E8F0',
+    marginTop: 10,
+  },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  tableCell: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
   },
 });

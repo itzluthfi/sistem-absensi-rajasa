@@ -363,6 +363,11 @@ export const attendanceApi = {
     return response.data;
   },
 
+  dailyCheckIn: async (data: { location?: any; device_info?: string }) => {
+    const response = await api.post('/attendance/daily-checkin', data);
+    return response.data;
+  },
+
   delete: async (id: number) => {
     const response = await api.delete(`/attendance/${id}`);
     return response.data;
@@ -399,7 +404,7 @@ export const attendanceSessionsApi = {
     return response.data;
   },
 
-  create: async (data: { schedule_id: number }) => {
+  create: async (data: { schedule_id: number; require_qr?: boolean }) => {
     const response = await api.post('/attendance-sessions', data);
     return response.data;
   },
@@ -452,6 +457,14 @@ export const reportsApi = {
 export const notificationsApi = {
   send: async (data: { user_id?: number; title: string; message: string }) => {
     const response = await api.post('/notifications/send', data);
+    return response.data;
+  },
+};
+
+// Academic Periods API
+export const academicPeriodsApi = {
+  getAll: async () => {
+    const response = await api.get('/academic-periods');
     return response.data;
   },
 };

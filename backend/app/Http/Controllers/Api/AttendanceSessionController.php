@@ -66,6 +66,7 @@ class AttendanceSessionController extends BaseController
 
             $data = $request->validate([
                 'schedule_id' => 'required|exists:schedules,id',
+                'require_qr' => 'nullable|boolean',
             ]);
 
             $schedule = Schedule::findOrFail($data['schedule_id']);
@@ -98,6 +99,7 @@ class AttendanceSessionController extends BaseController
                 'open_time' => now(),
                 'close_time' => null,
                 'is_active' => true,
+                'require_qr' => $request->input('require_qr', true),
             ]);
 
             // Audit Log

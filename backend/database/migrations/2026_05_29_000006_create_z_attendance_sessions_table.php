@@ -17,6 +17,7 @@ return new class extends Migration
             $table->timestamp('open_time')->nullable();
             $table->timestamp('close_time')->nullable();
             $table->boolean('is_active')->default(true);
+            $table->boolean('require_qr')->default(true);
             $table->timestamps();
         });
     }

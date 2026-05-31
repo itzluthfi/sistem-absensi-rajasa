@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
   backgroundImage: { flex: 1, width: '100%', height: '100%' },
   darkOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8, 10, 18, 0.45)',
+    backgroundColor: 'rgba(8, 10, 18, 0.50)',
   },
   container: { flex: 1 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
@@ -317,6 +317,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 20,
     elevation: 8,
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
     ...(Platform.OS === 'web' && {
       backdropFilter: 'blur(20px)',
       WebkitBackdropFilter: 'blur(20px)',
@@ -350,6 +353,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     fontSize: 16,
     color: '#1F2937',
+    ...(Platform.OS === 'web' && {
+      outlineStyle: 'none',
+    } as any),
   },
   iconButton: {
     width: 48,

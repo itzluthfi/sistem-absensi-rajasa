@@ -80,6 +80,7 @@ class ScheduleController extends BaseController
             $dayOfWeek = $request->input('day_of_week');
             $classId = $request->input('class_id');
             $teacherId = $request->input('teacher_id');
+            $academicPeriodId = $request->input('academic_period_id');
 
             $query = Schedule::with(['subject', 'class', 'teacher']);
 
@@ -93,6 +94,10 @@ class ScheduleController extends BaseController
 
             if ($teacherId) {
                 $query->where('teacher_id', $teacherId);
+            }
+
+            if ($academicPeriodId) {
+                $query->where('academic_period_id', $academicPeriodId);
             }
 
             $query->orderBy('day_of_week')->orderBy('start_time');

@@ -154,27 +154,74 @@ export default function LeaveRequestScreen() {
         refreshing={isLoading}
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={[styles.listContent, { paddingBottom }]}
+        ListHeaderComponent={
+          !isMobile && leaveRequests.length > 0 ? (
+            <View style={styles.tableHeader}>
+              <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Jenis</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Alasan</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Mulai</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Selesai</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Status</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: 'center' }]}>Aksi</Text>
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            {isLoading ? <ActivityIndicator color="#3B82F6" /> : <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />}
-            <Text style={styles.emptyText}>{isLoading ? 'Memuat...' : 'Belum ada pengajuan izin'}</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#2563EB" />
+            ) : (
+              <>
+                <Ionicons name="document-text-outline" size={48} color="#1E3A8A" />
+                <Text style={styles.emptyTitle}>Belum Ada Data</Text>
+                <Text style={styles.emptyText}>Belum ada pengajuan izin terdaftar.</Text>
+              </>
+            )}
           </View>
         }
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.requestCard} onPress={() => setSelectedRequest(item)}>
-            <View style={styles.requestHeader}>
-              <View style={styles.requestType}>
-                <Ionicons name={item.permission_type === 'izin' ? 'document-text-outline' : 'medkit-outline'} size={20} color="#3B82F6" />
-                <Text style={styles.requestTypeText}>{item.permission_type === 'izin' ? 'Izin' : 'Sakit'}</Text>
+        renderItem={({ item }) => {
+          if (!isMobile) {
+            const formattedStart = new Date(item.start_date).toLocaleDateString('id-ID');
+            const formattedEnd = new Date(item.end_date).toLocaleDateString('id-ID');
+            
+            return (
+              <View style={styles.tableRow}>
+                <Text style={[styles.tableCell, { flex: 0.8, fontWeight: '700' }]}>{item.id}</Text>
+                <Text style={[styles.tableCell, { flex: 1.2, fontWeight: '700', color: '#1E293B' }]}>
+                  {item.permission_type === 'izin' ? 'Izin' : 'Sakit'}
+                </Text>
+                <Text style={[styles.tableCell, { flex: 3 }]} numberOfLines={1}>{item.reason}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formattedStart}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{formattedEnd}</Text>
+                <View style={{ flex: 1.5, alignItems: 'flex-start' }}>
+                  <StatusBadge status={item.approval_status} />
+                </View>
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <TouchableOpacity style={styles.smallButton} onPress={() => setSelectedRequest(item)}>
+                    <Ionicons name="eye-outline" size={16} color="#3B82F6" />
+                  </TouchableOpacity>
+                </View>
               </View>
-              <StatusBadge status={item.approval_status} />
-            </View>
-            <Text style={styles.requestReason} numberOfLines={2}>{item.reason}</Text>
-            <Text style={styles.requestDate}>
-              {new Date(item.start_date).toLocaleDateString('id-ID')} - {new Date(item.end_date).toLocaleDateString('id-ID')}
-            </Text>
-          </TouchableOpacity>
-        )}
+            );
+          }
+
+          return (
+            <TouchableOpacity style={styles.requestCard} onPress={() => setSelectedRequest(item)}>
+              <View style={styles.requestHeader}>
+                <View style={styles.requestType}>
+                  <Ionicons name={item.permission_type === 'izin' ? 'document-text-outline' : 'medkit-outline'} size={20} color="#3B82F6" />
+                  <Text style={styles.requestTypeText}>{item.permission_type === 'izin' ? 'Izin' : 'Sakit'}</Text>
+                </View>
+                <StatusBadge status={item.approval_status} />
+              </View>
+              <Text style={styles.requestReason} numberOfLines={2}>{item.reason}</Text>
+              <Text style={styles.requestDate}>
+                {new Date(item.start_date).toLocaleDateString('id-ID')} - {new Date(item.end_date).toLocaleDateString('id-ID')}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
       />
 
       <Modal visible={showFormModal} animationType="slide" transparent>
@@ -307,8 +354,28 @@ const styles = StyleSheet.create({
   addButton: { backgroundColor: '#3B82F6', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   addButtonText: { color: '#fff', fontWeight: '800' },
   listContent: { padding: 16, flexGrow: 1 },
-  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 70, gap: 12 },
-  emptyText: { fontSize: 15, color: '#9CA3AF' },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 16,
+  },
   requestCard: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#E5E7EB' },
   requestHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   requestType: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -348,4 +415,45 @@ const styles = StyleSheet.create({
   rejectButtonText: { fontSize: 14, fontWeight: '800', color: '#EF4444' },
   approveButton: { flex: 1, backgroundColor: '#10B981', borderRadius: 12, padding: 15, alignItems: 'center' },
   approveButtonText: { fontSize: 14, fontWeight: '800', color: '#fff' },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E2E8F0',
+  },
+  tableHeaderCell: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#475569',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  tableCell: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '600',
+  },
+  smallButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    backgroundColor: '#F9FAFB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
 });

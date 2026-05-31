@@ -96,7 +96,7 @@ class AttendanceController extends BaseController
                 'class_id' => 'nullable|exists:classes,id',
                 'date' => 'required|date',
                 'time' => 'required',
-                'status' => 'required|in:hadir,telat,izin,sakit,alpha',
+                'status' => 'required|in:hadir,telat,izin,sakit,alpha,ditolak',
                 'location' => 'nullable|array',
             ]);
 
@@ -166,7 +166,7 @@ class AttendanceController extends BaseController
             $data = $request->validate([
                 'session_id' => 'required|exists:attendance_sessions,id',
                 'student_id' => 'required|exists:students,id',
-                'qr_token' => 'required|string',
+                'qr_token' => 'nullable|string',
                 'timestamp' => 'required|string',
                 'location' => 'nullable|array',
                 'device_info' => 'nullable|string',
@@ -181,9 +181,11 @@ class AttendanceController extends BaseController
                 return $this->sendError('Sesi absensi sudah tidak aktif atau berbeda hari.', [], 422);
             }
 
-            // Validate secure session token
-            if ($session->qr_token !== $data['qr_token']) {
-                return $this->sendError('Token QR Code tidak valid atau sudah kedaluwarsa.', [], 422);
+            // Validate secure session token ONLY if session requires QR
+            if ($session->require_qr) {
+                if (empty($data['qr_token']) || $session->qr_token !== $data['qr_token']) {
+                    return $this->sendError('Token QR Code tidak valid atau wajib melakukan scan QR.', [], 422);
+                }
             }
 
             // Verify student class matches schedule class (SMK class-package boundary!)
@@ -212,9 +214,10 @@ class AttendanceController extends BaseController
                 }
             }
 
-            // Verify student hasn't already checked in for this session
+            // Verify student hasn't already checked in for this session (ignoring rejected ones)
             $existing = Attendance::where('student_id', $student->id)
                 ->where('attendance_session_id', $session->id)
+                ->where('status', '!=', 'ditolak')
                 ->first();
 
             if ($existing) {
@@ -321,9 +324,10 @@ class AttendanceController extends BaseController
                 return $this->sendError('Siswa tidak terdaftar di kelas untuk sesi pelajaran ini.', [], 422);
             }
 
-            // Verify student hasn't already checked in for this session
+            // Verify student hasn't already checked in for this session (ignoring rejected ones)
             $existing = Attendance::where('student_id', $student->id)
                 ->where('attendance_session_id', $session->id)
+                ->where('status', '!=', 'ditolak')
                 ->first();
 
             if ($existing) {
@@ -396,24 +400,28 @@ class AttendanceController extends BaseController
             $user = $request->user();
 
             $att = Attendance::findOrFail($id);
+            $oldStatus = $att->status;
 
-            // Audit log before delete
+            // Update status to 'ditolak' rather than deleting the record
+            $att->status = 'ditolak';
+            $att->save();
+
+            // Audit log for this reject update
             AuditLog::create([
                 'user_id' => $user->id,
-                'action' => AuditLog::ACTION_DELETE,
-                'description' => "Deleted attendance #{$id}",
+                'action' => AuditLog::ACTION_UPDATE,
+                'description' => "Rejected attendance #{$id} for student #{$att->student_id} (changed from {$oldStatus} to ditolak)",
                 'model_type' => Attendance::class,
                 'model_id' => $id,
-                'old_values' => $att->toArray(),
+                'old_values' => ['status' => $oldStatus],
+                'new_values' => ['status' => 'ditolak'],
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
 
-            $att->delete();
-
-            return $this->sendResponse([], 'Absensi dihapus');
+            return $this->sendResponse($att->load(['student', 'class']), 'Absensi berhasil ditolak');
         } catch (\Exception $e) {
-            return $this->sendError('Gagal menghapus absensi.');
+            return $this->sendError('Gagal menolak absensi.');
         }
     }
 
@@ -446,6 +454,94 @@ class AttendanceController extends BaseController
             return $this->sendResponse($stats);
         } catch (\Exception $e) {
             return $this->sendError('Gagal mengambil statistik.');
+        }
+    }
+
+    /**
+     * Daily School Check-in (Absen Harian Masuk Sekolah)
+     */
+    public function dailyCheckIn(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user->hasRole('siswa') || !$user->student) {
+                return $this->sendError('Hanya siswa yang dapat melakukan absen masuk sekolah.', [], 403);
+            }
+            
+            $student = $user->student;
+            $today = now()->toDateString();
+            
+            // Check if already checked in today for school entry (schedule_id is null)
+            $existing = Attendance::where('student_id', $student->id)
+                ->whereNull('schedule_id')
+                ->where('date', $today)
+                ->first();
+                
+            if ($existing) {
+                return $this->sendError('Anda sudah melakukan absen masuk sekolah hari ini.', [], 422);
+            }
+            
+            // GPS Geofencing (optional, validate within 100m of school)
+            if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
+                $schoolLat = -7.245583;
+                $schoolLng = 112.737750;
+                $distance = $this->calculateDistance(
+                    $request->location['latitude'],
+                    $request->location['longitude'],
+                    $schoolLat,
+                    $schoolLng
+                );
+                
+                if ($distance > 100) {
+                    return $this->sendError('Anda berada di luar radius sekolah (' . round($distance) . 'm dari sekolah).', [], 422);
+                }
+            }
+            
+            // Morning limit for tardiness: 07:00 AM
+            $now = now();
+            $schoolStartTime = \Carbon\Carbon::parse('07:00:00');
+            
+            $status = 'hadir';
+            $lateMinutes = 0;
+            
+            if ($now->format('H:i:s') > $schoolStartTime->format('H:i:s')) {
+                $status = 'telat';
+                $lateMinutes = max(0, $now->diffInMinutes($schoolStartTime));
+            }
+            
+            $attendance = Attendance::create([
+                'attendance_session_id' => null,
+                'schedule_id' => null,
+                'student_id' => $student->id,
+                'class_id' => $student->class_id,
+                'date' => $today,
+                'time' => $now->format('H:i:s'),
+                'status' => $status,
+                'late_minutes' => $lateMinutes,
+                'recorded_by' => $user->id,
+                'location' => $request->input('location'),
+                'device_info' => $request->input('device_info', 'Expo Mobile Client'),
+                'notes' => 'Absen Masuk Sekolah Harian Mandiri',
+            ]);
+            
+            // Audit Log
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => AuditLog::ACTION_CREATE,
+                'description' => "Student #{$student->id} completed Daily School Check-In ({$status})",
+                'model_type' => Attendance::class,
+                'model_id' => $attendance->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+            
+            return $this->sendResponse(
+                $attendance->load(['student', 'class']),
+                'Absen masuk sekolah berhasil dicatat sebagai ' . ($status === 'telat' ? 'Terlambat (' . $lateMinutes . ' menit)' : 'Hadir tepat waktu.')
+            );
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal melakukan absen masuk sekolah: ' . $e->getMessage());
         }
     }
 }

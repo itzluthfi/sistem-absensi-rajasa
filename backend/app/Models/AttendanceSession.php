@@ -16,10 +16,12 @@ class AttendanceSession extends Model
         'open_time',
         'close_time',
         'is_active',
+        'require_qr',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'require_qr' => 'boolean',
         'attendance_date' => 'date',
         'open_time' => 'datetime',
         'close_time' => 'datetime',

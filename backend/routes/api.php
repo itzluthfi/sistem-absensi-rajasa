@@ -107,6 +107,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('attendance', [AttendanceController::class, 'store']);
         Route::post('attendance/qr-scan', [AttendanceController::class, 'qrScan']);
         Route::post('attendance/qr-student-scan', [AttendanceController::class, 'qrStudentScan']);
+        Route::post('attendance/daily-checkin', [AttendanceController::class, 'dailyCheckIn']);
         Route::get('attendance', [AttendanceController::class, 'index']);
         Route::get('attendance/{id}', [AttendanceController::class, 'show']);
         
@@ -117,8 +118,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('attendance-sessions/{id}/close', [\App\Http\Controllers\Api\AttendanceSessionController::class, 'close']);
     });
 
-    // Delete attendance - Admin only
-    Route::middleware('role:super_admin,admin')->group(function () {
+    // Delete attendance - Admin, Guru, Wali Kelas
+    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
         Route::delete('attendance/{id}', [AttendanceController::class, 'destroy']);
     });
 
@@ -222,5 +223,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('schedules/today', [\App\Http\Controllers\Api\ScheduleController::class, 'today']);
         Route::get('schedules', [\App\Http\Controllers\Api\ScheduleController::class, 'index']);
         Route::get('schedules/{id}', [\App\Http\Controllers\Api\ScheduleController::class, 'show']);
+    });
+
+    // ============================================
+    // ACADEMIC PERIODS
+    // ============================================
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
+        Route::get('academic-periods', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'index']);
     });
 });
