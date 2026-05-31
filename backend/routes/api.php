@@ -228,7 +228,23 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============================================
     // ACADEMIC PERIODS
     // ============================================
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::post('academic-periods', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'store']);
+        Route::put('academic-periods/{id}', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'update']);
+        Route::delete('academic-periods/{id}', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'destroy']);
+    });
+
     Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
         Route::get('academic-periods', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'index']);
+        Route::get('academic-periods/{id}', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'show']);
+    });
+
+    // ============================================
+    // EXCEL IMPORT & EXPORT
+    // ============================================
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::get('import-export/export/{type}', [\App\Http\Controllers\Api\ImportExportController::class, 'export']);
+        Route::get('import-export/template/{type}', [\App\Http\Controllers\Api\ImportExportController::class, 'template']);
+        Route::post('import-export/import/{type}', [\App\Http\Controllers\Api\ImportExportController::class, 'import']);
     });
 });

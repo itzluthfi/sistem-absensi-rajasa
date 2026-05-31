@@ -390,6 +390,21 @@ export const schedulesApi = {
     const response = await api.get('/schedules/today', { params });
     return response.data;
   },
+
+  create: async (data: any) => {
+    const response = await api.post('/schedules', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/schedules/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    const response = await api.delete(`/schedules/${id}`);
+    return response.data;
+  },
 };
 
 // Attendance Sessions API
@@ -463,8 +478,28 @@ export const notificationsApi = {
 
 // Academic Periods API
 export const academicPeriodsApi = {
-  getAll: async () => {
-    const response = await api.get('/academic-periods');
+  getAll: async (params?: any) => {
+    const response = await api.get('/academic-periods', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await api.get(`/academic-periods/${id}`);
+    return response.data;
+  },
+
+  create: async (data: any) => {
+    const response = await api.post('/academic-periods', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/academic-periods/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    const response = await api.delete(`/academic-periods/${id}`);
     return response.data;
   },
 };
@@ -488,6 +523,58 @@ export const rolesApi = {
 
   givePermission: async (data: { role: string; permission: string }) => {
     const response = await api.post('/roles/give-permission', data);
+    return response.data;
+  },
+};
+
+// Subjects API
+export const subjectsApi = {
+  getAll: async (params?: any) => {
+    const response = await api.get('/subjects', { params });
+    return response.data;
+  },
+
+  getById: async (id: number) => {
+    const response = await api.get(`/subjects/${id}`);
+    return response.data;
+  },
+
+  create: async (data: any) => {
+    const response = await api.post('/subjects', data);
+    return response.data;
+  },
+
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/subjects/${id}`, data);
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    const response = await api.delete(`/subjects/${id}`);
+    return response.data;
+  },
+};
+
+// Import Export API
+export const importExportApi = {
+  export: async (type: string) => {
+    const response = await api.get(`/import-export/export/${type}`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  template: async (type: string) => {
+    const response = await api.get(`/import-export/template/${type}`, { responseType: 'blob' });
+    return response.data;
+  },
+
+  import: async (type: string, file: any) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/import-export/import/${type}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };

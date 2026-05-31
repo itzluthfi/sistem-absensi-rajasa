@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Models\Student;
+use App\Models\Teacher;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -26,16 +28,35 @@ class AuthController extends BaseController
     {
         try {
             $request->validate([
-                'email' => 'required|email',
+                'email' => 'required|string',
                 'password' => 'required|min:6',
             ]);
 
-            $user = User::where('email', $request->email)->first();
+            $identifier = $request->email;
+
+            // 1. Cari user berdasarkan email
+            $user = User::where('email', $identifier)->first();
+
+            // 2. Jika tidak ditemukan, cari berdasarkan NIS siswa
+            if (!$user) {
+                $student = Student::where('nis', $identifier)->first();
+                if ($student) {
+                    $user = $student->user;
+                }
+            }
+
+            // 3. Jika tidak ditemukan, cari berdasarkan NIP guru
+            if (!$user) {
+                $teacher = Teacher::where('nip', $identifier)->first();
+                if ($teacher) {
+                    $user = $teacher->user;
+                }
+            }
 
             if (!$user || !Hash::check($request->password, $user->password)) {
                 // Log failed login attempt
                 $this->logFailedLogin($request);
-                return $this->sendError('Email atau kata sandi tidak cocok', [], 401);
+                return $this->sendError('Identitas atau kata sandi tidak cocok', [], 401);
             }
 
             if (isset($user->is_active) && !$user->is_active) {
@@ -309,18 +330,34 @@ class AuthController extends BaseController
      */
     private function logFailedLogin(Request $request)
     {
+        $identifier = $request->email;
+
         // Try to find the user for logging
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $identifier)->first();
+
+        if (!$user) {
+            $student = Student::where('nis', $identifier)->first();
+            if ($student) {
+                $user = $student->user;
+            }
+        }
+
+        if (!$user) {
+            $teacher = Teacher::where('nip', $identifier)->first();
+            if ($teacher) {
+                $user = $teacher->user;
+            }
+        }
 
         AuditLog::create([
             'user_id' => $user?->id,
             'action' => 'login_failed',
             'description' => $user
                 ? "Failed login attempt for user: {$user->name} (wrong password)"
-                : "Failed login attempt for email: {$request->email} (user not found)",
+                : "Failed login attempt for identifier: {$identifier} (user not found)",
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
-            'old_values' => ['email' => $request->email],
+            'old_values' => ['identifier' => $identifier],
         ]);
     }
 }

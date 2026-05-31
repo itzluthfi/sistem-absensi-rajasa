@@ -1,8 +1,9 @@
-import { useEffect, useState, useMemo } from 'react';
-import * as Location from 'expo-location';
+import { useEffect, useState, useMemo } from "react";
+import * as Location from "expo-location";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -10,76 +11,238 @@ import {
   TouchableOpacity,
   View,
   Image,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useAuthStore } from '../../store/authStore';
-import { useAttendanceStore, type ScheduleRecord } from '../../store/attendanceStore';
-import { formatRoleLabel } from '../../src/hooks/use-role-access';
-import { getDashboardConfig } from '../../src/constants/dashboard-config';
-import { useWindowDimensions } from 'react-native';
-import FuturisticLoader from '../../components/ui/FuturisticLoader';
-import ShimmerButton from '../../components/ui/ShimmerButton';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+  Platform,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useAuthStore } from "../../store/authStore";
+import {
+  useAttendanceStore,
+  type ScheduleRecord,
+} from "../../store/attendanceStore";
+import { attendanceApi } from "../../services/api";
+import { formatRoleLabel } from "../../src/hooks/use-role-access";
+import { getDashboardConfig } from "../../src/constants/dashboard-config";
+import { useWindowDimensions } from "react-native";
+import FuturisticLoader from "../../components/ui/FuturisticLoader";
+import ShimmerButton from "../../components/ui/ShimmerButton";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const SUBJECT_IMAGES = [
+  require("../../assets/images/gambar-kelas/A1.jpg"),
+  require("../../assets/images/gambar-kelas/B1.jpg"),
+  require("../../assets/images/gambar-kelas/C1.jpg"),
+  require("../../assets/images/gambar-kelas/H1.jpg"),
+  require("../../assets/images/gambar-kelas/K1.jpg"),
+  require("../../assets/images/gambar-kelas/O1.jpg"),
+  require("../../assets/images/gambar-kelas/P1.jpg"),
+  require("../../assets/images/gambar-kelas/T1.jpg"),
+  require("../../assets/images/gambar-kelas/U1.jpg"),
+  require("../../assets/images/gambar-kelas/Y1.jpg"),
+];
+
+function getSubjectImage(subjectName: string, allSchedules: ScheduleRecord[]) {
+  const uniqueSubjects = Array.from(
+    new Set(
+      allSchedules
+        .map((s) => s.subject?.subject_name)
+        .filter(Boolean)
+    )
+  );
+
+  const index = uniqueSubjects.indexOf(subjectName);
+  if (index === -1) {
+    return SUBJECT_IMAGES[0];
+  }
+  return SUBJECT_IMAGES[index % SUBJECT_IMAGES.length];
+}
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { 
-    todaySchedules, 
-    fetchTodaySchedules, 
-    openAttendanceSession, 
+  const {
+    todaySchedules,
+    fetchTodaySchedules,
+    openAttendanceSession,
     closeAttendanceSession,
     isLoading,
     fetchAttendances,
     attendances,
-    dailyCheckIn
+    dailyCheckIn,
   } = useAttendanceStore();
 
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
 
+  const userRoles = user?.roles || [];
+  const getRoleBadgeColor = () => {
+    if (userRoles.includes('super_admin')) return '#DC2626';
+    if (userRoles.includes('admin')) return '#F59E0B';
+    if (userRoles.includes('guru') || userRoles.includes('wali_kelas')) return '#3B82F6';
+    if (userRoles.includes('siswa')) return '#10B981';
+    return '#6B7280';
+  };
+
+  const getRoleBadgeLabel = () => {
+    if (userRoles.includes('super_admin')) return 'Super Admin';
+    if (userRoles.includes('admin')) return 'Admin TU';
+    if (userRoles.includes('wali_kelas')) return 'Wali Kelas';
+    if (userRoles.includes('guru')) return 'Guru';
+    if (userRoles.includes('kepala_sekolah')) return 'Kepsek';
+    if (userRoles.includes('siswa')) return 'Siswa';
+    return 'Pengguna';
+  };
+
   const insets = useSafeAreaInsets();
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const paddingBottom = 64 + safeBottom + 24;
-
   const [dailyCheckInLoading, setDailyCheckInLoading] = useState(false);
-  const todayDateStr = new Date().toISOString().split('T')[0];
+
+  // Subject card attendance detail states
+  const [selectedSubjectSchedule, setSelectedSubjectSchedule] = useState<ScheduleRecord | null>(null);
+  const [subjectAttendanceHistory, setSubjectAttendanceHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [modalTab, setModalTab] = useState<"sessions" | "students">("sessions");
+  const [expandedDate, setExpandedDate] = useState<string | null>(null);
+  const [statsHistory, setStatsHistory] = useState({
+    total: 0,
+    hadir: 0,
+    telat: 0,
+    izin: 0,
+    sakit: 0,
+    alpha: 0,
+    percentage: 100
+  });
+
+  const handleSubjectCardClick = async (schedule: ScheduleRecord) => {
+    setSelectedSubjectSchedule(schedule);
+    setLoadingHistory(true);
+    try {
+      const response = await attendanceApi.getAll({ schedule_id: schedule.id });
+      const records = response.data?.data ?? response.data ?? [];
+      const historyList = Array.isArray(records) ? records : [];
+      setSubjectAttendanceHistory(historyList);
+
+      // Calculate stats
+      let hadir = 0, telat = 0, izin = 0, sakit = 0, alpha = 0;
+      historyList.forEach((att: any) => {
+        const s = String(att.status).toLowerCase();
+        if (s === "hadir") hadir++;
+        else if (s === "telat") telat++;
+        else if (s === "izin") izin++;
+        else if (s === "sakit") sakit++;
+        else if (s === "alpha") alpha++;
+      });
+      const total = historyList.length;
+      const presence = hadir + telat;
+      const percentage = total > 0 ? Math.round((presence / total) * 100) : 100;
+
+      setStatsHistory({
+        total,
+        hadir,
+        telat,
+        izin,
+        sakit,
+        alpha,
+        percentage
+      });
+    } catch (error) {
+      console.error("Failed to load subject attendance history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+
+  const todayDateStr = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }, []);
 
   const dailyCheckInRecord = useMemo(() => {
     return attendances.find((att) => {
-      const attDate = typeof att.date === 'string' ? att.date : new Date(att.date).toISOString().split('T')[0];
-      return attDate === todayDateStr && att.schedule_id === null;
+      let attDate: string;
+      if (typeof att.date === "string") {
+        attDate = att.date.split(" ")[0].split("T")[0];
+      } else {
+        const d = new Date(att.date);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const dayVal = String(d.getDate()).padStart(2, "0");
+        attDate = `${y}-${m}-${dayVal}`;
+      }
+      return (
+        attDate === todayDateStr &&
+        (att.schedule_id === null || att.schedule_id === undefined)
+      );
     });
-  }, [attendances]);
+  }, [attendances, todayDateStr]);
 
   const loadData = () => {
-    fetchTodaySchedules();
-    fetchAttendances();
+    const roles = user?.roles || [];
+    const isSiswa = roles.includes("siswa");
+    const isGuru = roles.includes("guru") || roles.includes("wali_kelas");
+
+    if (isSiswa || isGuru) {
+      fetchTodaySchedules();
+    }
+    if (isSiswa) {
+      fetchAttendances();
+    }
   };
 
   const handleDailyCheckIn = async () => {
     setDailyCheckInLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Izin Lokasi Diperlukan', 'Kami memerlukan akses lokasi Anda untuk memastikan Anda berada di area sekolah.');
+      if (status !== "granted") {
+        Alert.alert(
+          "Izin Lokasi Diperlukan",
+          "Kami memerlukan akses lokasi Anda untuk memastikan Anda berada di area sekolah.",
+        );
         setDailyCheckInLoading(false);
         return;
       }
-      
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
-      
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+
       const result = await dailyCheckIn({ location: coords });
       if (result.success) {
-        Alert.alert('Sukses', result.message || 'Absen masuk sekolah berhasil dicatat.');
+        Alert.alert(
+          "Sukses",
+          result.message || "Absen masuk sekolah berhasil dicatat.",
+        );
         loadData();
       } else {
-        Alert.alert('Gagal', result.message);
+        if (
+          result.message &&
+          (result.message.includes("sudah melakukan absen") ||
+            result.message.includes("sudah absen"))
+        ) {
+          Alert.alert(
+            "Info Kehadiran",
+            "Anda sudah tercatat melakukan absen masuk sekolah hari ini.",
+          );
+          // Force refresh
+          fetchAttendances();
+        } else {
+          Alert.alert("Gagal", result.message);
+        }
       }
     } catch (e: any) {
-      Alert.alert('Gagal', 'Terjadi kesalahan sistem saat memproses absen masuk.');
+      Alert.alert(
+        "Gagal",
+        "Terjadi kesalahan sistem saat memproses absen masuk.",
+      );
     } finally {
       setDailyCheckInLoading(false);
     }
@@ -87,49 +250,49 @@ export default function HomeScreen() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user]);
 
   const dashboardConfig = getDashboardConfig(user?.roles);
 
   // Get role-specific greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return 'Selamat Pagi';
-    if (hour < 15) return 'Selamat Siang';
-    if (hour < 18) return 'Selamat Sore';
-    return 'Selamat Malam';
+    if (hour < 12) return "Selamat Pagi";
+    if (hour < 15) return "Selamat Siang";
+    if (hour < 18) return "Selamat Sore";
+    return "Selamat Malam";
   };
 
   const handleOpenPresensi = async (scheduleId: number) => {
     Alert.alert(
-      'Pilih Metode Presensi',
-      'Tentukan metode pencatatan kehadiran untuk siswa:',
+      "Pilih Metode Presensi",
+      "Tentukan metode pencatatan kehadiran untuk siswa:",
       [
         {
-          text: 'Hanya Klik Tombol (Rekomendasi / Default)',
+          text: "Hanya Klik Tombol (Rekomendasi / Default)",
           onPress: async () => {
             const result = await openAttendanceSession(scheduleId, false);
             if (result.success) {
               fetchTodaySchedules();
-              router.push('/(tabs)/attendance' as never);
+              router.push("/(tabs)/attendance" as never);
             }
-          }
+          },
         },
         {
-          text: 'Wajib Scan QR Code',
+          text: "Wajib Scan QR Code",
           onPress: async () => {
             const result = await openAttendanceSession(scheduleId, true);
             if (result.success) {
               fetchTodaySchedules();
-              router.push('/(tabs)/attendance' as never);
+              router.push("/(tabs)/attendance" as never);
             }
-          }
+          },
         },
         {
-          text: 'Batal',
-          style: 'cancel'
-        }
-      ]
+          text: "Batal",
+          style: "cancel",
+        },
+      ],
     );
   };
 
@@ -142,59 +305,520 @@ export default function HomeScreen() {
 
   if (!dashboardConfig) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#0B0F19' }]}>
+      <View
+        style={[
+          styles.container,
+          {
+            justifyContent: "center",
+            alignItems: "center",
+            backgroundColor: "#0B0F19",
+          },
+        ]}
+      >
         <FuturisticLoader text="Menyiapkan Portal" />
       </View>
     );
   }
 
-  const isSiswa = user?.roles?.includes('siswa');
-  const isGuru = user?.roles?.includes('guru') || user?.roles?.includes('wali_kelas');
-  const isAdminOrSuper = user?.roles?.includes('super_admin') || user?.roles?.includes('admin');
-  const isKepalaSekolah = user?.roles?.includes('kepala_sekolah');
+  const isSiswa = user?.roles?.includes("siswa");
+  const isGuru =
+    user?.roles?.includes("guru") || user?.roles?.includes("wali_kelas");
+  const isAdminOrSuper =
+    user?.roles?.includes("super_admin") || user?.roles?.includes("admin");
+  const isKepalaSekolah = user?.roles?.includes("kepala_sekolah");
 
-  return (
-    <View style={[styles.container, { backgroundColor: 'transparent' }]}>
-      <Image
-        source={isMobile ? require('../../assets/images/wallpaper-app-mobile.png') : require('../../assets/images/wallpapaer-app-desktop.png')}
-        style={[StyleSheet.absoluteFillObject, { width: '100%', height: '100%' }]}
-        resizeMode="cover"
-      />
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(243, 244, 246, 0.75)', width: '100%', height: '100%' }]} />
-      <ScrollView
-        style={{ flex: 1, backgroundColor: 'transparent' }}
-        contentContainerStyle={[styles.content, { paddingBottom }]}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={loadData} />}
-      >
-        {/* Header with User Info and Role Badge */}
-        <View style={[styles.header, { backgroundColor: dashboardConfig.primaryColor }]}>
-          <View style={styles.headerText}>
-            <Text style={styles.greeting}>{getGreeting()},</Text>
-            <Text style={styles.userName} numberOfLines={1}>{user?.name || 'Pengguna'}</Text>
-            <View style={styles.roleBadge}>
-              <Text style={styles.roleText}>{formatRoleLabel(user?.roles)}</Text>
+  const renderSubjectDetailModal = () => {
+    if (!selectedSubjectSchedule) return null;
+    const isSiswa = user?.roles?.includes("siswa");
+
+    // Dynamic computations for the loaded dataset
+    // 1. Grouped by Date (Sessions)
+    const sessions = (() => {
+      if (isSiswa) return [];
+      const groups: Record<string, { date: string; attendances: any[]; stats: { total: number; hadir: number; telat: number; izin: number; sakit: number; alpha: number; percentage: number } }> = {};
+      
+      subjectAttendanceHistory.forEach((att) => {
+        const dateStr = att.date;
+        if (!groups[dateStr]) {
+          groups[dateStr] = {
+            date: dateStr,
+            attendances: [],
+            stats: { total: 0, hadir: 0, telat: 0, izin: 0, sakit: 0, alpha: 0, percentage: 0 }
+          };
+        }
+        groups[dateStr].attendances.push(att);
+        const s = String(att.status).toLowerCase();
+        groups[dateStr].stats.total++;
+        if (s === "hadir") groups[dateStr].stats.hadir++;
+        else if (s === "telat") groups[dateStr].stats.telat++;
+        else if (s === "izin") groups[dateStr].stats.izin++;
+        else if (s === "sakit") groups[dateStr].stats.sakit++;
+        else if (s === "alpha") groups[dateStr].stats.alpha++;
+      });
+
+      return Object.values(groups)
+        .map((g) => {
+          const presentCount = g.stats.hadir + g.stats.telat;
+          g.stats.percentage = g.stats.total > 0 ? Math.round((presentCount / g.stats.total) * 100) : 0;
+          return g;
+        })
+        .sort((a, b) => b.date.localeCompare(a.date));
+    })();
+
+    // 2. Grouped by Student
+    const studentSummaries = (() => {
+      if (isSiswa) return [];
+      const groups: Record<number, { studentId: number; name: string; nis: string; attendances: any[]; stats: { total: number; hadir: number; telat: number; izin: number; sakit: number; alpha: number; percentage: number } }> = {};
+
+      subjectAttendanceHistory.forEach((att) => {
+        if (!att.student) return;
+        const sId = att.student.id;
+        if (!groups[sId]) {
+          groups[sId] = {
+            studentId: sId,
+            name: att.student.full_name,
+            nis: att.student.nis || "-",
+            attendances: [],
+            stats: { total: 0, hadir: 0, telat: 0, izin: 0, sakit: 0, alpha: 0, percentage: 0 }
+          };
+        }
+        groups[sId].attendances.push(att);
+        const s = String(att.status).toLowerCase();
+        groups[sId].stats.total++;
+        if (s === "hadir") groups[sId].stats.hadir++;
+        else if (s === "telat") groups[sId].stats.telat++;
+        else if (s === "izin") groups[sId].stats.izin++;
+        else if (s === "sakit") groups[sId].stats.sakit++;
+        else if (s === "alpha") groups[sId].stats.alpha++;
+      });
+
+      return Object.values(groups)
+        .map((g) => {
+          const presentCount = g.stats.hadir + g.stats.telat;
+          g.stats.percentage = g.stats.total > 0 ? Math.round((presentCount / g.stats.total) * 100) : 0;
+          return g;
+        })
+        .sort((a, b) => a.name.localeCompare(b.name));
+    })();
+
+    // Helpers
+    const getStatusColor = (status: string) => {
+      const s = String(status).toLowerCase();
+      if (s === "hadir") return "#10B981";
+      if (s === "telat") return "#3B82F6";
+      if (s === "izin" || s === "sakit") return "#F59E0B";
+      return "#EF4444";
+    };
+
+    const getStatusLabel = (status: string) => {
+      const s = String(status).toLowerCase();
+      if (s === "hadir") return "Hadir";
+      if (s === "telat") return "Telat";
+      if (s === "izin") return "Izin";
+      if (s === "sakit") return "Sakit";
+      return "Alpha";
+    };
+
+    const getSiswaTipConfig = () => {
+      const p = statsHistory.percentage;
+      if (p >= 90) {
+        return {
+          bg: "#ECFDF5",
+          border: "#10B981",
+          text: "#065F46",
+          icon: "checkmark-circle-outline",
+          message: "Luar biasa! Kehadiranmu sangat prima (≥ 90%). Pertahankan semangat belajarmu di kelas!"
+        };
+      } else if (p >= 80) {
+        return {
+          bg: "#FEF3C7",
+          border: "#F59E0B",
+          text: "#92400E",
+          icon: "information-circle-outline",
+          message: "Kehadiranmu cukup baik. Usahakan untuk tetap hadir di setiap pertemuan agar pemahamanmu maksimal."
+        };
+      } else {
+        return {
+          bg: "#FEE2E2",
+          border: "#EF4444",
+          text: "#991B1B",
+          icon: "warning-outline",
+          message: "Perhatian! Kehadiranmu di bawah batas aman 80%. Hubungi guru mapel atau wali kelas segera agar tidak terkendala ujian akhir!"
+        };
+      }
+    };
+
+    const tip = getSiswaTipConfig();
+
+    return (
+      <Modal visible={!!selectedSubjectSchedule} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="stats-chart-outline" size={20} color="#2563EB" />
+                <Text style={styles.modalTitle}>Detail Analitik Mapel</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedSubjectSchedule(null)}
+                style={styles.iconButton}
+              >
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {/* Header info */}
+              <View style={styles.subjectModalHeaderInfo}>
+                <Text style={styles.subjectModalTitle}>
+                  {selectedSubjectSchedule.subject?.subject_name || "Mata Pelajaran"}
+                </Text>
+                <Text style={styles.subjectModalSubtitle}>
+                  Kelas: {selectedSubjectSchedule.class?.class_name || "-"} | Guru: {selectedSubjectSchedule.teacher?.full_name || "-"}
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                  <Ionicons name="time-outline" size={13} color="#6B7280" />
+                  <Text style={styles.subjectModalMeta}>
+                    Jadwal: {selectedSubjectSchedule.start_time.substring(0, 5)} - {selectedSubjectSchedule.end_time.substring(0, 5)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Attendance percentage indicator */}
+              <View style={styles.statsRingContainer}>
+                <View style={[styles.statsRing, { borderColor: statsHistory.percentage >= 85 ? "#10B981" : "#F59E0B" }]}>
+                  <Text style={styles.statsRingNumber}>{statsHistory.percentage}%</Text>
+                  <Text style={styles.statsRingLabel}>
+                    {isSiswa ? "Kehadiran Saya" : "Rata-rata Kelas"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Attendance stats count breakdown */}
+              <View style={styles.statsSummaryGrid}>
+                <View style={styles.statsSummaryCard}>
+                  <Text style={[styles.statsSummaryValue, { color: "#10B981" }]}>{statsHistory.hadir}</Text>
+                  <Text style={styles.statsSummaryLabel}>Hadir</Text>
+                </View>
+                <View style={styles.statsSummaryCard}>
+                  <Text style={[styles.statsSummaryValue, { color: "#3B82F6" }]}>{statsHistory.telat}</Text>
+                  <Text style={styles.statsSummaryLabel}>Telat</Text>
+                </View>
+                <View style={styles.statsSummaryCard}>
+                  <Text style={[styles.statsSummaryValue, { color: "#F59E0B" }]}>{statsHistory.izin + statsHistory.sakit}</Text>
+                  <Text style={styles.statsSummaryLabel}>Izin/Sakit</Text>
+                </View>
+                <View style={styles.statsSummaryCard}>
+                  <Text style={[styles.statsSummaryValue, { color: "#EF4444" }]}>{statsHistory.alpha}</Text>
+                  <Text style={styles.statsSummaryLabel}>Alpha</Text>
+                </View>
+              </View>
+
+              {isSiswa && (
+                <View
+                  style={{
+                    backgroundColor: tip.bg,
+                    borderWidth: 1,
+                    borderColor: tip.border,
+                    borderRadius: 10,
+                    padding: 12,
+                    flexDirection: "row",
+                    gap: 10,
+                    marginBottom: 20,
+                  }}
+                >
+                  <Ionicons name={tip.icon as any} size={20} color={tip.border} style={{ marginTop: 2 }} />
+                  <Text style={{ flex: 1, fontSize: 12, color: tip.text, fontWeight: "600", lineHeight: 16 }}>
+                    {tip.message}
+                  </Text>
+                </View>
+              )}
+
+              {/* Segmented control for Teachers / Admins */}
+              {!isSiswa && (
+                <View style={styles.tabBar}>
+                  <TouchableOpacity
+                    style={[styles.tabButton, modalTab === "sessions" && styles.tabButtonActive]}
+                    onPress={() => setModalTab("sessions")}
+                  >
+                    <Ionicons
+                      name="calendar"
+                      size={15}
+                      color={modalTab === "sessions" ? "#2563EB" : "#6B7280"}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={[styles.tabButtonText, modalTab === "sessions" && styles.tabButtonTextActive]}>
+                      Pertemuan Kelas
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.tabButton, modalTab === "students" && styles.tabButtonActive]}
+                    onPress={() => setModalTab("students")}
+                  >
+                    <Ionicons
+                      name="people"
+                      size={15}
+                      color={modalTab === "students" ? "#2563EB" : "#6B7280"}
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={[styles.tabButtonText, modalTab === "students" && styles.tabButtonTextActive]}>
+                      Kehadiran Siswa
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <Text style={styles.historyListTitle}>
+                {isSiswa
+                  ? "Riwayat Pertemuan & Status Kehadiran"
+                  : modalTab === "sessions"
+                  ? "Daftar Pertemuan Sesi Kelas"
+                  : "Persentase Kehadiran Tiap Siswa"}
+              </Text>
+
+              {loadingHistory ? (
+                <ActivityIndicator color="#3B82F6" style={{ marginVertical: 32 }} />
+              ) : subjectAttendanceHistory.length === 0 ? (
+                <View style={styles.emptyHistoryState}>
+                  <Ionicons name="calendar-outline" size={36} color="#9CA3AF" />
+                  <Text style={styles.emptyHistoryText}>Belum ada riwayat absensi kelas untuk mapel ini.</Text>
+                </View>
+              ) : isSiswa ? (
+                /* Siswa Individual List */
+                <View style={{ gap: 10, paddingBottom: 24 }}>
+                  {subjectAttendanceHistory.map((att: any) => {
+                    const d = new Date(att.date);
+                    const formattedDate = d.toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric"
+                    });
+                    const statusColor = getStatusColor(att.status);
+
+                    return (
+                      <View key={att.id} style={styles.historyItem}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.historyItemDate}>{formattedDate}</Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Ionicons name="time-outline" size={11} color="#9CA3AF" />
+                            <Text style={styles.historyItemMeta}>
+                              Jam Absen: {att.time ? String(att.time).substring(11, 16) : "-"}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={[styles.historyItemBadge, { backgroundColor: `${statusColor}14` }]}>
+                          <Text style={[styles.historyItemBadgeText, { color: statusColor }]}>
+                            {getStatusLabel(att.status).toUpperCase()}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : modalTab === "sessions" ? (
+                /* Teacher Tab 1: Grouped Sessions Accordion */
+                <View style={{ gap: 10, paddingBottom: 24 }}>
+                  {sessions.map((sess) => {
+                    const d = new Date(sess.date);
+                    const formattedDate = d.toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric"
+                    });
+                    const isExpanded = expandedDate === sess.date;
+                    const presentCount = sess.stats.hadir + sess.stats.telat;
+                    const ringColor = sess.stats.percentage >= 85 ? "#10B981" : sess.stats.percentage >= 60 ? "#F59E0B" : "#EF4444";
+
+                    return (
+                      <View key={sess.date} style={styles.sessionCard}>
+                        <TouchableOpacity
+                          style={styles.sessionCardHeader}
+                          onPress={() => setExpandedDate(isExpanded ? null : sess.date)}
+                        >
+                          <View style={{ flex: 1, gap: 2 }}>
+                            <Text style={styles.sessionCardTitle}>{formattedDate}</Text>
+                            <Text style={styles.sessionCardSubtitle}>
+                              Kehadiran: {presentCount} dari {sess.stats.total} Siswa
+                            </Text>
+                          </View>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                            <View style={[styles.sessionProgressPill, { backgroundColor: `${ringColor}14` }]}>
+                              <Text style={[styles.sessionProgressPillText, { color: ringColor }]}>
+                                {sess.stats.percentage}%
+                              </Text>
+                            </View>
+                            <Ionicons
+                              name={isExpanded ? "chevron-up" : "chevron-down"}
+                              size={18}
+                              color="#6B7280"
+                            />
+                          </View>
+                        </TouchableOpacity>
+
+                        {isExpanded && (
+                          <View style={styles.sessionDetailsContainer}>
+                            {sess.attendances.map((att) => {
+                              const initials = att.student?.full_name?.charAt(0).toUpperCase() || "S";
+                              const statusColor = getStatusColor(att.status);
+                              return (
+                                <View key={att.id} style={styles.sessionStudentRow}>
+                                  <View style={styles.sessionStudentAvatar}>
+                                    <Text style={styles.sessionStudentAvatarText}>{initials}</Text>
+                                  </View>
+                                  <View style={{ flex: 1 }}>
+                                    <Text style={styles.sessionStudentName} numberOfLines={1}>
+                                      {att.student?.full_name || "Siswa"}
+                                    </Text>
+                                    <Text style={styles.sessionStudentMeta}>
+                                      NIS: {att.student?.nis || "-"} | Waktu: {att.time ? String(att.time).substring(11, 16) : "-"}
+                                    </Text>
+                                  </View>
+                                  <View style={[styles.historyItemBadge, { backgroundColor: `${statusColor}14` }]}>
+                                    <Text style={[styles.historyItemBadgeText, { color: statusColor, fontSize: 8 }]}>
+                                      {getStatusLabel(att.status).toUpperCase()}
+                                    </Text>
+                                  </View>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              ) : (
+                /* Teacher Tab 2: Grouped Students Summary Rates */
+                <View style={{ gap: 10, paddingBottom: 24 }}>
+                  {studentSummaries.map((stud) => {
+                    const initials = stud.name.charAt(0).toUpperCase();
+                    const presentCount = stud.stats.hadir + stud.stats.telat;
+                    const ringColor = stud.stats.percentage >= 85 ? "#10B981" : stud.stats.percentage >= 60 ? "#F59E0B" : "#EF4444";
+
+                    return (
+                      <View key={stud.studentId} style={styles.studentSummaryRow}>
+                        <View style={styles.sessionStudentAvatar}>
+                          <Text style={styles.sessionStudentAvatarText}>{initials}</Text>
+                        </View>
+                        <View style={{ flex: 1, gap: 4 }}>
+                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                            <Text style={styles.sessionStudentName} numberOfLines={1}>
+                              {stud.name}
+                            </Text>
+                            <Text style={{ fontSize: 12, fontWeight: "800", color: ringColor }}>
+                              {stud.stats.percentage}%
+                            </Text>
+                          </View>
+
+                          {/* Linear progress bar */}
+                          <View style={styles.studentProgressBg}>
+                            <View
+                              style={[
+                                styles.studentProgressFill,
+                                { width: `${stud.stats.percentage}%`, backgroundColor: ringColor }
+                              ]}
+                            />
+                          </View>
+
+                          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                            <Text style={styles.sessionStudentMeta}>
+                              NIS: {stud.nis}
+                            </Text>
+                            <Text style={[styles.sessionStudentMeta, { fontWeight: "700" }]}>
+                              {presentCount}/{stud.stats.total} Sesi | {stud.stats.alpha} Alpha
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { flex: 1 }]}
+                onPress={() => setSelectedSubjectSchedule(null)}
+              >
+                <Text style={styles.secondaryButtonText}>Tutup</Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.avatarContainer}>
-            <Text style={[styles.avatarText, { color: dashboardConfig.primaryColor }]}>
-              {user?.name?.charAt(0)?.toUpperCase() || 'U'}
-            </Text>
-          </View>
         </View>
+      </Modal>
+    );
+  };
 
-        {/* Role-specific Banner */}
-        <View style={[styles.roleBanner, { backgroundColor: `${dashboardConfig.primaryColor}15` }]}>
-          <Ionicons 
-            name={isSiswa ? 'school-outline' : isAdminOrSuper ? 'shield-checkmark-outline' : isKepalaSekolah ? 'analytics-outline' : 'people-outline'} 
-            size={20} 
-            color={dashboardConfig.primaryColor} 
-          />
-          <View style={styles.roleBannerText}>
-            <Text style={[styles.roleBannerTitle, { color: dashboardConfig.primaryColor }]}>
-              {isSiswa ? 'Portal Kehadiran Siswa' : isAdminOrSuper ? 'Portal Kontrol Administrasi' : isKepalaSekolah ? 'Portal Monitoring Kepala Sekolah' : 'Portal Manajemen Kelas'}
+  return (
+    <View style={[styles.container, { backgroundColor: "transparent" }]}>
+      <Image
+        source={
+          isMobile
+            ? require("../../assets/images/wallpaper-app-mobile.png")
+            : require("../../assets/images/wallpaper-app-desktop.png")
+        }
+        style={[
+          StyleSheet.absoluteFillObject,
+          { width: "100%", height: "100%" },
+        ]}
+        resizeMode="cover"
+      />
+      <View
+        style={[
+          StyleSheet.absoluteFillObject,
+          {
+            backgroundColor: "rgba(243, 244, 246, 0.85)",
+            width: "100%",
+            height: "100%",
+          },
+        ]}
+      />
+      <ScrollView
+        style={{ flex: 1, backgroundColor: "transparent" }}
+        contentContainerStyle={[styles.content, { paddingBottom }]}
+        refreshControl={
+          <RefreshControl refreshing={isLoading} onRefresh={loadData} />
+        }
+      >
+        {/* Header with User Info and Role Badge (Exactly like user screenshot) */}
+        <View style={[styles.header, styles.headerGradient]}>
+          <View style={[styles.headerText, { paddingRight: isMobile ? 110 : 260 }]}>
+            <Text style={styles.greeting}>{getGreeting()},</Text>
+            <Text style={styles.userName} numberOfLines={1}>
+              {user?.name || "Pengguna"}
             </Text>
-            <Text style={styles.roleBannerSubtitle}>SMKS Rajasa Surabaya • 5 Hari Kerja (Full Day)</Text>
+            
+            <View style={styles.roleBadgeContainer}>
+              <View style={[styles.roleBadgePill, { backgroundColor: getRoleBadgeColor() }]}>
+                <Text style={styles.roleBadgeText}>
+                  {getRoleBadgeLabel()}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.quoteContainer}>
+              <Text style={styles.quoteText}>
+                “ Terus belajar, berusaha, dan berdoa untuk masa depan yang lebih baik.
+              </Text>
+            </View>
           </View>
+          
+          <Image
+            source={require("../../assets/images/school-building.png")}
+            style={[
+              styles.schoolIllustration,
+              {
+                width: isMobile ? 130 : 250,
+                height: isMobile ? 85 : 120,
+                bottom: isMobile ? -5 : -8,
+              }
+            ]}
+            resizeMode="contain"
+          />
         </View>
 
         {/* 1. Admin & Super Admin & Kepala Sekolah Views */}
@@ -202,10 +826,17 @@ export default function HomeScreen() {
           <>
             {/* Quick Stats Grid */}
             <View style={styles.statsSection}>
-              <Text style={styles.sectionTitle}>Statistik Sekolah Hari Ini</Text>
+              <Text style={styles.sectionTitle}>
+                Statistik Sekolah Hari Ini
+              </Text>
               <View style={styles.statsGrid}>
                 <View style={styles.statCard}>
-                  <View style={[styles.statIconContainer, { backgroundColor: '#EFF6FF' }]}>
+                  <View
+                    style={[
+                      styles.statIconContainer,
+                      { backgroundColor: "#EFF6FF" },
+                    ]}
+                  >
                     <Ionicons name="school-outline" size={20} color="#3B82F6" />
                   </View>
                   <View style={styles.statTextContainer}>
@@ -213,9 +844,14 @@ export default function HomeScreen() {
                     <Text style={styles.statLabel}>Siswa</Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.statCard}>
-                  <View style={[styles.statIconContainer, { backgroundColor: '#F0FDF4' }]}>
+                  <View
+                    style={[
+                      styles.statIconContainer,
+                      { backgroundColor: "#F0FDF4" },
+                    ]}
+                  >
                     <Ionicons name="people-outline" size={20} color="#10B981" />
                   </View>
                   <View style={styles.statTextContainer}>
@@ -225,8 +861,17 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.statCard}>
-                  <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                    <Ionicons name="business-outline" size={20} color="#F59E0B" />
+                  <View
+                    style={[
+                      styles.statIconContainer,
+                      { backgroundColor: "#FEF3C7" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="business-outline"
+                      size={20}
+                      color="#F59E0B"
+                    />
                   </View>
                   <View style={styles.statTextContainer}>
                     <Text style={styles.statValue}>17</Text>
@@ -235,8 +880,17 @@ export default function HomeScreen() {
                 </View>
 
                 <View style={styles.statCard}>
-                  <View style={[styles.statIconContainer, { backgroundColor: '#FEE2E2' }]}>
-                    <Ionicons name="stats-chart-outline" size={20} color="#EF4444" />
+                  <View
+                    style={[
+                      styles.statIconContainer,
+                      { backgroundColor: "#FEE2E2" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="stats-chart-outline"
+                      size={20}
+                      color="#EF4444"
+                    />
                   </View>
                   <View style={styles.statTextContainer}>
                     <Text style={styles.statValue}>98.2%</Text>
@@ -248,7 +902,9 @@ export default function HomeScreen() {
 
             {/* Quick Actions / Features Grid */}
             <View style={styles.featuresSection}>
-              <Text style={styles.sectionTitle}>Akses Pintar & Fitur Utama</Text>
+              <Text style={styles.sectionTitle}>
+                Akses Pintar & Fitur Utama
+              </Text>
               <View style={styles.featuresGrid}>
                 {dashboardConfig.features.map((feature, idx) => (
                   <TouchableOpacity
@@ -256,8 +912,19 @@ export default function HomeScreen() {
                     style={styles.featureCard}
                     onPress={() => router.push(feature.route as any)}
                   >
-                    <View style={[styles.featureIconContainer, { backgroundColor: `${dashboardConfig.primaryColor}10` }]}>
-                      <Ionicons name={feature.icon as any} size={22} color={dashboardConfig.primaryColor} />
+                    <View
+                      style={[
+                        styles.featureIconContainer,
+                        {
+                          backgroundColor: `${dashboardConfig.primaryColor}10`,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={feature.icon as any}
+                        size={22}
+                        color={dashboardConfig.primaryColor}
+                      />
                     </View>
                     <View style={styles.featureInfo}>
                       <Text style={styles.featureLabel}>{feature.label}</Text>
@@ -265,7 +932,11 @@ export default function HomeScreen() {
                         {feature.description}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                    <Ionicons
+                      name="chevron-forward"
+                      size={16}
+                      color="#9CA3AF"
+                    />
                   </TouchableOpacity>
                 ))}
               </View>
@@ -276,36 +947,64 @@ export default function HomeScreen() {
         {/* 2. Siswa & Guru Schedule Feed */}
         {(isSiswa || isGuru) && (
           <View style={styles.scheduleSection}>
-            
             {/* Daily School Entry Attendance for Students */}
             {isSiswa && (
               <View style={styles.dailyCheckInContainer}>
-                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>Kehadiran Harian Sekolah</Text>
-                
+                <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>
+                  Kehadiran Harian Sekolah
+                </Text>
+
                 {dailyCheckInRecord ? (
-                  <View style={[styles.dailyCheckInCard, styles.dailyCheckInSuccess]}>
+                  <View
+                    style={[
+                      styles.dailyCheckInCard,
+                      styles.dailyCheckInSuccess,
+                    ]}
+                  >
                     <View style={styles.dailyCheckInIconSuccess}>
-                      <Ionicons name="checkmark-circle" size={22} color="#10B981" />
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={22}
+                        color="#10B981"
+                      />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.dailyCheckInTitleSuccess}>Absen Masuk Sekolah Berhasil</Text>
+                      <Text style={styles.dailyCheckInTitleSuccess}>
+                        Absen Masuk Sekolah Berhasil
+                      </Text>
                       <Text style={styles.dailyCheckInTimeText}>
-                        Jam Masuk: {dailyCheckInRecord.time?.substring(0, 5)} WIB • Status: {dailyCheckInRecord.status === 'hadir' ? 'Hadir Tepat Waktu' : `Terlambat (${dailyCheckInRecord.late_minutes}m)`}
+                        Jam Masuk: {dailyCheckInRecord.time?.substring(0, 5)}{" "}
+                        WIB • Status:{" "}
+                        {dailyCheckInRecord.status === "hadir"
+                          ? "Hadir Tepat Waktu"
+                          : `Terlambat (${dailyCheckInRecord.late_minutes}m)`}
                       </Text>
                     </View>
                   </View>
                 ) : (
-                  <View style={[styles.dailyCheckInCard, styles.dailyCheckInPending]}>
+                  <View
+                    style={[
+                      styles.dailyCheckInCard,
+                      styles.dailyCheckInPending,
+                    ]}
+                  >
                     <View style={styles.dailyCheckInIconPending}>
-                      <Ionicons name="location-outline" size={22} color="#3B82F6" />
+                      <Ionicons
+                        name="location-outline"
+                        size={22}
+                        color="#3B82F6"
+                      />
                     </View>
                     <View style={{ flex: 1, paddingRight: 8 }}>
-                      <Text style={styles.dailyCheckInTitlePending}>Belum Absen Masuk Sekolah</Text>
+                      <Text style={styles.dailyCheckInTitlePending}>
+                        Belum Absen Masuk Sekolah
+                      </Text>
                       <Text style={styles.dailyCheckInDesc}>
-                        Batas toleransi masuk 07:00 pagi. Wajib klik tombol untuk melapor kehadiran harian Anda.
+                        Batas toleransi masuk 07:00 pagi. Wajib klik tombol
+                        untuk melapor kehadiran harian Anda.
                       </Text>
                     </View>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={styles.dailyCheckInButton}
                       onPress={handleDailyCheckIn}
                       disabled={dailyCheckInLoading}
@@ -314,8 +1013,14 @@ export default function HomeScreen() {
                         <ActivityIndicator color="#fff" size="small" />
                       ) : (
                         <>
-                          <Ionicons name="finger-print-outline" size={14} color="#fff" />
-                          <Text style={styles.dailyCheckInButtonText}>Absen Masuk</Text>
+                          <Ionicons
+                            name="finger-print-outline"
+                            size={14}
+                            color="#fff"
+                          />
+                          <Text style={styles.dailyCheckInButtonText}>
+                            Absen Masuk
+                          </Text>
                         </>
                       )}
                     </TouchableOpacity>
@@ -326,10 +1031,16 @@ export default function HomeScreen() {
 
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>
-                {isSiswa ? 'Jadwal Pelajaran Saya Hari Ini' : 'Jadwal Mengajar Saya Hari Ini'}
+                {isSiswa
+                  ? "Jadwal Pelajaran Saya Hari Ini"
+                  : "Jadwal Mengajar Saya Hari Ini"}
               </Text>
               <Text style={styles.currentDate}>
-                {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
+                {new Date().toLocaleDateString("id-ID", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
               </Text>
             </View>
 
@@ -337,20 +1048,43 @@ export default function HomeScreen() {
               <View style={styles.scheduleList}>
                 {todaySchedules.map((schedule: ScheduleRecord) => {
                   const isActive = !!schedule.active_session;
-                  const isFinished = schedule.attendance_status === 'hadir' || schedule.attendance_status === 'telat';
-                  
+                  const isFinished =
+                    schedule.attendance_status === "hadir" ||
+                    schedule.attendance_status === "telat";
+
                   return (
-                    <View key={schedule.id} style={[styles.scheduleCard, isActive && styles.activeScheduleCard]}>
+                    <TouchableOpacity
+                      key={schedule.id}
+                      style={[
+                        styles.scheduleCard,
+                        isActive && styles.activeScheduleCard,
+                      ]}
+                      onPress={() => handleSubjectCardClick(schedule)}
+                      activeOpacity={0.85}
+                    >
+                      <Image
+                        source={getSubjectImage(schedule.subject?.subject_name || "", todaySchedules)}
+                        style={[StyleSheet.absoluteFillObject, { opacity: 0.18 }]}
+                        resizeMode="cover"
+                      />
                       {/* Card Header info */}
                       <View style={styles.cardHeader}>
                         <View style={styles.timeContainer}>
-                          <Ionicons name="time-outline" size={14} color="#6B7280" />
+                          <Ionicons
+                            name="time-outline"
+                            size={14}
+                            color="#6B7280"
+                          />
                           <Text style={styles.timeText}>
-                            {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                            {schedule.start_time.substring(0, 5)} -{" "}
+                            {schedule.end_time.substring(0, 5)}
                           </Text>
                         </View>
                         {isSiswa ? (
-                          <StudentStatusBadge status={schedule.attendance_status} time={schedule.attendance_time} />
+                          <StudentStatusBadge
+                            status={schedule.attendance_status}
+                            time={schedule.attendance_time}
+                          />
                         ) : (
                           <TeacherSessionBadge isActive={isActive} />
                         )}
@@ -358,14 +1092,28 @@ export default function HomeScreen() {
 
                       {/* Main content: Subject and Class */}
                       <View style={styles.cardBody}>
-                        <Text style={styles.subjectName}>{schedule.subject?.subject_name || 'Mata Pelajaran'}</Text>
+                        <Text style={styles.subjectName}>
+                          {schedule.subject?.subject_name || "Mata Pelajaran"}
+                        </Text>
                         <View style={classInfoStyle(isActive)}>
-                          <Ionicons name="business-outline" size={14} color="#4B5563" />
-                          <Text style={styles.classNameText}>{schedule.class?.class_name || 'Rombel'}</Text>
+                          <Ionicons
+                            name="business-outline"
+                            size={14}
+                            color="#4B5563"
+                          />
+                          <Text style={styles.classNameText}>
+                            {schedule.class?.class_name || "Rombel"}
+                          </Text>
                           <View style={styles.bulletSeparator} />
-                          <Ionicons name="person-outline" size={14} color="#4B5563" />
+                          <Ionicons
+                            name="person-outline"
+                            size={14}
+                            color="#4B5563"
+                          />
                           <Text style={styles.teacherNameText}>
-                            {isSiswa ? (schedule.teacher?.full_name || 'Guru') : 'Mengajar'}
+                            {isSiswa
+                              ? schedule.teacher?.full_name || "Guru"
+                              : "Mengajar"}
                           </Text>
                         </View>
                       </View>
@@ -375,18 +1123,32 @@ export default function HomeScreen() {
                         <View style={styles.cardActions}>
                           {isActive ? (
                             <View style={styles.activeActionsRow}>
-                              <TouchableOpacity 
+                              <TouchableOpacity
                                 style={styles.manageButton}
-                                onPress={() => router.push('/(tabs)/attendance' as never)}
+                                onPress={() =>
+                                  router.push("/(tabs)/attendance" as never)
+                                }
                               >
-                                <Ionicons name="qr-code-outline" size={16} color="#fff" />
-                                <Text style={styles.actionButtonText}>Kelola Presensi</Text>
+                                <Ionicons
+                                  name="qr-code-outline"
+                                  size={16}
+                                  color="#fff"
+                                />
+                                <Text style={styles.actionButtonText}>
+                                  Kelola Presensi
+                                </Text>
                               </TouchableOpacity>
-                              <TouchableOpacity 
+                              <TouchableOpacity
                                 style={styles.closeButton}
-                                onPress={() => handleClosePresensi(schedule.active_session!.id)}
+                                onPress={() =>
+                                  handleClosePresensi(
+                                    schedule.active_session!.id,
+                                  )
+                                }
                               >
-                                <Text style={styles.closeButtonText}>Tutup Sesi</Text>
+                                <Text style={styles.closeButtonText}>
+                                  Tutup Sesi
+                                </Text>
                               </TouchableOpacity>
                             </View>
                           ) : (
@@ -395,8 +1157,14 @@ export default function HomeScreen() {
                               style={styles.shimmerBtnStyle}
                             >
                               <View style={styles.shimmerBtnContent}>
-                                <Ionicons name="play-circle-outline" size={18} color="#fff" />
-                                <Text style={styles.actionButtonText}>Buka Presensi Kelas</Text>
+                                <Ionicons
+                                  name="play-circle-outline"
+                                  size={18}
+                                  color="#fff"
+                                />
+                                <Text style={styles.actionButtonText}>
+                                  Buka Presensi Kelas
+                                </Text>
                               </View>
                             </ShimmerButton>
                           )}
@@ -405,16 +1173,24 @@ export default function HomeScreen() {
 
                       {isSiswa && isActive && !isFinished && (
                         <View style={styles.cardActions}>
-                          <TouchableOpacity 
+                          <TouchableOpacity
                             style={styles.studentAbsenButton}
-                            onPress={() => router.push('/(tabs)/attendance' as never)}
+                            onPress={() =>
+                              router.push("/(tabs)/attendance" as never)
+                            }
                           >
-                            <Ionicons name="scan-outline" size={16} color="#fff" />
-                            <Text style={styles.actionButtonText}>Absen Sekarang</Text>
+                            <Ionicons
+                              name="scan-outline"
+                              size={16}
+                              color="#fff"
+                            />
+                            <Text style={styles.actionButtonText}>
+                              Absen Sekarang
+                            </Text>
                           </TouchableOpacity>
                         </View>
                       )}
-                    </View>
+                    </TouchableOpacity>
                   );
                 })}
               </View>
@@ -422,12 +1198,16 @@ export default function HomeScreen() {
               <View style={styles.emptyState}>
                 <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
                 <Text style={styles.emptyTitle}>Tidak Ada Jadwal Hari Ini</Text>
-                <Text style={styles.emptyText}>Nikmati hari libur Anda! Tidak ada jadwal mengajar atau pelajaran terdaftar hari ini.</Text>
+                <Text style={styles.emptyText}>
+                  Nikmati hari libur Anda! Tidak ada jadwal mengajar atau
+                  pelajaran terdaftar hari ini.
+                </Text>
               </View>
             )}
           </View>
         )}
       </ScrollView>
+      {renderSubjectDetailModal()}
     </View>
   );
 }
@@ -438,32 +1218,38 @@ function classInfoStyle(isActive: boolean) {
 }
 
 // Student Status Badge
-function StudentStatusBadge({ status, time }: { status?: string; time?: string | null }) {
-  let badgeColor = '#6B7280';
-  let badgeBg = '#F3F4F6';
-  let label = 'Belum Absen';
-  let icon = 'ellipse-outline';
+function StudentStatusBadge({
+  status,
+  time,
+}: {
+  status?: string;
+  time?: string | null;
+}) {
+  let badgeColor = "#6B7280";
+  let badgeBg = "#F3F4F6";
+  let label = "Belum Absen";
+  let icon = "ellipse-outline";
 
-  if (status === 'hadir') {
-    badgeColor = '#10B981';
-    badgeBg = '#E6F4EA';
-    label = `Hadir • ${time || ''}`;
-    icon = 'checkmark-circle';
-  } else if (status === 'telat') {
-    badgeColor = '#F59E0B';
-    badgeBg = '#FEF3C7';
-    label = `Telat • ${time || ''}`;
-    icon = 'warning';
-  } else if (status === 'izin' || status === 'sakit') {
-    badgeColor = '#3B82F6';
-    badgeBg = '#E0F2FE';
-    label = status === 'izin' ? 'Izin' : 'Sakit';
-    icon = 'document-text';
-  } else if (status === 'alpha') {
-    badgeColor = '#EF4444';
-    badgeBg = '#FEE2E2';
-    label = 'Alpha';
-    icon = 'close-circle';
+  if (status === "hadir") {
+    badgeColor = "#10B981";
+    badgeBg = "#E6F4EA";
+    label = `Hadir • ${time || ""}`;
+    icon = "checkmark-circle";
+  } else if (status === "telat") {
+    badgeColor = "#F59E0B";
+    badgeBg = "#FEF3C7";
+    label = `Telat • ${time || ""}`;
+    icon = "warning";
+  } else if (status === "izin" || status === "sakit") {
+    badgeColor = "#3B82F6";
+    badgeBg = "#E0F2FE";
+    label = status === "izin" ? "Izin" : "Sakit";
+    icon = "document-text";
+  } else if (status === "alpha") {
+    badgeColor = "#EF4444";
+    badgeBg = "#FEE2E2";
+    label = "Alpha";
+    icon = "close-circle";
   }
 
   return (
@@ -476,111 +1262,158 @@ function StudentStatusBadge({ status, time }: { status?: string; time?: string |
 
 // Teacher Session Status Badge
 function TeacherSessionBadge({ isActive }: { isActive: boolean }) {
-  const badgeColor = isActive ? '#3B82F6' : '#6B7280';
-  const badgeBg = isActive ? '#EFF6FF' : '#F3F4F6';
-  const label = isActive ? 'Sesi Aktif' : 'Belum Dibuka';
-  const icon = isActive ? 'radio-button-on' : 'ellipse-outline';
+  const badgeColor = isActive ? "#3B82F6" : "#6B7280";
+  const badgeBg = isActive ? "#EFF6FF" : "#F3F4F6";
+  const label = isActive ? "Sesi Aktif" : "Belum Dibuka";
+  const icon = isActive ? "radio-button-on" : "ellipse-outline";
 
   return (
     <View style={[styles.badge, { backgroundColor: badgeBg }]}>
-      <Ionicons name={icon as any} size={12} color={badgeColor} style={isActive ? styles.pulseIcon : null} />
+      <Ionicons
+        name={icon as any}
+        size={12}
+        color={badgeColor}
+        style={isActive ? styles.pulseIcon : null}
+      />
       <Text style={[styles.badgeText, { color: badgeColor }]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  container: { flex: 1, backgroundColor: "#F9FAFB" },
   content: { padding: 16 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  headerText: { flex: 1, paddingRight: 16 },
-  greeting: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '500', marginBottom: 2 },
-  userName: { fontSize: 20, fontWeight: '800', color: '#fff', marginBottom: 6 },
-  roleBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  roleText: { fontSize: 11, color: '#fff', fontWeight: '700' },
-  avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderRadius: 20,
+    padding: 24,
+    marginBottom: 16,
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowRadius: 16,
+    elevation: 4,
+    position: "relative",
+    overflow: "hidden",
   },
-  avatarText: { fontSize: 20, fontWeight: '800', color: '#2563EB' },
+  headerGradient: {
+    backgroundColor: "#3B82F6",
+    ...(Platform.OS === 'web' && {
+      backgroundImage: 'linear-gradient(90deg, #2563EB, #60A5FA)',
+    } as any),
+  },
+  headerText: { 
+    flex: 1, 
+  },
+  greeting: {
+    fontSize: 14,
+    color: "rgba(255, 255, 255, 0.9)",
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  userName: { 
+    fontSize: 24, 
+    fontWeight: "800", 
+    color: "#FFFFFF", 
+    marginBottom: 2,
+    letterSpacing: 0.5,
+  },
+  roleBadgeContainer: {
+    flexDirection: "row",
+    marginTop: 4,
+    marginBottom: 14,
+  },
+  roleBadgePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roleBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  quoteContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 2,
+  },
+  quoteText: {
+    fontSize: 12.5,
+    fontWeight: "500",
+    color: "rgba(255, 255, 255, 0.9)",
+    lineHeight: 18,
+    letterSpacing: 0.1,
+  },
+  schoolIllustration: {
+    position: "absolute",
+    right: 0,
+    bottom: -8,
+    width: 250,
+    height: 120,
+  },
   roleBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 14,
     borderRadius: 12,
     marginBottom: 20,
     gap: 10,
   },
   roleBannerText: { flex: 1 },
-  roleBannerTitle: { fontSize: 14, fontWeight: '800', marginBottom: 1 },
-  roleBannerSubtitle: { fontSize: 11, color: '#4B5563', fontWeight: '500' },
+  roleBannerTitle: { fontSize: 14, fontWeight: "800", marginBottom: 1 },
+  roleBannerSubtitle: { fontSize: 11, color: "#4B5563", fontWeight: "500" },
   scheduleSection: { marginBottom: 16 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 },
-  sectionTitle: { fontSize: 16, fontWeight: '800', color: '#111827' },
-  currentDate: { fontSize: 12, color: '#6B7280', fontWeight: '600' },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    marginBottom: 14,
+  },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: "#111827" },
+  currentDate: { fontSize: 12, color: "#6B7280", fontWeight: "600" },
   scheduleList: { gap: 14 },
   scheduleCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.02,
     shadowRadius: 8,
     elevation: 1,
+    overflow: "hidden",
   },
   activeScheduleCard: {
-    borderColor: '#93C5FD',
-    backgroundColor: '#F8FAFC',
+    borderColor: "#93C5FD",
+    backgroundColor: "#F8FAFC",
     borderWidth: 1.5,
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 10,
   },
   timeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
   },
   timeText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#4B5563',
+    fontWeight: "700",
+    color: "#4B5563",
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -588,7 +1421,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   pulseIcon: {
     opacity: 0.8,
@@ -598,163 +1431,163 @@ const styles = StyleSheet.create({
   },
   subjectName: {
     fontSize: 17,
-    fontWeight: '800',
-    color: '#1F2937',
+    fontWeight: "800",
+    color: "#1F2937",
     marginBottom: 4,
   },
   classInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
   },
   classNameText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#4B5563',
+    fontWeight: "700",
+    color: "#4B5563",
   },
   bulletSeparator: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#9CA3AF',
+    backgroundColor: "#9CA3AF",
     marginHorizontal: 2,
   },
   teacherNameText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#4B5563',
-    maxWidth: '55%',
+    fontWeight: "600",
+    color: "#4B5563",
+    maxWidth: "55%",
   },
   cardActions: {
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: "#F3F4F6",
     paddingTop: 12,
     marginTop: 4,
   },
   activeActionsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   manageButton: {
     flex: 2,
-    backgroundColor: '#2563EB',
+    backgroundColor: "#2563EB",
     borderRadius: 10,
     height: 42,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 6,
-    shadowColor: '#2563EB',
+    shadowColor: "#2563EB",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
   studentAbsenButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
     borderRadius: 10,
     height: 42,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
     gap: 6,
-    shadowColor: '#10B981',
+    shadowColor: "#10B981",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
   actionButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   closeButton: {
     flex: 1,
     borderWidth: 1.5,
-    borderColor: '#EF4444',
+    borderColor: "#EF4444",
     borderRadius: 10,
     height: 42,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   closeButtonText: {
-    color: '#EF4444',
+    color: "#EF4444",
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: "800",
   },
   emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 48,
     paddingHorizontal: 24,
     gap: 12,
   },
   emptyTitle: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#0F172A',
-    textAlign: 'center',
+    fontWeight: "800",
+    color: "#0F172A",
+    textAlign: "center",
     marginTop: 8,
   },
   emptyText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#1E293B",
+    textAlign: "center",
     lineHeight: 18,
     paddingHorizontal: 16,
   },
   shimmerBtnStyle: {
     height: 42,
     paddingVertical: 0,
-    backgroundColor: '#10B981',
-    shadowColor: '#10B981',
+    backgroundColor: "#10B981",
+    shadowColor: "#10B981",
     borderRadius: 10,
   },
   shimmerBtnContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
   },
   statsSection: {
     marginBottom: 20,
   },
   statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   statCard: {
     flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#fff',
+    minWidth: "45%",
+    backgroundColor: "#fff",
     borderRadius: 14,
     padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   statIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   statTextContainer: {
     flex: 1,
   },
   statValue: {
     fontSize: 16,
-    fontWeight: '800',
-    color: '#1F2937',
+    fontWeight: "800",
+    color: "#1F2937",
   },
   statLabel: {
     fontSize: 11,
-    color: '#6B7280',
-    fontWeight: '600',
+    color: "#6B7280",
+    fontWeight: "600",
     marginTop: 1,
   },
   featuresSection: {
@@ -764,111 +1597,409 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   featureCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 14,
     padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
     gap: 12,
   },
   featureIconContainer: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   featureInfo: {
     flex: 1,
   },
   featureLabel: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#1F2937',
+    fontWeight: "800",
+    color: "#1F2937",
     marginBottom: 2,
   },
   featureDescription: {
     fontSize: 11,
-    color: '#6B7280',
+    color: "#6B7280",
     lineHeight: 15,
   },
   dailyCheckInContainer: {
     marginBottom: 24,
   },
   dailyCheckInCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
   },
   dailyCheckInSuccess: {
-    backgroundColor: '#ECFDF5',
-    borderColor: '#A7F3D0',
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
   },
   dailyCheckInPending: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#BFDBFE',
+    backgroundColor: "#EFF6FF",
+    borderColor: "#BFDBFE",
   },
   dailyCheckInIconSuccess: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#D1FAE5',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#D1FAE5",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   dailyCheckInIconPending: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#DBEAFE',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#DBEAFE",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   dailyCheckInTitleSuccess: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#065F46',
+    fontWeight: "800",
+    color: "#065F46",
     marginBottom: 2,
   },
   dailyCheckInTitlePending: {
     fontSize: 14,
-    fontWeight: '800',
-    color: '#1E40AF',
+    fontWeight: "800",
+    color: "#1E40AF",
     marginBottom: 2,
   },
   dailyCheckInTimeText: {
     fontSize: 12,
-    color: '#047857',
-    fontWeight: '700',
+    color: "#047857",
+    fontWeight: "700",
   },
   dailyCheckInDesc: {
     fontSize: 11,
-    color: '#1E40AF',
+    color: "#1E40AF",
     lineHeight: 15,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   dailyCheckInButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: "#2563EB",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    shadowColor: '#2563EB',
+    shadowColor: "#2563EB",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
   },
   dailyCheckInButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: "800",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: "88%",
+  },
+  modalHeader: {
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  iconButton: {
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBody: {
+    padding: 16,
+  },
+  modalFooter: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+  },
+  secondaryButton: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 10,
+    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    color: "#374151",
+    fontWeight: "700",
+  },
+  subjectModalHeaderInfo: {
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    marginBottom: 16,
+  },
+  subjectModalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1F2937",
+    marginBottom: 6,
+  },
+  subjectModalSubtitle: {
+    fontSize: 13,
+    color: "#4B5563",
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  subjectModalMeta: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  statsRingContainer: {
+    alignItems: "center",
+    marginVertical: 16,
+  },
+  statsRing: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F9FAFB",
+  },
+  statsRingNumber: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#111827",
+  },
+  statsRingLabel: {
+    fontSize: 10,
+    color: "#6B7280",
+    fontWeight: "700",
+    marginTop: 4,
+    textAlign: "center",
+  },
+  statsSummaryGrid: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 20,
+  },
+  statsSummaryCard: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  statsSummaryValue: {
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  statsSummaryLabel: {
+    fontSize: 10,
+    color: "#6B7280",
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  historyListTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#1F2937",
+    marginBottom: 12,
+  },
+  emptyHistoryState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyHistoryText: {
+    fontSize: 12,
+    color: "#6B7280",
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  historyItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    padding: 12,
+  },
+  historyItemDate: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  historyItemMeta: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  historyItemBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  historyItemBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  tabBar: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tabButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  tabButtonActive: {
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabButtonText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+  tabButtonTextActive: {
+    color: "#1F2937",
+  },
+  sessionCard: {
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  sessionCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 14,
+    backgroundColor: "#fff",
+  },
+  sessionCardTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  sessionCardSubtitle: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  sessionProgressPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  sessionProgressPillText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  sessionDetailsContainer: {
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#F9FAFB",
+    gap: 8,
+  },
+  sessionStudentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+    gap: 10,
+  },
+  sessionStudentAvatar: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sessionStudentAvatarText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#2563EB",
+  },
+  sessionStudentName: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  sessionStudentMeta: {
+    fontSize: 10,
+    color: "#6B7280",
+    fontWeight: "500",
+    marginTop: 1,
+  },
+  studentSummaryRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    padding: 12,
+    gap: 12,
+  },
+  studentProgressBg: {
+    height: 6,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 3,
+    overflow: "hidden",
+    marginVertical: 2,
+  },
+  studentProgressFill: {
+    height: "100%",
+    borderRadius: 3,
   },
 });

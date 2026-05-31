@@ -30,6 +30,7 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     greeting: 'Halo, Administrator!',
     primaryColor: '#DC2626',
     features: [
+      { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
       { label: 'Kelola Siswa', icon: 'school-outline', route: '/(tabs)/master-data', description: 'Tambah, edit, hapus data siswa' },
       { label: 'Kelola Guru', icon: 'people-outline', route: '/(tabs)/master-data', description: 'Kelola data guru dan wali kelas' },
       { label: 'Kelola Kelas', icon: 'business-outline', route: '/(tabs)/master-data', description: 'Kelola kelas dan jadwal' },
@@ -45,6 +46,7 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     greeting: 'Halo, Admin TU!',
     primaryColor: '#F59E0B',
     features: [
+      { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
       { label: 'Kelola Data', icon: 'file-tray-full-outline', route: '/(tabs)/master-data', description: 'Siswa, guru, kelas' },
       { label: 'Scan Absensi', icon: 'qr-code-outline', route: '/(tabs)/attendance', description: 'Scan QR siswa' },
       { label: 'Laporan', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Export laporan' },
@@ -58,6 +60,7 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     greeting: 'Selamat datang, Guru!',
     primaryColor: '#3B82F6',
     features: [
+      { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
       { label: 'Scan Absensi', icon: 'qr-code-outline', route: '/(tabs)/attendance', description: 'Scan QR untuk absen' },
       { label: 'Input Manual', icon: 'create-outline', route: '/(tabs)/attendance', description: 'Input absensi manual' },
       { label: 'Ajukan Izin', icon: 'document-text-outline', route: '/(tabs)/leave-request', description: 'Ajukan izin ketidakhadiran' },
@@ -71,6 +74,7 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     greeting: 'Selamat datang, Wali Kelas!',
     primaryColor: '#8B5CF6',
     features: [
+      { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
       { label: 'Absensi Siswa', icon: 'qr-code-outline', route: '/(tabs)/attendance', description: 'Scan dan input absensi' },
       { label: 'Kelola Izin', icon: 'document-text-outline', route: '/(tabs)/leave-request', description: 'Approve izin siswa' },
       { label: 'Laporan Kelas', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Statistik kelas' },
@@ -97,6 +101,7 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     greeting: 'Selamat datang, Kepala Sekolah!',
     primaryColor: '#EC4899',
     features: [
+      { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
       { label: 'Overview Sekolah', icon: 'school-outline', route: '/(tabs)/reports', description: 'Statistik sekolah' },
       { label: 'Laporan Absensi', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Semua laporan' },
       { label: 'Notifikasi', icon: 'notifications-outline', route: '/(tabs)/notifications', description: 'Pengumuman terbaru' },

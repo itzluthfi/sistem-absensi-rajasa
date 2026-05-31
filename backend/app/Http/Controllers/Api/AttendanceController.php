@@ -42,6 +42,11 @@ class AttendanceController extends BaseController
                 $query->where('student_id', $request->student_id);
             }
 
+            // Filter by schedule
+            if ($request->has('schedule_id')) {
+                $query->where('schedule_id', $request->schedule_id);
+            }
+
             // Role-based filtering
             if ($user->hasRole('siswa') && $user->student) {
                 // Siswa can only see their own attendance
