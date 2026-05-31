@@ -40,7 +40,7 @@ export default function RootLayout() {
         {/* Toast providers — mounted once at root, available everywhere */}
         {Platform.OS === 'web' && Toaster && (
           <Toaster
-            position="top-right"
+            position="top-center"
             toastOptions={{
               duration: 3500,
               style: {
