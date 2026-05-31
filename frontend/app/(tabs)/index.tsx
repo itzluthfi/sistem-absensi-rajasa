@@ -226,13 +226,15 @@ export default function HomeScreen() {
       fetchTodaySchedules();
       
       try {
-        let params: any = {};
+        let params: any = { all: true };
         if (isSiswa && user?.student_info?.class_id) {
           params.class_id = user.student_info.class_id;
         }
         const res = await schedulesApi.getAll(params);
-        const list = res.data ?? res ?? [];
-        setAllSchedules(Array.isArray(list) ? list : []);
+        const list = Array.isArray(res.data?.data)
+          ? res.data.data
+          : (Array.isArray(res.data) ? res.data : (Array.isArray(res) ? res : []));
+        setAllSchedules(list);
       } catch (err) {
         console.error("Failed to load all schedules:", err);
       }

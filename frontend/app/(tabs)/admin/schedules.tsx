@@ -16,40 +16,44 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { studentsApi, academicPeriodsApi, importExportApi } from "../../services/api";
+import { schedulesApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useToast } from "../../hooks/useToast";
-import { useAuthStore } from "../../store/authStore";
+import { useToast } from "../../../hooks/useToast";
+import { useAuthStore } from "../../../store/authStore";
 
-type StudentRecord = {
+type ScheduleRecord = {
   id: number;
-  user_id?: number;
-  class_id?: number | null;
-  nis?: string;
-  nisn?: string;
-  full_name?: string;
+  subject_id?: number;
+  class_id?: number;
+  teacher_id?: number;
+  day_of_week?: number;
+  start_time?: string;
+  end_time?: string;
+  room?: string | null;
+  subject?: { subject_name?: string };
   class?: { class_name?: string };
+  teacher?: { full_name?: string };
 };
 
 const emptyForm = {
   id: "",
-  user_id: "",
+  subject_id: "",
   class_id: "",
-  nis: "",
-  nisn: "",
-  full_name: "",
+  teacher_id: "",
+  day_of_week: "1",
+  start_time: "07:00",
+  end_time: "08:30",
+  room: "",
 };
 
-export default function StudentsAdminScreen() {
+export default function SchedulesAdminScreen() {
   const toast = useToast();
   const { user } = useAuthStore();
   const isWali = user?.roles?.includes("wali_kelas");
   const classNames = user?.teacher_info?.class_names || [];
   const initialQuery = isWali && classNames.length > 0 ? classNames[0] : "";
 
-  const [records, setRecords] = useState<StudentRecord[]>([]);
-  const [periods, setPeriods] = useState<any[]>([]);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string | number>("all");
+  const [records, setRecords] = useState<ScheduleRecord[]>([]);
   const [query, setQuery] = useState(initialQuery);
   const [isLoading, setIsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -66,31 +70,13 @@ export default function StudentsAdminScreen() {
   const paddingBottom = 64 + safeBottom + 24;
 
   useEffect(() => {
-    loadPeriods();
-  }, []);
-
-  useEffect(() => {
     fetchRecords();
-  }, [selectedPeriodId]);
-
-  const loadPeriods = async () => {
-    try {
-      const response = await academicPeriodsApi.getAll();
-      const data = response.data ?? response ?? [];
-      setPeriods(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error("Gagal memuat periode akademik:", error);
-    }
-  };
+  }, []);
 
   const fetchRecords = async () => {
     setIsLoading(true);
     try {
-      const params: any = {};
-      if (selectedPeriodId !== "all") {
-        params.academic_period_id = selectedPeriodId;
-      }
-      const response = await studentsApi.getAll(params);
+      const response = await schedulesApi.getAll();
       const payload = response.data?.data ?? response.data ?? [];
       setRecords(Array.isArray(payload) ? payload : []);
     } catch (error: any) {
@@ -107,28 +93,28 @@ export default function StudentsAdminScreen() {
     if (!term) return records;
     return records.filter(
       (item) =>
-        (item.full_name || "").toLowerCase().includes(term) ||
-        (item.nis || "").toLowerCase().includes(term) ||
-        (item.nisn || "").toLowerCase().includes(term) ||
-        (item.class?.class_name || "").toLowerCase().includes(term)
+        (item.subject?.subject_name || "").toLowerCase().includes(term) ||
+        (item.class?.class_name || "").toLowerCase().includes(term) ||
+        (item.teacher?.full_name || "").toLowerCase().includes(term) ||
+        (item.room || "").toLowerCase().includes(term)
     );
   }, [records, query]);
 
   const handleExportClick = async () => {
     try {
-      const data = await importExportApi.export("students");
+      const data = await importExportApi.export("schedules");
       const blob = new Blob([data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `ekspor_siswa_${Date.now()}.xlsx`);
+      link.setAttribute("download", `ekspor_jadwal_${Date.now()}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
-      Alert.alert("Sukses", "Ekspor data siswa berhasil diunduh.");
+      Alert.alert("Sukses", "Ekspor data jadwal berhasil diunduh.");
     } catch (error) {
       Alert.alert("Gagal", "Gagal mengekspor data ke Excel.");
     }
@@ -136,14 +122,14 @@ export default function StudentsAdminScreen() {
 
   const handleDownloadTemplate = async () => {
     try {
-      const data = await importExportApi.template("students");
+      const data = await importExportApi.template("schedules");
       const blob = new Blob([data], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `templat_impor_siswa.xlsx`);
+      link.setAttribute("download", `templat_impor_jadwal.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.parentNode?.removeChild(link);
@@ -156,7 +142,7 @@ export default function StudentsAdminScreen() {
   const uploadExcel = async (file: File) => {
     setImporting(true);
     try {
-      await importExportApi.import("students", file);
+      await importExportApi.import("schedules", file);
       setImportModalVisible(false);
       await fetchRecords();
       toast.success("Import data Excel berhasil.");
@@ -178,14 +164,16 @@ export default function StudentsAdminScreen() {
     setModalMode("create");
   };
 
-  const openEdit = (item: StudentRecord) => {
+  const openEdit = (item: ScheduleRecord) => {
     setForm({
       id: String(item.id),
-      user_id: item.user_id ? String(item.user_id) : "",
+      subject_id: item.subject_id ? String(item.subject_id) : "",
       class_id: item.class_id ? String(item.class_id) : "",
-      nis: item.nis || "",
-      nisn: item.nisn || "",
-      full_name: item.full_name || "",
+      teacher_id: item.teacher_id ? String(item.teacher_id) : "",
+      day_of_week: item.day_of_week ? String(item.day_of_week) : "1",
+      start_time: item.start_time ? item.start_time.substring(0, 5) : "07:00",
+      end_time: item.end_time ? item.end_time.substring(0, 5) : "08:30",
+      room: item.room || "",
     });
     setModalMode("edit");
   };
@@ -195,9 +183,11 @@ export default function StudentsAdminScreen() {
   };
 
   const validateForm = () => {
-    if (!form.full_name.trim()) return "Nama lengkap wajib diisi";
-    if (modalMode === "create" && !Number(form.user_id))
-      return "User ID wajib diisi karena backend membutuhkannya";
+    if (!Number(form.subject_id)) return "Mata Pelajaran (Subject ID) wajib diisi";
+    if (!Number(form.class_id)) return "Kelas (Class ID) wajib diisi";
+    if (!Number(form.teacher_id)) return "Guru (Teacher ID) wajib diisi";
+    if (!form.start_time.trim()) return "Jam mulai wajib diisi";
+    if (!form.end_time.trim()) return "Jam selesai wajib diisi";
     return null;
   };
 
@@ -210,43 +200,45 @@ export default function StudentsAdminScreen() {
 
     setSubmitting(true);
     const payload = {
-      ...(modalMode === "create" ? { user_id: Number(form.user_id) } : {}),
-      class_id: form.class_id ? Number(form.class_id) : null,
-      full_name: form.full_name.trim(),
-      nis: form.nis.trim() || null,
-      nisn: form.nisn.trim() || null,
+      subject_id: Number(form.subject_id),
+      class_id: Number(form.class_id),
+      teacher_id: Number(form.teacher_id),
+      day_of_week: Number(form.day_of_week),
+      start_time: form.start_time.trim(),
+      end_time: form.end_time.trim(),
+      room: form.room.trim() || null,
     };
 
     try {
       if (modalMode === "create") {
-        await studentsApi.create(payload);
-        toast.success("Siswa berhasil ditambahkan.");
+        await schedulesApi.create(payload);
+        toast.success("Jadwal berhasil ditambahkan.");
       } else {
-        await studentsApi.update(Number(form.id), payload);
-        toast.success("Siswa berhasil diperbarui.");
+        await schedulesApi.update(Number(form.id), payload);
+        toast.success("Jadwal berhasil diperbarui.");
       }
       setModalMode(null);
       await fetchRecords();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Gagal menyimpan data siswa.");
+      toast.error(error.response?.data?.message || "Gagal menyimpan data jadwal.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = (item: StudentRecord) => {
-    Alert.alert("Hapus Siswa", `Hapus data siswa ${item.full_name}?`, [
+  const handleDelete = (item: ScheduleRecord) => {
+    Alert.alert("Hapus Jadwal", `Hapus jadwal mata pelajaran ${item.subject?.subject_name}?`, [
       { text: "Batal", style: "cancel" },
       {
         text: "Hapus",
         style: "destructive",
         onPress: async () => {
           try {
-            await studentsApi.delete(item.id);
+            await schedulesApi.delete(item.id);
             await fetchRecords();
-            toast.success("Siswa berhasil dihapus.");
+            toast.success("Jadwal berhasil dihapus.");
           } catch (error: any) {
-            toast.error(error.response?.data?.message || "Data siswa tidak dapat dihapus.");
+            toast.error(error.response?.data?.message || "Jadwal tidak dapat dihapus.");
           }
         },
       },
@@ -258,8 +250,8 @@ export default function StudentsAdminScreen() {
       <Image
         source={
           isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
+            ? require("../../../assets/images/wallpaper-app-mobile.png")
+            : require("../../../assets/images/wallpaper-app-desktop.png")
         }
         style={[StyleSheet.absoluteFillObject, { width: "100%", height: "100%" }]}
         resizeMode="cover"
@@ -272,8 +264,8 @@ export default function StudentsAdminScreen() {
       />
 
       <View style={styles.headerTitleContainer}>
-        <Text style={styles.headerTitle}>Master Data Siswa</Text>
-        <Text style={styles.headerSubtitle}>Kelola informasi biodata siswa, NIS/NISN, dan kelas belajar</Text>
+        <Text style={styles.headerTitle}>Master Data Jadwal</Text>
+        <Text style={styles.headerSubtitle}>Kelola jadwal pelajaran mingguan, guru pengampu, dan ruangan kelas</Text>
       </View>
 
       {Platform.OS === "web" && (
@@ -297,7 +289,7 @@ export default function StudentsAdminScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Cari siswa"
+            placeholder="Cari jadwal"
             placeholderTextColor="#9CA3AF"
             style={styles.searchInput}
           />
@@ -321,50 +313,6 @@ export default function StudentsAdminScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Period Filter Selector */}
-      {periods.length > 0 && (
-        <View style={styles.filterBar}>
-          <Ionicons name="filter-outline" size={16} color="#374151" style={{ marginRight: 2 }} />
-          <Text style={styles.filterLabel}>Periode:</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filterPills}
-            style={{ flexGrow: 0 }}
-          >
-            <TouchableOpacity
-              style={[styles.filterPill, selectedPeriodId === "all" && styles.filterPillActive]}
-              onPress={() => setSelectedPeriodId("all")}
-            >
-              <Text
-                style={[
-                  styles.filterPillText,
-                  selectedPeriodId === "all" && styles.filterPillTextActive,
-                ]}
-              >
-                Semua
-              </Text>
-            </TouchableOpacity>
-            {periods.map((p) => (
-              <TouchableOpacity
-                key={p.id}
-                style={[styles.filterPill, selectedPeriodId === p.id && styles.filterPillActive]}
-                onPress={() => setSelectedPeriodId(p.id)}
-              >
-                <Text
-                  style={[
-                    styles.filterPillText,
-                    selectedPeriodId === p.id && styles.filterPillTextActive,
-                  ]}
-                >
-                  {p.name} {p.is_active ? "(Aktif)" : ""}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
       <FlatList
         data={filteredRecords}
         keyExtractor={(item) => String(item.id)}
@@ -374,10 +322,10 @@ export default function StudentsAdminScreen() {
           !isMobile && filteredRecords.length > 0 ? (
             <View style={styles.tableHeader}>
               <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Mata Pelajaran</Text>
               <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Kelas</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>NIS</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>NISN</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>Guru Pengajar</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Waktu & Ruang</Text>
               <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
             </View>
           ) : null
@@ -388,9 +336,9 @@ export default function StudentsAdminScreen() {
               <ActivityIndicator color="#2563EB" />
             ) : (
               <>
-                <Ionicons name="school-outline" size={48} color="#1E3A8A" />
-                <Text style={styles.emptyTitle}>Data siswa belum tersedia</Text>
-                <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah data baru.</Text>
+                <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
+                <Text style={styles.emptyTitle}>Jadwal belum tersedia</Text>
+                <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah jadwal baru.</Text>
               </>
             )}
           </View>
@@ -400,12 +348,18 @@ export default function StudentsAdminScreen() {
             return (
               <View style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}>{item.id}</Text>
-                <Text style={[styles.tableCell, { flex: 2.5, fontWeight: "700", color: "#1E293B" }]}>
-                  {item.full_name || "-"}
+                <Text style={[styles.tableCell, { flex: 2, fontWeight: "700", color: "#1E293B" }]}>
+                  {item.subject?.subject_name || "-"}
                 </Text>
                 <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.class?.class_name || "-"}</Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nis || "-"}</Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nisn || "-"}</Text>
+                <Text style={[styles.tableCell, { flex: 2.2 }]}>{item.teacher?.full_name || "-"}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                  {(() => {
+                    const days = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+                    const dayName = days[Number(item.day_of_week)] || "Hari";
+                    return `${dayName}, ${item.start_time?.substring(0, 5)}-${item.end_time?.substring(0, 5)}${item.room ? ` (${item.room})` : ""}`;
+                  })()}
+                </Text>
                 <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
                   <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
                     <Ionicons name="create-outline" size={16} color="#3B82F6" />
@@ -421,14 +375,24 @@ export default function StudentsAdminScreen() {
           return (
             <View style={styles.card}>
               <View style={styles.cardIcon}>
-                <Ionicons name="school-outline" size={22} color="#3B82F6" />
+                <Ionicons name="calendar-outline" size={22} color="#3B82F6" />
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{item.full_name || "-"}</Text>
+                <Text style={styles.cardTitle}>{item.subject?.subject_name || "Jadwal"}</Text>
                 <Text style={styles.cardSubtitle}>
-                  {[item.nis ? `NIS ${item.nis}` : null, item.class?.class_name]
-                    .filter(Boolean)
-                    .join(" | ") || "Siswa"}
+                  {(() => {
+                    const days = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+                    const dayName = days[Number(item.day_of_week)] || "Hari";
+                    return [
+                      dayName,
+                      `${item.start_time?.substring(0, 5)} - ${item.end_time?.substring(0, 5)}`,
+                      item.class?.class_name,
+                      item.teacher?.full_name,
+                      item.room ? `Ruang ${item.room}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ");
+                  })()}
                 </Text>
                 <Text style={styles.cardMeta}>ID: {item.id}</Text>
               </View>
@@ -450,34 +414,21 @@ export default function StudentsAdminScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{modalMode === "create" ? "Tambah" : "Edit"} Siswa</Text>
+              <Text style={styles.modalTitle}>{modalMode === "create" ? "Tambah" : "Edit"} Jadwal</Text>
               <TouchableOpacity onPress={() => setModalMode(null)} style={styles.iconButton}>
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody}>
-              {modalMode === "create" && (
-                <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>User ID</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={form.user_id}
-                    onChangeText={(text) => setField("user_id", text)}
-                    keyboardType="numeric"
-                    placeholder="Masukkan ID User login"
-                    placeholderTextColor="#9CA3AF"
-                  />
-                </View>
-              )}
-
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nama Lengkap</Text>
+                <Text style={styles.inputLabel}>Subject ID (Mata Pelajaran)</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.full_name}
-                  onChangeText={(text) => setField("full_name", text)}
-                  placeholder="Masukkan nama lengkap"
+                  value={form.subject_id}
+                  onChangeText={(text) => setField("subject_id", text)}
+                  keyboardType="numeric"
+                  placeholder="Masukkan ID Mata Pelajaran"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
@@ -495,23 +446,58 @@ export default function StudentsAdminScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>NIS</Text>
+                <Text style={styles.inputLabel}>Teacher ID (Guru Pengampu)</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.nis}
-                  onChangeText={(text) => setField("nis", text)}
-                  placeholder="Masukkan NIS siswa"
+                  value={form.teacher_id}
+                  onChangeText={(text) => setField("teacher_id", text)}
+                  keyboardType="numeric"
+                  placeholder="Masukkan ID Guru"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>NISN</Text>
+                <Text style={styles.inputLabel}>Hari Ke (1 = Senin, 2 = Selasa, dst)</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.nisn}
-                  onChangeText={(text) => setField("nisn", text)}
-                  placeholder="Masukkan NISN siswa"
+                  value={form.day_of_week}
+                  onChangeText={(text) => setField("day_of_week", text)}
+                  keyboardType="numeric"
+                  placeholder="1-7"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Jam Mulai</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.start_time}
+                  onChangeText={(text) => setField("start_time", text)}
+                  placeholder="Contoh: 07:00"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Jam Selesai</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.end_time}
+                  onChangeText={(text) => setField("end_time", text)}
+                  placeholder="Contoh: 08:30"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Ruangan (Optional)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.room}
+                  onChangeText={(text) => setField("room", text)}
+                  placeholder="Contoh: R. Laboratorium RPL 1"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
@@ -542,7 +528,7 @@ export default function StudentsAdminScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Impor Data Excel - Siswa</Text>
+              <Text style={styles.modalTitle}>Impor Data Excel - Jadwal</Text>
               <TouchableOpacity onPress={() => setImportModalVisible(false)} style={styles.iconButton}>
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
@@ -678,42 +664,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#3B82F6",
     alignItems: "center",
     justifyContent: "center",
-  },
-  filterBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  filterLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#374151",
-    marginRight: 8,
-  },
-  filterPills: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  filterPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    backgroundColor: "#fff",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  filterPillActive: {
-    backgroundColor: "#3B82F6",
-    borderColor: "#3B82F6",
-  },
-  filterPillText: {
-    fontSize: 11,
-    color: "#4B5563",
-    fontWeight: "700",
-  },
-  filterPillTextActive: {
-    color: "#fff",
   },
   listContent: {
     padding: 16,
@@ -866,28 +816,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#111827",
     backgroundColor: "#F9FAFB",
-  },
-  selectorPill: {
-    flex: 1,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  selectorPillActive: {
-    backgroundColor: "#3B82F6",
-    borderColor: "#3B82F6",
-  },
-  selectorPillText: {
-    fontSize: 13,
-    color: "#4B5563",
-    fontWeight: "700",
-  },
-  selectorPillTextActive: {
-    color: "#fff",
   },
   modalFooter: {
     padding: 16,

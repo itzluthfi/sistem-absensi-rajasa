@@ -16,37 +16,48 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { usersApi, rolesApi } from "../../services/api";
+import { studentsApi, academicPeriodsApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useToast } from "../../hooks/useToast";
+import { useToast } from "../../../hooks/useToast";
+import { useAuthStore } from "../../../store/authStore";
 
-type UserRecord = {
+type StudentRecord = {
   id: number;
-  name: string;
-  email: string;
-  is_active: boolean | number;
-  roles?: Array<{ id: number; name: string }>;
+  user_id?: number;
+  class_id?: number | null;
+  nis?: string;
+  nisn?: string;
+  full_name?: string;
+  class?: { class_name?: string };
 };
 
 const emptyForm = {
   id: "",
-  name: "",
-  email: "",
-  password: "",
-  role: "siswa",
-  is_active: "true",
+  user_id: "",
+  class_id: "",
+  nis: "",
+  nisn: "",
+  full_name: "",
 };
 
-export default function UsersAdminScreen() {
+export default function StudentsAdminScreen() {
   const toast = useToast();
-  const [records, setRecords] = useState<UserRecord[]>([]);
-  const [roles, setRoles] = useState<any[]>([]);
-  const [query, setQuery] = useState("");
-  const [selectedRoleFilter, setSelectedRoleFilter] = useState("all");
+  const { user } = useAuthStore();
+  const isWali = user?.roles?.includes("wali_kelas");
+  const classNames = user?.teacher_info?.class_names || [];
+  const initialQuery = isWali && classNames.length > 0 ? classNames[0] : "";
+
+  const [records, setRecords] = useState<StudentRecord[]>([]);
+  const [periods, setPeriods] = useState<any[]>([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | number>("all");
+  const [query, setQuery] = useState(initialQuery);
   const [isLoading, setIsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [importModalVisible, setImportModalVisible] = useState(false);
+  const [importing, setImporting] = useState(false);
+
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
@@ -55,17 +66,20 @@ export default function UsersAdminScreen() {
   const paddingBottom = 64 + safeBottom + 24;
 
   useEffect(() => {
-    fetchRecords();
-    fetchRoles();
-  }, [selectedRoleFilter]);
+    loadPeriods();
+  }, []);
 
-  const fetchRoles = async () => {
+  useEffect(() => {
+    fetchRecords();
+  }, [selectedPeriodId]);
+
+  const loadPeriods = async () => {
     try {
-      const response = await rolesApi.getAll();
-      const payload = response.data ?? response ?? [];
-      setRoles(Array.isArray(payload) ? payload : []);
+      const response = await academicPeriodsApi.getAll();
+      const data = response.data ?? response ?? [];
+      setPeriods(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Gagal memuat roles", error);
+      console.error("Gagal memuat periode akademik:", error);
     }
   };
 
@@ -73,10 +87,10 @@ export default function UsersAdminScreen() {
     setIsLoading(true);
     try {
       const params: any = {};
-      if (selectedRoleFilter !== "all") {
-        params.role = selectedRoleFilter;
+      if (selectedPeriodId !== "all") {
+        params.academic_period_id = selectedPeriodId;
       }
-      const response = await usersApi.getAll(params);
+      const response = await studentsApi.getAll(params);
       const payload = response.data?.data ?? response.data ?? [];
       setRecords(Array.isArray(payload) ? payload : []);
     } catch (error: any) {
@@ -93,25 +107,85 @@ export default function UsersAdminScreen() {
     if (!term) return records;
     return records.filter(
       (item) =>
-        item.name.toLowerCase().includes(term) ||
-        item.email.toLowerCase().includes(term)
+        (item.full_name || "").toLowerCase().includes(term) ||
+        (item.nis || "").toLowerCase().includes(term) ||
+        (item.nisn || "").toLowerCase().includes(term) ||
+        (item.class?.class_name || "").toLowerCase().includes(term)
     );
   }, [records, query]);
+
+  const handleExportClick = async () => {
+    try {
+      const data = await importExportApi.export("students");
+      const blob = new Blob([data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `ekspor_siswa_${Date.now()}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      Alert.alert("Sukses", "Ekspor data siswa berhasil diunduh.");
+    } catch (error) {
+      Alert.alert("Gagal", "Gagal mengekspor data ke Excel.");
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const data = await importExportApi.template("students");
+      const blob = new Blob([data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `templat_impor_siswa.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      Alert.alert("Gagal", "Gagal mengunduh templat Excel.");
+    }
+  };
+
+  const uploadExcel = async (file: File) => {
+    setImporting(true);
+    try {
+      await importExportApi.import("students", file);
+      setImportModalVisible(false);
+      await fetchRecords();
+      toast.success("Import data Excel berhasil.");
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.message || "Gagal mengimpor berkas Excel.";
+      const details = error.response?.data?.errors;
+      if (details && Array.isArray(details)) {
+        toast.error(errorMsg + "\n\nDetail:\n" + details.join("\n"));
+      } else {
+        toast.error(errorMsg);
+      }
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const openCreate = () => {
     setForm(emptyForm);
     setModalMode("create");
   };
 
-  const openEdit = (item: UserRecord) => {
-    const primaryRole = item.roles && item.roles.length > 0 ? item.roles[0].name : "siswa";
+  const openEdit = (item: StudentRecord) => {
     setForm({
       id: String(item.id),
-      name: item.name || "",
-      email: item.email || "",
-      password: "",
-      role: primaryRole,
-      is_active: item.is_active ? "true" : "false",
+      user_id: item.user_id ? String(item.user_id) : "",
+      class_id: item.class_id ? String(item.class_id) : "",
+      nis: item.nis || "",
+      nisn: item.nisn || "",
+      full_name: item.full_name || "",
     });
     setModalMode("edit");
   };
@@ -121,12 +195,9 @@ export default function UsersAdminScreen() {
   };
 
   const validateForm = () => {
-    if (!form.name.trim()) return "Nama lengkap wajib diisi";
-    if (!form.email.trim()) return "Email wajib diisi";
-    if (modalMode === "create" && !form.password.trim()) return "Kata sandi wajib diisi";
-    if (modalMode === "create" && form.password.length < 6) return "Kata sandi minimal 6 karakter";
-    if (modalMode === "edit" && form.password.trim() && form.password.length < 6)
-      return "Kata sandi baru minimal 6 karakter";
+    if (!form.full_name.trim()) return "Nama lengkap wajib diisi";
+    if (modalMode === "create" && !Number(form.user_id))
+      return "User ID wajib diisi karena backend membutuhkannya";
     return null;
   };
 
@@ -138,47 +209,44 @@ export default function UsersAdminScreen() {
     }
 
     setSubmitting(true);
-    const payload: any = {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      role: form.role,
-      is_active: form.is_active === "true",
+    const payload = {
+      ...(modalMode === "create" ? { user_id: Number(form.user_id) } : {}),
+      class_id: form.class_id ? Number(form.class_id) : null,
+      full_name: form.full_name.trim(),
+      nis: form.nis.trim() || null,
+      nisn: form.nisn.trim() || null,
     };
-
-    if (form.password.trim()) {
-      payload.password = form.password;
-    }
 
     try {
       if (modalMode === "create") {
-        await usersApi.create(payload);
-        toast.success("User berhasil ditambahkan.");
+        await studentsApi.create(payload);
+        toast.success("Siswa berhasil ditambahkan.");
       } else {
-        await usersApi.update(Number(form.id), payload);
-        toast.success("User berhasil diperbarui.");
+        await studentsApi.update(Number(form.id), payload);
+        toast.success("Siswa berhasil diperbarui.");
       }
       setModalMode(null);
       await fetchRecords();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Gagal menyimpan user.");
+      toast.error(error.response?.data?.message || "Gagal menyimpan data siswa.");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = (item: UserRecord) => {
-    Alert.alert("Hapus User", `Apakah Anda yakin ingin menghapus user ${item.name}?`, [
+  const handleDelete = (item: StudentRecord) => {
+    Alert.alert("Hapus Siswa", `Hapus data siswa ${item.full_name}?`, [
       { text: "Batal", style: "cancel" },
       {
         text: "Hapus",
         style: "destructive",
         onPress: async () => {
           try {
-            await usersApi.delete(item.id);
+            await studentsApi.delete(item.id);
             await fetchRecords();
-            toast.success("User berhasil dihapus.");
+            toast.success("Siswa berhasil dihapus.");
           } catch (error: any) {
-            toast.error(error.response?.data?.message || "User tidak dapat dihapus.");
+            toast.error(error.response?.data?.message || "Data siswa tidak dapat dihapus.");
           }
         },
       },
@@ -190,8 +258,8 @@ export default function UsersAdminScreen() {
       <Image
         source={
           isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
+            ? require("../../../assets/images/wallpaper-app-mobile.png")
+            : require("../../../assets/images/wallpaper-app-desktop.png")
         }
         style={[StyleSheet.absoluteFillObject, { width: "100%", height: "100%" }]}
         resizeMode="cover"
@@ -204,9 +272,24 @@ export default function UsersAdminScreen() {
       />
 
       <View style={styles.headerTitleContainer}>
-        <Text style={styles.headerTitle}>Master Data User</Text>
-        <Text style={styles.headerSubtitle}>Kelola akun pengguna, hak akses, dan status keaktifan login</Text>
+        <Text style={styles.headerTitle}>Master Data Siswa</Text>
+        <Text style={styles.headerSubtitle}>Kelola informasi biodata siswa, NIS/NISN, dan kelas belajar</Text>
       </View>
+
+      {Platform.OS === "web" && (
+        <input
+          type="file"
+          id="excel-file-input"
+          style={{ display: "none" }}
+          accept=".xlsx,.xls,.csv"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              uploadExcel(file);
+            }
+          }}
+        />
+      )}
 
       <View style={styles.toolbar}>
         <View style={styles.searchBox}>
@@ -214,22 +297,35 @@ export default function UsersAdminScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Cari user (nama/email)"
+            placeholder="Cari siswa"
             placeholderTextColor="#9CA3AF"
             style={styles.searchInput}
           />
         </View>
+        <TouchableOpacity
+          style={[styles.toolbarButton, { backgroundColor: "#10B981" }]}
+          onPress={handleExportClick}
+        >
+          <Ionicons name="cloud-download-outline" size={18} color="#fff" />
+          {!isMobile && <Text style={styles.toolbarButtonText}>Ekspor</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.toolbarButton, { backgroundColor: "#8B5CF6" }]}
+          onPress={() => setImportModalVisible(true)}
+        >
+          <Ionicons name="cloud-upload-outline" size={18} color="#fff" />
+          {!isMobile && <Text style={styles.toolbarButtonText}>Impor</Text>}
+        </TouchableOpacity>
         <TouchableOpacity style={styles.addButton} onPress={openCreate}>
           <Ionicons name="add" size={22} color="#fff" />
-          {!isMobile && <Text style={styles.addButtonText}>Tambah User</Text>}
         </TouchableOpacity>
       </View>
 
-      {/* Roles Filter Selector */}
-      {roles.length > 0 && (
+      {/* Period Filter Selector */}
+      {periods.length > 0 && (
         <View style={styles.filterBar}>
           <Ionicons name="filter-outline" size={16} color="#374151" style={{ marginRight: 2 }} />
-          <Text style={styles.filterLabel}>Peran:</Text>
+          <Text style={styles.filterLabel}>Periode:</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -237,31 +333,31 @@ export default function UsersAdminScreen() {
             style={{ flexGrow: 0 }}
           >
             <TouchableOpacity
-              style={[styles.filterPill, selectedRoleFilter === "all" && styles.filterPillActive]}
-              onPress={() => setSelectedRoleFilter("all")}
+              style={[styles.filterPill, selectedPeriodId === "all" && styles.filterPillActive]}
+              onPress={() => setSelectedPeriodId("all")}
             >
               <Text
                 style={[
                   styles.filterPillText,
-                  selectedRoleFilter === "all" && styles.filterPillTextActive,
+                  selectedPeriodId === "all" && styles.filterPillTextActive,
                 ]}
               >
                 Semua
               </Text>
             </TouchableOpacity>
-            {roles.map((r) => (
+            {periods.map((p) => (
               <TouchableOpacity
-                key={r.id}
-                style={[styles.filterPill, selectedRoleFilter === r.name && styles.filterPillActive]}
-                onPress={() => setSelectedRoleFilter(r.name)}
+                key={p.id}
+                style={[styles.filterPill, selectedPeriodId === p.id && styles.filterPillActive]}
+                onPress={() => setSelectedPeriodId(p.id)}
               >
                 <Text
                   style={[
                     styles.filterPillText,
-                    selectedRoleFilter === r.name && styles.filterPillTextActive,
+                    selectedPeriodId === p.id && styles.filterPillTextActive,
                   ]}
                 >
-                  {r.name.replace("_", " ").toUpperCase()}
+                  {p.name} {p.is_active ? "(Aktif)" : ""}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -279,9 +375,9 @@ export default function UsersAdminScreen() {
             <View style={styles.tableHeader}>
               <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
               <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Email</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran (Role)</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Kelas</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>NIS</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>NISN</Text>
               <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
             </View>
           ) : null
@@ -292,46 +388,24 @@ export default function UsersAdminScreen() {
               <ActivityIndicator color="#2563EB" />
             ) : (
               <>
-                <Ionicons name="people-outline" size={48} color="#1E3A8A" />
-                <Text style={styles.emptyTitle}>User belum tersedia</Text>
-                <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah user baru.</Text>
+                <Ionicons name="school-outline" size={48} color="#1E3A8A" />
+                <Text style={styles.emptyTitle}>Data siswa belum tersedia</Text>
+                <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah data baru.</Text>
               </>
             )}
           </View>
         }
         renderItem={({ item }) => {
-          const roleName = item.roles && item.roles.length > 0 ? item.roles[0].name : "-";
           if (!isMobile) {
             return (
               <View style={styles.tableRow}>
                 <Text style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}>{item.id}</Text>
                 <Text style={[styles.tableCell, { flex: 2.5, fontWeight: "700", color: "#1E293B" }]}>
-                  {item.name || "-"}
+                  {item.full_name || "-"}
                 </Text>
-                <Text style={[styles.tableCell, { flex: 2.5 }]}>{item.email || "-"}</Text>
-                <Text style={[styles.tableCell, { flex: 1.5, textTransform: "uppercase", fontSize: 11, fontWeight: "700", color: "#4F46E5" }]}>
-                  {roleName.replace("_", " ")}
-                </Text>
-                <View style={{ flex: 1.2, alignItems: "center" }}>
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 3,
-                      borderRadius: 6,
-                      backgroundColor: item.is_active ? "#D1FAE5" : "#F3F4F6",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "700",
-                        color: item.is_active ? "#065F46" : "#6B7280",
-                      }}
-                    >
-                      {item.is_active ? "Aktif" : "Nonaktif"}
-                    </Text>
-                  </View>
-                </View>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.class?.class_name || "-"}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nis || "-"}</Text>
+                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nisn || "-"}</Text>
                 <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
                   <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
                     <Ionicons name="create-outline" size={16} color="#3B82F6" />
@@ -347,35 +421,16 @@ export default function UsersAdminScreen() {
           return (
             <View style={styles.card}>
               <View style={styles.cardIcon}>
-                <Ionicons name="person-outline" size={22} color="#3B82F6" />
+                <Ionicons name="school-outline" size={22} color="#3B82F6" />
               </View>
               <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-                <Text style={styles.cardSubtitle}>{item.email}</Text>
-                <Text style={[styles.cardMeta, { color: "#4F46E5", fontWeight: "700" }]}>
-                  Peran: {roleName.replace("_", " ").toUpperCase()}
+                <Text style={styles.cardTitle}>{item.full_name || "-"}</Text>
+                <Text style={styles.cardSubtitle}>
+                  {[item.nis ? `NIS ${item.nis}` : null, item.class?.class_name]
+                    .filter(Boolean)
+                    .join(" | ") || "Siswa"}
                 </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 }}>
-                  <Text style={{ fontSize: 11, color: "#9CA3AF" }}>Status: </Text>
-                  <View
-                    style={{
-                      paddingHorizontal: 6,
-                      paddingVertical: 1,
-                      borderRadius: 4,
-                      backgroundColor: item.is_active ? "#D1FAE5" : "#F3F4F6",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 9,
-                        fontWeight: "700",
-                        color: item.is_active ? "#065F46" : "#6B7280",
-                      }}
-                    >
-                      {item.is_active ? "Aktif" : "Nonaktif"}
-                    </Text>
-                  </View>
-                </View>
+                <Text style={styles.cardMeta}>ID: {item.id}</Text>
               </View>
               <View style={styles.cardActions}>
                 <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
@@ -390,112 +445,75 @@ export default function UsersAdminScreen() {
         }}
       />
 
-      {/* Form modal */}
+      {/* Input Modal */}
       <Modal visible={!!modalMode} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {modalMode === "create" ? "Tambah" : "Edit"} User
-              </Text>
+              <Text style={styles.modalTitle}>{modalMode === "create" ? "Tambah" : "Edit"} Siswa</Text>
               <TouchableOpacity onPress={() => setModalMode(null)} style={styles.iconButton}>
                 <Ionicons name="close" size={22} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
             <ScrollView style={styles.modalBody}>
+              {modalMode === "create" && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>User ID</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={form.user_id}
+                    onChangeText={(text) => setField("user_id", text)}
+                    keyboardType="numeric"
+                    placeholder="Masukkan ID User login"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+              )}
+
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Nama Lengkap</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.name}
-                  onChangeText={(text) => setField("name", text)}
+                  value={form.full_name}
+                  onChangeText={(text) => setField("full_name", text)}
                   placeholder="Masukkan nama lengkap"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email</Text>
+                <Text style={styles.inputLabel}>Class ID (Kelas)</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.email}
-                  onChangeText={(text) => setField("email", text)}
-                  placeholder="name@siswa.smksrajasa.sch.id"
-                  keyboardType="email-address"
+                  value={form.class_id}
+                  onChangeText={(text) => setField("class_id", text)}
+                  keyboardType="numeric"
+                  placeholder="Masukkan ID Kelas"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  Kata Sandi {modalMode === "edit" && "(Kosongkan jika tidak diganti)"}
-                </Text>
+                <Text style={styles.inputLabel}>NIS</Text>
                 <TextInput
                   style={styles.input}
-                  value={form.password}
-                  onChangeText={(text) => setField("password", text)}
-                  placeholder={modalMode === "create" ? "Masukkan kata sandi" : "Masukkan kata sandi baru"}
-                  secureTextEntry
+                  value={form.nis}
+                  onChangeText={(text) => setField("nis", text)}
+                  placeholder="Masukkan NIS siswa"
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Peran Hak Akses (Role)</Text>
-                <View style={styles.roleContainer}>
-                  {roles.map((r) => (
-                    <TouchableOpacity
-                      key={r.id}
-                      style={[
-                        styles.roleButton,
-                        form.role === r.name && styles.roleButtonActive,
-                      ]}
-                      onPress={() => setField("role", r.name)}
-                    >
-                      <Text
-                        style={[
-                          styles.roleButtonText,
-                          form.role === r.name && styles.roleButtonTextActive,
-                        ]}
-                      >
-                        {r.name.replace("_", " ").toUpperCase()}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Status Keaktifan Akun</Text>
-                <View style={{ flexDirection: "row", gap: 10 }}>
-                  <TouchableOpacity
-                    style={[styles.selectorPill, form.is_active === "true" && styles.selectorPillActive]}
-                    onPress={() => setField("is_active", "true")}
-                  >
-                    <Text
-                      style={[
-                        styles.selectorPillText,
-                        form.is_active === "true" && styles.selectorPillTextActive,
-                      ]}
-                    >
-                      Aktif
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.selectorPill, form.is_active === "false" && styles.selectorPillActive]}
-                    onPress={() => setField("is_active", "false")}
-                  >
-                    <Text
-                      style={[
-                        styles.selectorPillText,
-                        form.is_active === "false" && styles.selectorPillTextActive,
-                      ]}
-                    >
-                      Nonaktif
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <Text style={styles.inputLabel}>NISN</Text>
+                <TextInput
+                  style={styles.input}
+                  value={form.nisn}
+                  onChangeText={(text) => setField("nisn", text)}
+                  placeholder="Masukkan NISN siswa"
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
             </ScrollView>
 
@@ -513,6 +531,79 @@ export default function UsersAdminScreen() {
                 ) : (
                   <Text style={styles.primaryButtonText}>Simpan</Text>
                 )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Import Modal */}
+      <Modal visible={importModalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Impor Data Excel - Siswa</Text>
+              <TouchableOpacity onPress={() => setImportModalVisible(false)} style={styles.iconButton}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={[styles.modalBody, { paddingVertical: 24, gap: 20 }]}>
+              <Text style={{ fontSize: 13, color: "#4B5563", lineHeight: 20, fontWeight: "600" }}>
+                Silakan unduh templat Excel terlebih dahulu agar struktur kolom data Anda sesuai dengan yang dibutuhkan sistem. Setelah itu, isi data Anda dan unggah berkasnya di bawah ini.
+              </Text>
+
+              <TouchableOpacity
+                style={[
+                  styles.secondaryButton,
+                  {
+                    flexDirection: "row",
+                    gap: 8,
+                    minHeight: 48,
+                    backgroundColor: "#EFF6FF",
+                    borderWidth: 1,
+                    borderColor: "#BFDBFE",
+                  },
+                ]}
+                onPress={handleDownloadTemplate}
+              >
+                <Ionicons name="document-text-outline" size={20} color="#2563EB" />
+                <Text style={{ color: "#2563EB", fontWeight: "800" }}>Unduh Templat Excel</Text>
+              </TouchableOpacity>
+
+              <View style={{ height: 1, backgroundColor: "#E5E7EB", marginVertical: 4 }} />
+
+              <TouchableOpacity
+                style={[
+                  styles.primaryButton,
+                  { flexDirection: "row", gap: 8, minHeight: 52, backgroundColor: "#8B5CF6" },
+                ]}
+                onPress={() => {
+                  if (Platform.OS === "web") {
+                    document.getElementById("excel-file-input")?.click();
+                  } else {
+                    Alert.alert("Info", "Unggahan berkas Excel hanya didukung pada mode desktop/web.");
+                  }
+                }}
+                disabled={importing}
+              >
+                {importing ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="cloud-upload-outline" size={22} color="#fff" />
+                    <Text style={{ color: "#fff", fontWeight: "800" }}>Pilih & Unggah Berkas Excel</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.secondaryButton, { flex: 1 }]}
+                onPress={() => setImportModalVisible(false)}
+              >
+                <Text style={styles.secondaryButtonText}>Tutup</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -566,20 +657,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#111827",
   },
-  addButton: {
+  toolbarButton: {
     height: 46,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 10,
-    backgroundColor: "#3B82F6",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 6,
   },
-  addButtonText: {
+  toolbarButtonText: {
     color: "#fff",
-    fontWeight: "700",
     fontSize: 13,
+    fontWeight: "700",
+  },
+  addButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: "#3B82F6",
+    alignItems: "center",
+    justifyContent: "center",
   },
   filterBar: {
     flexDirection: "row",
@@ -681,6 +779,7 @@ const styles = StyleSheet.create({
   },
   cardMeta: {
     fontSize: 11,
+    color: "#9CA3AF",
     marginTop: 4,
   },
   cardActions: {
@@ -767,32 +866,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#111827",
     backgroundColor: "#F9FAFB",
-  },
-  roleContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 4,
-  },
-  roleButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: "#F3F4F6",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  roleButtonActive: {
-    backgroundColor: "#4F46E5",
-    borderColor: "#4F46E5",
-  },
-  roleButtonText: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#4B5563",
-  },
-  roleButtonTextActive: {
-    color: "#fff",
   },
   selectorPill: {
     flex: 1,

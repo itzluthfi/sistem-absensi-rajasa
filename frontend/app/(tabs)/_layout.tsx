@@ -256,6 +256,50 @@ export default function TabsLayout() {
           href: null,
         }}
       />
+
+      {/* Admin Management Screens - Hidden from bottom tab bar but inheriting TabsLayout */}
+      <Tabs.Screen
+        name="admin/users"
+        options={{
+          title: 'Data User',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="admin/students"
+        options={{
+          title: 'Data Siswa',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="admin/teachers"
+        options={{
+          title: 'Data Guru',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="admin/classes"
+        options={{
+          title: 'Data Kelas',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="admin/schedules"
+        options={{
+          title: 'Data Jadwal',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="admin/gps-settings"
+        options={{
+          title: 'Pengaturan GPS',
+          href: null,
+        }}
+      />
     </Tabs>
   );
 

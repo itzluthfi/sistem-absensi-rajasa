@@ -14,9 +14,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { gpsLocationsApi } from "../../services/api";
+import { gpsLocationsApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useToast } from "../../hooks/useToast";
+import { useToast } from "../../../hooks/useToast";
 
 // Platform-safe WebView
 let WebView: any = null;

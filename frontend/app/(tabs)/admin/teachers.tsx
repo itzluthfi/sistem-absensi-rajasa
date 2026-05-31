@@ -16,9 +16,9 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { teachersApi, importExportApi } from "../../services/api";
+import { teachersApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useToast } from "../../hooks/useToast";
+import { useToast } from "../../../hooks/useToast";
 
 type TeacherRecord = {
   id: number;
@@ -221,8 +221,8 @@ export default function TeachersAdminScreen() {
       <Image
         source={
           isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
+            ? require("../../../assets/images/wallpaper-app-mobile.png")
+            : require("../../../assets/images/wallpaper-app-desktop.png")
         }
         style={[StyleSheet.absoluteFillObject, { width: "100%", height: "100%" }]}
         resizeMode="cover"

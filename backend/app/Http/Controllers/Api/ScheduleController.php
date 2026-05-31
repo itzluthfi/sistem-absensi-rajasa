@@ -191,6 +191,54 @@ class ScheduleController extends BaseController
                 $query->where('schedules.academic_period_id', $academicPeriodId);
             }
 
+            if ($request->boolean('all') || $request->input('paginate') === 'false') {
+                $rawSchedules = $query->orderBy('schedules.day_name')
+                    ->orderBy('schedules.start_time')
+                    ->select([
+                        'schedules.*',
+                        'subjects.subject_name', 'subjects.subject_code', 'subjects.description as subject_description',
+                        'classes.class_name', 'classes.major_id as class_major_id', 'classes.academic_period_id as class_academic_period_id',
+                        'teachers.user_id as teacher_user_id', 'teachers.full_name as teacher_full_name', 'teachers.nip as teacher_nip'
+                    ])
+                    ->get();
+
+                $formattedSchedules = $rawSchedules->map(function ($sch) {
+                    return [
+                        'id' => $sch->id,
+                        'class_id' => $sch->class_id,
+                        'teacher_id' => $sch->teacher_id,
+                        'subject_id' => $sch->subject_id,
+                        'academic_period_id' => $sch->academic_period_id,
+                        'day_name' => $sch->day_name,
+                        'start_time' => $sch->start_time,
+                        'end_time' => $sch->end_time,
+                        'room' => $sch->room,
+                        'created_at' => $sch->created_at,
+                        'updated_at' => $sch->updated_at,
+                        'subject' => $sch->subject_id ? [
+                            'id' => $sch->subject_id,
+                            'subject_name' => $sch->subject_name,
+                            'subject_code' => $sch->subject_code,
+                            'description' => $sch->subject_description,
+                        ] : null,
+                        'class' => $sch->class_id ? [
+                            'id' => $sch->class_id,
+                            'class_name' => $sch->class_name,
+                            'major_id' => $sch->class_major_id,
+                            'academic_period_id' => $sch->class_academic_period_id,
+                        ] : null,
+                        'teacher' => $sch->teacher_id ? [
+                            'id' => $sch->teacher_id,
+                            'user_id' => $sch->teacher_user_id,
+                            'full_name' => $sch->teacher_full_name,
+                            'nip' => $sch->teacher_nip,
+                        ] : null,
+                    ];
+                });
+
+                return $this->sendResponse($formattedSchedules, 'Jadwal pelajaran berhasil diambil.');
+            }
+
             $schedules = $query->orderBy('schedules.day_name')
                 ->orderBy('schedules.start_time')
                 ->select([
