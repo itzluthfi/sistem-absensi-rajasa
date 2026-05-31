@@ -10,7 +10,7 @@ class Schedule extends Model
 {
     use HasFactory, Auditable;
 
-    protected $fillable = ['class_id', 'teacher_id', 'subject_id', 'academic_period_id', 'day_name', 'start_time', 'end_time'];
+    protected $fillable = ['class_id', 'teacher_id', 'subject_id', 'academic_period_id', 'day_name', 'start_time', 'end_time', 'room'];
 
     public function class()
     {
