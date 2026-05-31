@@ -32,46 +32,46 @@ const showToast = (type: "success" | "error" | "info", message: string, title?: 
         _hotToast.success(message, {
           duration: 3500,
           style: {
-            background: "#ECFDF5",
-            color: "#065F46",
-            border: "1px solid #A7F3D0",
+            background: "#FFFFFF",
+            color: "#059669",
+            border: "1px solid #E5E7EB",
             fontWeight: "600",
             fontSize: "14px",
             borderRadius: "12px",
             padding: "14px 18px",
-            boxShadow: "0 8px 24px rgba(6, 95, 70, 0.08)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
           },
-          iconTheme: { primary: "#10B981", secondary: "#ECFDF5" },
+          iconTheme: { primary: "#10B981", secondary: "#FFFFFF" },
         });
         break;
       case "error":
         _hotToast.error(message, {
           duration: 4500,
           style: {
-            background: "#FEF2F2",
-            color: "#991B1B",
-            border: "1px solid #FCA5A5",
+            background: "#FFFFFF",
+            color: "#DC2626",
+            border: "1px solid #E5E7EB",
             fontWeight: "600",
             fontSize: "14px",
             borderRadius: "12px",
             padding: "14px 18px",
-            boxShadow: "0 8px 24px rgba(153, 27, 27, 0.08)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
           },
-          iconTheme: { primary: "#EF4444", secondary: "#FEF2F2" },
+          iconTheme: { primary: "#EF4444", secondary: "#FFFFFF" },
         });
         break;
       case "info":
         _hotToast(message, {
           duration: 3000,
           style: {
-            background: "#EFF6FF",
-            color: "#1E40AF",
-            border: "1px solid #93C5FD",
+            background: "#FFFFFF",
+            color: "#2563EB",
+            border: "1px solid #E5E7EB",
             fontWeight: "600",
             fontSize: "14px",
             borderRadius: "12px",
             padding: "14px 18px",
-            boxShadow: "0 8px 24px rgba(30, 64, 175, 0.08)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
           },
           icon: "ℹ️",
         });
