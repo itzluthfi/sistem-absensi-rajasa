@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\LeaveRequestController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\QRController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\GpsLocationsController;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -248,6 +249,19 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware('role:super_admin,admin')->group(function () {
         Route::put('settings/gps', [SettingsController::class, 'updateGpsSettings']);
+    });
+
+    // ============================================
+    // GPS LOCATIONS (Multiple Geofence Points)
+    // ============================================
+    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+        Route::get('gps-locations', [GpsLocationsController::class, 'index']);
+    });
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::post('gps-locations', [GpsLocationsController::class, 'store']);
+        Route::put('gps-locations/{id}', [GpsLocationsController::class, 'update']);
+        Route::delete('gps-locations/{id}', [GpsLocationsController::class, 'destroy']);
+        Route::post('gps-locations/{id}/toggle', [GpsLocationsController::class, 'toggle']);
     });
 
     // ============================================

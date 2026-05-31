@@ -591,5 +591,28 @@ export const settingsApi = {
     return response.data;
   },
 };
+
+export const gpsLocationsApi = {
+  list: async () => {
+    const response = await api.get('/gps-locations');
+    return response.data;
+  },
+  create: async (data: { name: string; latitude: number; longitude: number; radius_meters: number; is_active?: boolean }) => {
+    const response = await api.post('/gps-locations', data);
+    return response.data;
+  },
+  update: async (id: number, data: { name?: string; latitude?: number; longitude?: number; radius_meters?: number; is_active?: boolean }) => {
+    const response = await api.put(`/gps-locations/${id}`, data);
+    return response.data;
+  },
+  remove: async (id: number) => {
+    const response = await api.delete(`/gps-locations/${id}`);
+    return response.data;
+  },
+  toggle: async (id: number) => {
+    const response = await api.post(`/gps-locations/${id}/toggle`);
+    return response.data;
+  },
+};
  
 export default api;

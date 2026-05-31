@@ -284,21 +284,44 @@ class AttendanceController extends BaseController
                 return $this->sendError('Anda tidak terdaftar di kelas untuk mata pelajaran ini.', [], 422);
             }
 
-            // GPS Validation (Dynamic Geofencing from Database Settings)
+            // GPS Validation (Multi-Location Geofencing from gps_locations table)
             if ($request->has('location') && isset($data['location']['latitude']) && isset($data['location']['longitude'])) {
-                $schoolLat = (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583;
-                $schoolLng = (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750;
-                $schoolRadius = (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100;
- 
-                $distance = $this->calculateDistance(
-                    $data['location']['latitude'],
-                    $data['location']['longitude'],
-                    $schoolLat,
-                    $schoolLng
-                );
-                
-                if ($distance > $schoolRadius) {
-                    return $this->sendError('Anda berada di luar radius kelas (' . round($distance) . 'm dari koordinat sekolah). Absensi ditolak.', [], 422);
+                $userLat = (double) $data['location']['latitude'];
+                $userLng = (double) $data['location']['longitude'];
+
+                $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
+
+                // Fallback to legacy settings table if no locations defined yet
+                if ($activeLocations->isEmpty()) {
+                    $activeLocations = collect([[
+                        'name'          => 'Sekolah',
+                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
+                    ]])->map(fn($a) => (object) $a);
+                }
+
+                $withinAny = false;
+                $minDistance = PHP_INT_MAX;
+                $nearestName = '';
+
+                foreach ($activeLocations as $loc) {
+                    $dist = $this->calculateDistance($userLat, $userLng, $loc->latitude, $loc->longitude);
+                    if ($dist < $minDistance) {
+                        $minDistance = $dist;
+                        $nearestName = $loc->name;
+                    }
+                    if ($dist <= $loc->radius_meters) {
+                        $withinAny = true;
+                        break;
+                    }
+                }
+
+                if (!$withinAny) {
+                    return $this->sendError(
+                        'Anda berada di luar semua zona absensi (' . round($minDistance) . 'm dari titik terdekat: ' . $nearestName . '). Absensi ditolak.',
+                        [], 422
+                    );
                 }
             }
 
@@ -570,21 +593,43 @@ class AttendanceController extends BaseController
                 return $this->sendError('Anda sudah melakukan absen masuk sekolah hari ini.', [], 422);
             }
             
-            // GPS Geofencing (Dynamic Geofencing from Database Settings)
+            // GPS Geofencing (Multi-Location Geofencing from gps_locations table)
             if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
-                $schoolLat = (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583;
-                $schoolLng = (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750;
-                $schoolRadius = (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100;
- 
-                $distance = $this->calculateDistance(
-                    $request->location['latitude'],
-                    $request->location['longitude'],
-                    $schoolLat,
-                    $schoolLng
-                );
-                
-                if ($distance > $schoolRadius) {
-                    return $this->sendError('Anda berada di luar radius sekolah (' . round($distance) . 'm dari koordinat sekolah).', [], 422);
+                $userLat = (double) $request->location['latitude'];
+                $userLng = (double) $request->location['longitude'];
+
+                $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
+
+                if ($activeLocations->isEmpty()) {
+                    $activeLocations = collect([[
+                        'name'          => 'Sekolah',
+                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
+                    ]])->map(fn($a) => (object) $a);
+                }
+
+                $withinAny = false;
+                $minDistance = PHP_INT_MAX;
+                $nearestName = '';
+
+                foreach ($activeLocations as $loc) {
+                    $dist = $this->calculateDistance($userLat, $userLng, $loc->latitude, $loc->longitude);
+                    if ($dist < $minDistance) {
+                        $minDistance = $dist;
+                        $nearestName = $loc->name;
+                    }
+                    if ($dist <= $loc->radius_meters) {
+                        $withinAny = true;
+                        break;
+                    }
+                }
+
+                if (!$withinAny) {
+                    return $this->sendError(
+                        'Anda berada di luar semua zona absensi (' . round($minDistance) . 'm dari titik terdekat: ' . $nearestName . ').',
+                        [], 422
+                    );
                 }
             }
             
