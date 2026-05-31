@@ -109,7 +109,7 @@ export default function HomeScreen() {
     return DAY_MAP_ENG_TO_IND[dayNameEng] || "Senin";
   };
 
-  const [selectedDayTab, setSelectedDayTab] = useState<string>(getTodayDayNameInd());
+
 
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
@@ -359,8 +359,8 @@ export default function HomeScreen() {
     };
   }, [todaySchedules]);
 
-  const filteredSchedulesForDay = useMemo(() => {
-    const dayInEng = DAY_MAP_IND_TO_ENG[selectedDayTab] || "Monday";
+  const getSchedulesForDay = (dayNameInd: string) => {
+    const dayInEng = DAY_MAP_IND_TO_ENG[dayNameInd] || "Monday";
     const daySchedules = allSchedules.filter((s) => s.day_name === dayInEng);
     
     if (isGuru) {
@@ -372,7 +372,7 @@ export default function HomeScreen() {
     }
     
     return daySchedules;
-  }, [allSchedules, selectedDayTab, isGuru, user]);
+  };
 
   useEffect(() => {
     loadData();
@@ -1372,121 +1372,120 @@ export default function HomeScreen() {
 
             {/* Weekly Calendar Section */}
             <View style={[styles.calendarContainer, { marginTop: 24 }]}>
-              <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>
+              <Text style={[styles.sectionTitle, { marginBottom: 16 }]}>
                 Jadwal Mingguan (Senin - Jumat)
               </Text>
               
-              {/* Day Tabs */}
-              <View style={styles.calendarTabsRow}>
+              <View style={styles.weeklyScheduleWrapper}>
                 {DAYS_OF_WEEK.map((day) => {
-                  const isTabSelected = selectedDayTab === day;
+                  const daySchedules = getSchedulesForDay(day);
                   const isDayToday = getTodayDayNameInd() === day;
+                  
                   return (
-                    <TouchableOpacity
-                      key={day}
+                    <View 
+                      key={day} 
                       style={[
-                        styles.calendarTabButton,
-                        isTabSelected && styles.calendarTabButtonActive,
-                        isDayToday && !isTabSelected && styles.calendarTabButtonTodayOutline,
+                        styles.dayColumn,
+                        isDayToday && styles.dayColumnToday,
+                        { width: width >= 1024 ? '18.5%' : width >= 768 ? '48%' : '100%' }
                       ]}
-                      onPress={() => setSelectedDayTab(day)}
                     >
-                      <Text
-                        style={[
-                          styles.calendarTabText,
-                          isTabSelected && styles.calendarTabTextActive,
-                          isDayToday && { fontWeight: '800' }
-                        ]}
-                      >
-                        {day}
-                      </Text>
-                      {isDayToday && (
-                        <View style={[styles.todayIndicatorDot, isTabSelected && { backgroundColor: '#3B82F6' }]} />
+                      {/* Day Header Badge */}
+                      <View style={[
+                        styles.dayHeader,
+                        isDayToday && styles.dayHeaderToday
+                      ]}>
+                        <Text style={[
+                          styles.dayHeaderText,
+                          isDayToday && styles.dayHeaderTextToday
+                        ]}>
+                          {day}
+                        </Text>
+                        {isDayToday && (
+                          <View style={styles.todayBadge}>
+                            <Text style={styles.todayBadgeText}>Hari Ini</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {/* Day Schedules List */}
+                      {daySchedules.length > 0 ? (
+                        <View style={{ gap: 10 }}>
+                          {daySchedules.map((schedule) => {
+                            const isActive = isDayToday && !!schedule.active_session;
+                            
+                            return (
+                              <View
+                                key={schedule.id}
+                                style={[
+                                  styles.calendarScheduleCard,
+                                  isActive && styles.activeScheduleCard,
+                                  isDayToday && styles.calendarScheduleCardToday,
+                                ]}
+                              >
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <View style={styles.timeContainer}>
+                                    <Ionicons
+                                      name="time-outline"
+                                      size={12}
+                                      color="#6B7280"
+                                    />
+                                    <Text style={styles.timeText}>
+                                      {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                                    </Text>
+                                  </View>
+                                  {isDayToday && (
+                                    <View style={{ alignSelf: 'flex-start' }}>
+                                      {isSiswa ? (
+                                        <StudentStatusBadge
+                                          status={schedule.attendance_status}
+                                          time={schedule.attendance_time}
+                                        />
+                                      ) : (
+                                        <TeacherSessionBadge isActive={isActive} />
+                                      )}
+                                    </View>
+                                  )}
+                                </View>
+
+                                <Text style={[styles.subjectName, { fontSize: 14, marginTop: 6, fontWeight: '700' }]}>
+                                  {schedule.subject?.subject_name || "Mata Pelajaran"}
+                                </Text>
+
+                                <View style={[styles.classInfo, { borderBottomWidth: 0, marginTop: 4 }]}>
+                                  <Ionicons
+                                    name="business-outline"
+                                    size={12}
+                                    color="#6B7280"
+                                  />
+                                  <Text style={[styles.classNameText, { fontSize: 11 }]}>
+                                    {schedule.class?.class_name || "Rombel"}
+                                  </Text>
+                                  <View style={styles.bulletSeparator} />
+                                  <Ionicons
+                                    name="person-outline"
+                                    size={12}
+                                    color="#6B7280"
+                                  />
+                                  <Text style={[styles.teacherNameText, { fontSize: 11 }]} numberOfLines={1}>
+                                    {isSiswa
+                                      ? schedule.teacher?.full_name || "Guru"
+                                      : "Mengajar"}
+                                  </Text>
+                                </View>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      ) : (
+                        <View style={styles.emptyDayContainer}>
+                          <Text style={styles.emptyDayText}>Tidak ada jadwal</Text>
+                        </View>
                       )}
-                    </TouchableOpacity>
+                    </View>
                   );
                 })}
               </View>
-
-              {/* Day Schedules List */}
-              {filteredSchedulesForDay.length > 0 ? (
-                <View style={{ gap: 12, marginTop: 12 }}>
-                  {filteredSchedulesForDay.map((schedule) => {
-                    const isScheduleToday = getTodayDayNameInd() === selectedDayTab;
-                    const isActive = isScheduleToday && !!schedule.active_session;
-                    
-                    return (
-                      <View
-                        key={schedule.id}
-                        style={[
-                          styles.calendarScheduleCard,
-                          isActive && styles.activeScheduleCard,
-                          isScheduleToday && styles.calendarScheduleCardToday,
-                        ]}
-                      >
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <View style={styles.timeContainer}>
-                            <Ionicons
-                              name="time-outline"
-                              size={13}
-                              color="#6B7280"
-                            />
-                            <Text style={styles.timeText}>
-                              {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
-                            </Text>
-                          </View>
-                          {isScheduleToday && (
-                            <View style={{ alignSelf: 'flex-start' }}>
-                              {isSiswa ? (
-                                <StudentStatusBadge
-                                  status={schedule.attendance_status}
-                                  time={schedule.attendance_time}
-                                />
-                              ) : (
-                                <TeacherSessionBadge isActive={isActive} />
-                              )}
-                            </View>
-                          )}
-                        </View>
-
-                        <Text style={[styles.subjectName, { fontSize: 15, marginTop: 8 }]}>
-                          {schedule.subject?.subject_name || "Mata Pelajaran"}
-                        </Text>
-
-                        <View style={[styles.classInfo, { borderBottomWidth: 0, marginTop: 4 }]}>
-                          <Ionicons
-                            name="business-outline"
-                            size={13}
-                            color="#6B7280"
-                          />
-                          <Text style={styles.classNameText}>
-                            {schedule.class?.class_name || "Rombel"}
-                          </Text>
-                          <View style={styles.bulletSeparator} />
-                          <Ionicons
-                            name="person-outline"
-                            size={13}
-                            color="#6B7280"
-                          />
-                          <Text style={styles.teacherNameText} numberOfLines={1}>
-                            {isSiswa
-                              ? schedule.teacher?.full_name || "Guru"
-                              : "Mengajar"}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={[styles.emptyState, { paddingVertical: 24, marginTop: 12 }]}>
-                  <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
-                  <Text style={[styles.emptyTitle, { fontSize: 14 }]}>Tidak Ada Jadwal Hari {selectedDayTab}</Text>
-                  <Text style={[styles.emptyText, { fontSize: 11 }]}>
-                    Tidak ada jadwal belajar mengajar untuk hari {selectedDayTab}.
-                  </Text>
-                </View>
-              )}
             </View>
           </View>
         )}
@@ -2369,5 +2368,65 @@ const styles = StyleSheet.create({
   studentProgressFill: {
     height: "100%",
     borderRadius: 3,
+  },
+  weeklyScheduleWrapper: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  dayColumn: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    minHeight: 120,
+    marginBottom: 8,
+  },
+  dayColumnToday: {
+    borderColor: '#93C5FD',
+    backgroundColor: '#F0F9FF',
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 8,
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  dayHeaderToday: {
+    borderBottomColor: '#BFDBFE',
+  },
+  dayHeaderText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#4B5563',
+  },
+  dayHeaderTextToday: {
+    color: '#1D4ED8',
+  },
+  todayBadge: {
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 9999,
+  },
+  todayBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#1E40AF',
+  },
+  emptyDayContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+  },
+  emptyDayText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
   },
 });

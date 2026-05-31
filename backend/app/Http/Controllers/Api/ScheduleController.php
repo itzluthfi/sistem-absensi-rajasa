@@ -15,8 +15,9 @@ class ScheduleController extends BaseController
     {
         try {
             $user = $request->user();
-            $todayEnglish = now()->format('l'); // e.g. 'Monday', 'Tuesday'
-            $today = now()->toDateString();
+            // Force Asia/Jakarta timezone (school locale) and allow client overrides for timezone robustness
+            $todayEnglish = $request->input('day') ?: now()->setTimezone('Asia/Jakarta')->format('l');
+            $today = $request->input('date') ?: now()->setTimezone('Asia/Jakarta')->toDateString();
             
             $query = DB::table('schedules')
                 ->leftJoin('subjects', 'schedules.subject_id', '=', 'subjects.id')
