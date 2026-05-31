@@ -12,6 +12,7 @@ return new class extends Migration
             $table->id();
             $table->string('subject_name');
             $table->string('subject_code')->nullable();
+            $table->text('description')->nullable();
             $table->timestamps();
         });
     }
