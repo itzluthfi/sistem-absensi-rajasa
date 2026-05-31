@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, useWindowDimensions, Platform } from 'react-native';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -243,7 +243,14 @@ export default function TabsLayout() {
     return (
       <>
         {/* Custom Header with Notification & Profile icons */}
-        <View style={[styles.customHeader, { backgroundColor: 'transparent', borderBottomWidth: 0 }]}>
+        <View style={[
+          styles.customHeader,
+          {
+            backgroundColor: 'transparent',
+            borderBottomWidth: 0,
+            paddingTop: Platform.OS === 'web' ? 12 : Math.max(12, insets.top),
+          }
+        ]}>
           <View style={styles.headerLeft}>
             <View style={styles.headerTitleContainer}>
               <Image
@@ -405,7 +412,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 48, // Safe area for notch
+    paddingTop: Platform.OS === 'web' ? 12 : 48, // Safe area for notch
     paddingBottom: 12,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
