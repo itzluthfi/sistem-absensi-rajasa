@@ -239,6 +239,7 @@ export default function GpsSettingsScreen() {
   const [locations, setLocations] = useState<GpsLocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   // Add modal state
   const [showModal, setShowModal] = useState(false);
@@ -401,29 +402,27 @@ export default function GpsSettingsScreen() {
 
   // ─── Delete location ─────────────────────────────────────────────────────────
   const handleDelete = (id: number) => {
-    Alert.alert("Hapus Lokasi", "Yakin ingin menghapus titik lokasi ini?", [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          setDeletingId(id);
-          try {
-            const res = await gpsLocationsApi.remove(id);
-            if (res.success) {
-              setLocations((prev) => prev.filter((l) => l.id !== id));
-              toast.success("Lokasi GPS berhasil dihapus.");
-            } else {
-              toast.error(res.message || "Tidak dapat menghapus.");
-            }
-          } catch (e: any) {
-            toast.error(e.response?.data?.message || "Terjadi kesalahan.");
-          } finally {
-            setDeletingId(null);
-          }
-        },
-      },
-    ]);
+    setDeleteConfirmId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteConfirmId === null) return;
+    const id = deleteConfirmId;
+    setDeleteConfirmId(null);
+    setDeletingId(id);
+    try {
+      const res = await gpsLocationsApi.remove(id);
+      if (res.success) {
+        setLocations((prev) => prev.filter((l) => l.id !== id));
+        toast.success("Lokasi GPS berhasil dihapus.");
+      } else {
+        toast.error(res.message || "Tidak dapat menghapus.");
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || "Terjadi kesalahan.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   // ─── Add new location ─────────────────────────────────────────────────────────
@@ -764,6 +763,33 @@ export default function GpsSettingsScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId !== null && (
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmContent}>
+            <Ionicons name="trash-outline" size={48} color="#EF4444" />
+            <Text style={styles.confirmTitle}>Hapus Lokasi</Text>
+            <Text style={styles.confirmText}>
+              Apakah Anda yakin ingin menghapus titik lokasi "{locations.find(l => l.id === deleteConfirmId)?.name || 'ini'}"?
+            </Text>
+            <View style={styles.confirmButtons}>
+              <TouchableOpacity
+                style={styles.confirmCancelButton}
+                onPress={() => setDeleteConfirmId(null)}
+              >
+                <Text style={styles.confirmCancelText}>Batal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmDestructiveButton}
+                onPress={confirmDelete}
+              >
+                <Text style={styles.confirmDestructiveText}>Hapus</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -1119,4 +1145,63 @@ const styles = StyleSheet.create({
   },
   saveBtnDisabled: { backgroundColor: "#93C5FD" },
   saveBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
+
+  // Delete Confirmation Modal
+  confirmOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  confirmContent: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 24,
+    marginHorizontal: 32,
+    alignItems: "center",
+    width: "85%",
+    maxWidth: 400,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.25,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  confirmTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#1F2937",
+    marginTop: 14,
+    marginBottom: 8,
+  },
+  confirmText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  confirmButtons: { flexDirection: "row", gap: 12, width: "100%" },
+  confirmCancelButton: {
+    flex: 1,
+    backgroundColor: "#E5E7EB",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+  },
+  confirmCancelText: { fontSize: 14, fontWeight: "800", color: "#6B7280" },
+  confirmDestructiveButton: {
+    flex: 1,
+    backgroundColor: "#EF4444",
+    borderRadius: 12,
+    padding: 14,
+    alignItems: "center",
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  confirmDestructiveText: { fontSize: 14, fontWeight: "800", color: "#fff" },
 });
