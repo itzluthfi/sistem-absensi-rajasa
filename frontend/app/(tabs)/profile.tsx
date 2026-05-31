@@ -31,6 +31,7 @@ export default function ProfileScreen() {
   const paddingBottom = 64 + safeBottom + 24;
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
+  const isAdmin = user?.roles?.includes("admin") || user?.roles?.includes("super_admin");
 
   // Change Password state
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -51,6 +52,12 @@ export default function ProfileScreen() {
       subtitle: "Buka daftar notifikasi",
       onPress: () => router.push("/(tabs)/notifications"),
     },
+    ...(isAdmin ? [{
+      icon: "location-outline" as IconName,
+      label: "Pengaturan GPS Geofencing",
+      subtitle: "Cari & atur lokasi & radius sekolah",
+      onPress: () => router.push("/admin/gps-settings"),
+    }] : []),
     {
       icon: "lock-closed-outline",
       label: "Ubah Kata Sandi",

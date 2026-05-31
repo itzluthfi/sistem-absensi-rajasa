@@ -75,6 +75,38 @@ export default function LiveMonitorScreen() {
     }
   };
 
+  const playWebSuccessSound = () => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      gain1.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.15);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+      gain2.gain.setValueAtTime(0.07, ctx.currentTime + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(ctx.currentTime + 0.1);
+      osc2.stop(ctx.currentTime + 0.3);
+    } catch (e) {
+      console.log("AudioContext not supported or gesture needed:", e);
+    }
+  };
+
   const fetchLiveFeed = async (showLoading = false) => {
     if (showLoading) setIsLoading(true);
     try {
@@ -85,7 +117,19 @@ export default function LiveMonitorScreen() {
         per_page: 200, // Fetch up to 200 check-ins for today
       });
       const payload = response.data?.data ?? response.data ?? [];
-      setRecords(Array.isArray(payload) ? payload : []);
+      const newRecords = Array.isArray(payload) ? payload : [];
+      
+      setRecords((prevRecords) => {
+        if (prevRecords.length > 0 && newRecords.length > 0) {
+          const latestPrev = prevRecords[0];
+          const latestNew = newRecords[0];
+          // If the most recent scan record ID is different, play the chime!
+          if (latestNew.id !== latestPrev.id) {
+            playWebSuccessSound();
+          }
+        }
+        return newRecords;
+      });
     } catch (error) {
       console.error("Failed to fetch live gate feeds:", error);
     } finally {

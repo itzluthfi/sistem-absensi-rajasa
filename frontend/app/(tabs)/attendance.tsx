@@ -66,6 +66,38 @@ export default function AttendanceScreen() {
     );
   };
 
+  const playWebSuccessSound = () => {
+    try {
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      gain1.gain.setValueAtTime(0.05, ctx.currentTime);
+      gain1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start();
+      osc1.stop(ctx.currentTime + 0.15);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.1); // E5
+      gain2.gain.setValueAtTime(0.07, ctx.currentTime + 0.1);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(ctx.currentTime + 0.1);
+      osc2.stop(ctx.currentTime + 0.3);
+    } catch (e) {
+      console.log("AudioContext not supported or gesture needed:", e);
+    }
+  };
+
   const handleSiswaSelfClick = async () => {
     setIsLoadingSession(true);
     try {
@@ -88,6 +120,7 @@ export default function AttendanceScreen() {
       });
 
       if (result.success) {
+        playWebSuccessSound();
         setSuccessText(result.message);
         setShowSuccessModal(true);
         loadActiveSession();
@@ -242,6 +275,7 @@ export default function AttendanceScreen() {
       });
 
       if (result.success) {
+        playWebSuccessSound();
         setSuccessText(result.message);
         setShowSuccessModal(true);
         loadActiveSession();
@@ -291,6 +325,7 @@ export default function AttendanceScreen() {
       });
 
       if (result.success) {
+        playWebSuccessSound();
         setSuccessText(result.message);
         setShowSuccessModal(true);
         if (activeSchedule?.active_session) {

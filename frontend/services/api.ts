@@ -578,5 +578,18 @@ export const importExportApi = {
     return response.data;
   },
 };
-
+ 
+// Settings API
+export const settingsApi = {
+  getGps: async () => {
+    const response = await api.get('/settings/gps');
+    return response.data;
+  },
+ 
+  updateGps: async (data: { school_latitude: number; school_longitude: number; school_radius_meters: number }) => {
+    const response = await api.put('/settings/gps', data);
+    return response.data;
+  },
+};
+ 
 export default api;

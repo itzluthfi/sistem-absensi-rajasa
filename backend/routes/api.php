@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\LeaveRequestController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\QRController;
+use App\Http\Controllers\Api\SettingsController;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -237,6 +238,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
         Route::get('academic-periods', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'index']);
         Route::get('academic-periods/{id}', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'show']);
+    });
+
+    // ============================================
+    // SETTINGS (GPS Configuration)
+    // ============================================
+    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+        Route::get('settings/gps', [SettingsController::class, 'getGpsSettings']);
+    });
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::put('settings/gps', [SettingsController::class, 'updateGpsSettings']);
     });
 
     // ============================================

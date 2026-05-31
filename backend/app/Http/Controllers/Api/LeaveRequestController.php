@@ -16,33 +16,68 @@ class LeaveRequestController extends Controller
         try {
             $user = $request->user();
 
-            $query = LeaveRequest::with(['student', 'approver']);
+            $query = \Illuminate\Support\Facades\DB::table('leave_requests')
+                ->leftJoin('students', 'leave_requests.student_id', '=', 'students.id')
+                ->leftJoin('users as approvers', 'leave_requests.approved_by', '=', 'approvers.id')
+                ->select([
+                    'leave_requests.*',
+                    'students.full_name as student_full_name',
+                    'students.nis as student_nis',
+                    'approvers.username as approver_username',
+                    'approvers.email as approver_email'
+                ]);
 
             // Filter based on role
             if ($user->hasRole('siswa')) {
-                // Siswa can only see their own leave requests
                 $student = $user->student;
                 if ($student) {
-                    $query->where('student_id', $student->id);
+                    $query->where('leave_requests.student_id', $student->id);
                 } else {
-                    return (new BaseController)->sendResponse(['data' => []], 'Daftar izin');
+                    // Empty paginator manually to match BaseController schema
+                    $empty = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20);
+                    return (new BaseController)->sendResponse($empty, 'Daftar izin');
                 }
-            } elseif ($user->hasRole(['guru', 'wali_kelas'])) {
-                // Guru and Wali Kelas can see leave requests from their class
-                // (Implementation depends on relationship between teachers and students)
             }
 
             // Filter by status
             if ($request->has('status')) {
-                $query->where('approval_status', $request->status);
+                $query->where('leave_requests.approval_status', $request->status);
             }
 
             $perPage = $request->input('per_page', 20);
-            $list = $query->orderBy('created_at', 'desc')->paginate($perPage);
+            $list = $query->orderBy('leave_requests.created_at', 'desc')->paginate($perPage);
+
+            // Restructure standard flat results to nested JSON arrays for Expo compatibility
+            $list->getCollection()->transform(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'student_id' => $item->student_id,
+                    'permission_type' => $item->permission_type,
+                    'start_date' => $item->start_date,
+                    'end_date' => $item->end_date,
+                    'reason' => $item->reason,
+                    'attachment' => $item->attachment,
+                    'approval_status' => $item->approval_status,
+                    'approved_by' => $item->approved_by,
+                    'approved_at' => $item->approved_at,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                    'student' => $item->student_id ? [
+                        'id' => $item->student_id,
+                        'full_name' => $item->student_full_name,
+                        'nis' => $item->student_nis
+                    ] : null,
+                    'approver' => $item->approved_by ? [
+                        'id' => $item->approved_by,
+                        'username' => $item->approver_username,
+                        'email' => $item->approver_email
+                    ] : null
+                ];
+            });
 
             return (new BaseController)->sendResponse($list, 'Daftar izin');
         } catch (\Exception $e) {
-            return (new BaseController)->sendError('Gagal mengambil daftar izin.');
+            return (new BaseController)->sendError('Gagal mengambil daftar izin: ' . $e->getMessage());
         }
     }
 
@@ -50,20 +85,61 @@ class LeaveRequestController extends Controller
     {
         try {
             $user = $request->user();
-            $leave = LeaveRequest::with(['student', 'approver'])->findOrFail($id);
+            
+            $item = \Illuminate\Support\Facades\DB::table('leave_requests')
+                ->leftJoin('students', 'leave_requests.student_id', '=', 'students.id')
+                ->leftJoin('users as approvers', 'leave_requests.approved_by', '=', 'approvers.id')
+                ->select([
+                    'leave_requests.*',
+                    'students.full_name as student_full_name',
+                    'students.nis as student_nis',
+                    'approvers.username as approver_username',
+                    'approvers.email as approver_email'
+                ])
+                ->where('leave_requests.id', $id)
+                ->first();
+
+            if (!$item) {
+                return (new BaseController)->sendError('Izin tidak ditemukan.', [], 404);
+            }
 
             // Log the view
             AuditLog::create([
                 'user_id' => $user->id,
                 'action' => AuditLog::ACTION_READ,
                 'description' => "Viewed leave request #{$id}",
-                'model_type' => LeaveRequest::class,
+                'model_type' => 'App\Models\LeaveRequest',
                 'model_id' => $id,
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
 
-            return (new BaseController)->sendResponse($leave, 'Detail izin');
+            $formatted = [
+                'id' => $item->id,
+                'student_id' => $item->student_id,
+                'permission_type' => $item->permission_type,
+                'start_date' => $item->start_date,
+                'end_date' => $item->end_date,
+                'reason' => $item->reason,
+                'attachment' => $item->attachment,
+                'approval_status' => $item->approval_status,
+                'approved_by' => $item->approved_by,
+                'approved_at' => $item->approved_at,
+                'created_at' => $item->created_at,
+                'updated_at' => $item->updated_at,
+                'student' => $item->student_id ? [
+                    'id' => $item->student_id,
+                    'full_name' => $item->student_full_name,
+                    'nis' => $item->student_nis
+                ] : null,
+                'approver' => $item->approved_by ? [
+                    'id' => $item->approved_by,
+                    'username' => $item->approver_username,
+                    'email' => $item->approver_email
+                ] : null
+            ];
+
+            return (new BaseController)->sendResponse($formatted, 'Detail izin');
         } catch (\Exception $e) {
             return (new BaseController)->sendError('Izin tidak ditemukan.', [], 404);
         }

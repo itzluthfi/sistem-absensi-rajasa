@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\Schedule;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ScheduleController extends BaseController
 {
@@ -17,54 +18,136 @@ class ScheduleController extends BaseController
             $todayEnglish = now()->format('l'); // e.g. 'Monday', 'Tuesday'
             $today = now()->toDateString();
             
-            $query = Schedule::with(['subject', 'class', 'teacher'])
-                ->where('day_name', $todayEnglish);
+            $query = DB::table('schedules')
+                ->leftJoin('subjects', 'schedules.subject_id', '=', 'subjects.id')
+                ->leftJoin('classes', 'schedules.class_id', '=', 'classes.id')
+                ->leftJoin('teachers', 'schedules.teacher_id', '=', 'teachers.id')
+                ->where('schedules.day_name', $todayEnglish);
 
             // Apply role-based filters
             if ($user->hasRole('siswa') && $user->student) {
-                $query->where('class_id', $user->student->class_id);
+                $query->where('schedules.class_id', $user->student->class_id);
             } elseif ($user->hasRole('guru') && $user->teacher) {
-                $query->where('teacher_id', $user->teacher->id);
+                $query->where('schedules.teacher_id', $user->teacher->id);
             } else {
                 if ($request->has('class_id')) {
-                    $query->where('class_id', $request->class_id);
+                    $query->where('schedules.class_id', $request->class_id);
                 }
                 if ($request->has('teacher_id')) {
-                    $query->where('teacher_id', $request->teacher_id);
+                    $query->where('schedules.teacher_id', $request->teacher_id);
                 }
             }
 
-            $schedules = $query->orderBy('start_time')->get();
+            $rawSchedules = $query->orderBy('schedules.start_time')
+                ->select([
+                    'schedules.*',
+                    'subjects.subject_name as subject_name',
+                    'subjects.subject_code as subject_code',
+                    'subjects.description as subject_description',
+                    'classes.class_name as class_name',
+                    'classes.major_id as class_major_id',
+                    'classes.academic_period_id as class_academic_period_id',
+                    'teachers.user_id as teacher_user_id',
+                    'teachers.full_name as teacher_full_name',
+                    'teachers.nip as teacher_nip'
+                ])
+                ->get();
 
-            // Map each schedule to see if it has an active attendance session today,
-            // and see if the student has already checked in!
-            $schedules->each(function ($sch) use ($today, $user) {
-                $activeSession = \App\Models\AttendanceSession::where('schedule_id', $sch->id)
-                    ->where('attendance_date', $today)
-                    ->where('is_active', true)
-                    ->first();
+            if ($rawSchedules->isEmpty()) {
+                return $this->sendResponse([], 'Jadwal hari ini kosong.');
+            }
+
+            $scheduleIds = $rawSchedules->pluck('id')->toArray();
+
+            // Fetch active sessions for today at once (Batching N+1)
+            $activeSessions = DB::table('attendance_sessions')
+                ->whereIn('schedule_id', $scheduleIds)
+                ->where('attendance_date', $today)
+                ->where('is_active', true)
+                ->get()
+                ->keyBy('schedule_id');
+
+            // Fetch student attendances for today at once if siswa (Batching N+1)
+            $attendances = collect();
+            if ($user->hasRole('siswa') && $user->student) {
+                $attendances = DB::table('attendances')
+                    ->where('student_id', $user->student->id)
+                    ->where('date', $today)
+                    ->get();
+            }
+
+            // Map and format results into the exact nested JSON schema
+            $formattedSchedules = $rawSchedules->map(function ($sch) use ($activeSessions, $attendances, $user, $today) {
+                $schId = $sch->id;
                 
-                $sch->active_session = $activeSession;
+                // Get active session from memory
+                $activeSession = $activeSessions->get($schId);
                 
-                // If student, check if they have checked in for this session or schedule today
+                // Determine attendance status & time
+                $attendanceStatus = 'belum_absen';
+                $attendanceTime = null;
+
                 if ($user->hasRole('siswa') && $user->student) {
-                    $attendance = \App\Models\Attendance::where('student_id', $user->student->id)
-                        ->where('date', $today)
-                        ->where(function ($q) use ($activeSession, $sch) {
-                            if ($activeSession) {
-                                $q->where('attendance_session_id', $activeSession->id);
-                            } else {
-                                $q->where('schedule_id', $sch->id);
-                            }
-                        })
-                        ->first();
-                    
-                    $sch->attendance_status = $attendance ? $attendance->status : 'belum_absen';
-                    $sch->attendance_time = $attendance ? $attendance->time->format('H:i') : null;
+                    $attendance = $attendances->first(function ($att) use ($activeSession, $schId) {
+                        if ($activeSession) {
+                            return $att->attendance_session_id === $activeSession->id;
+                        }
+                        return $att->schedule_id === $schId;
+                    });
+
+                    if ($attendance) {
+                        $attendanceStatus = $attendance->status;
+                        $attendanceTime = $attendance->time ? substr($attendance->time, 0, 5) : null;
+                    }
                 }
+
+                return [
+                    'id' => $sch->id,
+                    'class_id' => $sch->class_id,
+                    'teacher_id' => $sch->teacher_id,
+                    'subject_id' => $sch->subject_id,
+                    'academic_period_id' => $sch->academic_period_id,
+                    'day_name' => $sch->day_name,
+                    'start_time' => $sch->start_time,
+                    'end_time' => $sch->end_time,
+                    'room' => $sch->room,
+                    'created_at' => $sch->created_at,
+                    'updated_at' => $sch->updated_at,
+                    'subject' => $sch->subject_id ? [
+                        'id' => $sch->subject_id,
+                        'subject_name' => $sch->subject_name,
+                        'subject_code' => $sch->subject_code,
+                        'description' => $sch->subject_description,
+                    ] : null,
+                    'class' => $sch->class_id ? [
+                        'id' => $sch->class_id,
+                        'class_name' => $sch->class_name,
+                        'major_id' => $sch->class_major_id,
+                        'academic_period_id' => $sch->class_academic_period_id,
+                    ] : null,
+                    'teacher' => $sch->teacher_id ? [
+                        'id' => $sch->teacher_id,
+                        'user_id' => $sch->teacher_user_id,
+                        'full_name' => $sch->teacher_full_name,
+                        'nip' => $sch->teacher_nip,
+                    ] : null,
+                    'active_session' => $activeSession ? [
+                        'id' => $activeSession->id,
+                        'schedule_id' => $activeSession->schedule_id,
+                        'academic_period_id' => $activeSession->academic_period_id,
+                        'qr_token' => $activeSession->qr_token,
+                        'attendance_date' => $activeSession->attendance_date,
+                        'open_time' => $activeSession->open_time,
+                        'close_time' => $activeSession->close_time,
+                        'is_active' => (bool)$activeSession->is_active,
+                        'require_qr' => (bool)$activeSession->require_qr,
+                    ] : null,
+                    'attendance_status' => $attendanceStatus,
+                    'attendance_time' => $attendanceTime,
+                ];
             });
 
-            return $this->sendResponse($schedules, 'Jadwal hari ini berhasil diambil.');
+            return $this->sendResponse($formattedSchedules, 'Jadwal hari ini berhasil diambil.');
         } catch (\Exception $e) {
             return $this->sendError('Gagal mengambil jadwal hari ini: ' . $e->getMessage());
         }
@@ -77,36 +160,85 @@ class ScheduleController extends BaseController
     {
         try {
             $perPage = $request->input('per_page', 20);
-            $dayOfWeek = $request->input('day_of_week');
+            $dayName = $request->input('day_name') ?? $request->input('day_of_week'); // Fallback for safety
             $classId = $request->input('class_id');
             $teacherId = $request->input('teacher_id');
             $academicPeriodId = $request->input('academic_period_id');
 
-            $query = Schedule::with(['subject', 'class', 'teacher']);
+            $query = DB::table('schedules')
+                ->leftJoin('subjects', 'schedules.subject_id', '=', 'subjects.id')
+                ->leftJoin('classes', 'schedules.class_id', '=', 'classes.id')
+                ->leftJoin('teachers', 'schedules.teacher_id', '=', 'teachers.id');
 
-            if ($dayOfWeek) {
-                $query->where('day_of_week', $dayOfWeek);
+            if ($dayName) {
+                // If it is numeric day number, map it to English day name for robustness
+                if (is_numeric($dayName)) {
+                    $daysMap = [1 => 'Monday', 2 => 'Tuesday', 3 => 'Wednesday', 4 => 'Thursday', 5 => 'Friday', 6 => 'Saturday', 7 => 'Sunday'];
+                    $dayName = $daysMap[(int)$dayName] ?? 'Monday';
+                }
+                $query->where('schedules.day_name', $dayName);
             }
 
             if ($classId) {
-                $query->where('class_id', $classId);
+                $query->where('schedules.class_id', $classId);
             }
 
             if ($teacherId) {
-                $query->where('teacher_id', $teacherId);
+                $query->where('schedules.teacher_id', $teacherId);
             }
 
             if ($academicPeriodId) {
-                $query->where('academic_period_id', $academicPeriodId);
+                $query->where('schedules.academic_period_id', $academicPeriodId);
             }
 
-            $query->orderBy('day_of_week')->orderBy('start_time');
+            $schedules = $query->orderBy('schedules.day_name')
+                ->orderBy('schedules.start_time')
+                ->select([
+                    'schedules.*',
+                    'subjects.subject_name', 'subjects.subject_code', 'subjects.description as subject_description',
+                    'classes.class_name', 'classes.major_id as class_major_id', 'classes.academic_period_id as class_academic_period_id',
+                    'teachers.user_id as teacher_user_id', 'teachers.full_name as teacher_full_name', 'teachers.nip as teacher_nip'
+                ])
+                ->paginate($perPage);
 
-            $schedules = $query->paginate($perPage);
+            // Format relation objects in pagination collection
+            $schedules->getCollection()->transform(function ($sch) {
+                return [
+                    'id' => $sch->id,
+                    'class_id' => $sch->class_id,
+                    'teacher_id' => $sch->teacher_id,
+                    'subject_id' => $sch->subject_id,
+                    'academic_period_id' => $sch->academic_period_id,
+                    'day_name' => $sch->day_name,
+                    'start_time' => $sch->start_time,
+                    'end_time' => $sch->end_time,
+                    'room' => $sch->room,
+                    'created_at' => $sch->created_at,
+                    'updated_at' => $sch->updated_at,
+                    'subject' => $sch->subject_id ? [
+                        'id' => $sch->subject_id,
+                        'subject_name' => $sch->subject_name,
+                        'subject_code' => $sch->subject_code,
+                        'description' => $sch->subject_description,
+                    ] : null,
+                    'class' => $sch->class_id ? [
+                        'id' => $sch->class_id,
+                        'class_name' => $sch->class_name,
+                        'major_id' => $sch->class_major_id,
+                        'academic_period_id' => $sch->class_academic_period_id,
+                    ] : null,
+                    'teacher' => $sch->teacher_id ? [
+                        'id' => $sch->teacher_id,
+                        'user_id' => $sch->teacher_user_id,
+                        'full_name' => $sch->teacher_full_name,
+                        'nip' => $sch->teacher_nip,
+                    ] : null,
+                ];
+            });
 
-            return $this->sendResponse($schedules, 'Schedules retrieved successfully');
+            return $this->sendResponse($schedules, 'Jadwal pelajaran berhasil diambil.');
         } catch (\Exception $e) {
-            return $this->sendError('Failed to retrieve schedules');
+            return $this->sendError('Gagal mengambil jadwal pelajaran: ' . $e->getMessage());
         }
     }
 
@@ -118,17 +250,21 @@ class ScheduleController extends BaseController
         try {
             $validated = $request->validate([
                 'subject_id' => 'required|exists:subjects,id',
-                'class_id' => 'required|exists:school_classes,id',
+                'class_id' => 'required|exists:classes,id',
                 'teacher_id' => 'required|exists:teachers,id',
-                'day_of_week' => 'required|integer|between:1,7',
+                'day_name' => 'required|string|max:20',
                 'start_time' => 'required|date_format:H:i',
                 'end_time' => 'required|date_format:H:i|after:start_time',
                 'room' => 'nullable|string|max:100',
             ]);
 
-            $schedule = Schedule::create($validated);
+            $now = now()->toDateTimeString();
+            $validated['created_at'] = $now;
+            $validated['updated_at'] = $now;
 
-            return $this->sendResponse($schedule->load(['subject', 'class', 'teacher']), 'Schedule created successfully', 201);
+            $id = DB::table('schedules')->insertGetId($validated);
+
+            return $this->show($id);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendValidationError($e->errors());
         } catch (\Exception $e) {
@@ -142,10 +278,58 @@ class ScheduleController extends BaseController
     public function show($id)
     {
         try {
-            $schedule = Schedule::with(['subject', 'class', 'teacher'])->findOrFail($id);
-            return $this->sendResponse($schedule, 'Schedule retrieved successfully');
+            $sch = DB::table('schedules')
+                ->leftJoin('subjects', 'schedules.subject_id', '=', 'subjects.id')
+                ->leftJoin('classes', 'schedules.class_id', '=', 'classes.id')
+                ->leftJoin('teachers', 'schedules.teacher_id', '=', 'teachers.id')
+                ->where('schedules.id', $id)
+                ->select([
+                    'schedules.*',
+                    'subjects.subject_name', 'subjects.subject_code', 'subjects.description as subject_description',
+                    'classes.class_name', 'classes.major_id as class_major_id', 'classes.academic_period_id as class_academic_period_id',
+                    'teachers.user_id as teacher_user_id', 'teachers.full_name as teacher_full_name', 'teachers.nip as teacher_nip'
+                ])
+                ->first();
+
+            if (!$sch) {
+                return $this->sendError('Jadwal tidak ditemukan.', [], 404);
+            }
+
+            $formatted = [
+                'id' => $sch->id,
+                'class_id' => $sch->class_id,
+                'teacher_id' => $sch->teacher_id,
+                'subject_id' => $sch->subject_id,
+                'academic_period_id' => $sch->academic_period_id,
+                'day_name' => $sch->day_name,
+                'start_time' => $sch->start_time,
+                'end_time' => $sch->end_time,
+                'room' => $sch->room,
+                'created_at' => $sch->created_at,
+                'updated_at' => $sch->updated_at,
+                'subject' => $sch->subject_id ? [
+                    'id' => $sch->subject_id,
+                    'subject_name' => $sch->subject_name,
+                    'subject_code' => $sch->subject_code,
+                    'description' => $sch->subject_description,
+                ] : null,
+                'class' => $sch->class_id ? [
+                    'id' => $sch->class_id,
+                    'class_name' => $sch->class_name,
+                    'major_id' => $sch->class_major_id,
+                    'academic_period_id' => $sch->class_academic_period_id,
+                ] : null,
+                'teacher' => $sch->teacher_id ? [
+                    'id' => $sch->teacher_id,
+                    'user_id' => $sch->teacher_user_id,
+                    'full_name' => $sch->teacher_full_name,
+                    'nip' => $sch->teacher_nip,
+                ] : null,
+            ];
+
+            return $this->sendResponse($formatted, 'Jadwal pelajaran berhasil diambil.');
         } catch (\Exception $e) {
-            return $this->sendError('Schedule not found', [], 404);
+            return $this->sendError('Failed to retrieve schedule: ' . $e->getMessage());
         }
     }
 
@@ -155,21 +339,21 @@ class ScheduleController extends BaseController
     public function update(Request $request, $id)
     {
         try {
-            $schedule = Schedule::findOrFail($id);
-
             $validated = $request->validate([
                 'subject_id' => 'sometimes|required|exists:subjects,id',
-                'class_id' => 'sometimes|required|exists:school_classes,id',
+                'class_id' => 'sometimes|required|exists:classes,id',
                 'teacher_id' => 'sometimes|required|exists:teachers,id',
-                'day_of_week' => 'sometimes|required|integer|between:1,7',
+                'day_name' => 'sometimes|required|string|max:20',
                 'start_time' => 'sometimes|required|date_format:H:i',
                 'end_time' => 'sometimes|required|date_format:H:i|after:start_time',
                 'room' => 'nullable|string|max:100',
             ]);
 
-            $schedule->update($validated);
+            $validated['updated_at'] = now()->toDateTimeString();
 
-            return $this->sendResponse($schedule->load(['subject', 'class', 'teacher']), 'Schedule updated successfully');
+            DB::table('schedules')->where('id', $id)->update($validated);
+
+            return $this->show($id);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return $this->sendValidationError($e->errors());
         } catch (\Exception $e) {
@@ -183,12 +367,13 @@ class ScheduleController extends BaseController
     public function destroy($id)
     {
         try {
-            $schedule = Schedule::findOrFail($id);
-            $schedule->delete();
-
-            return $this->sendResponse(null, 'Schedule deleted successfully');
+            $deleted = DB::table('schedules')->where('id', $id)->delete();
+            if (!$deleted) {
+                return $this->sendError('Jadwal tidak ditemukan.', [], 404);
+            }
+            return $this->sendResponse(null, 'Jadwal berhasil dihapus.');
         } catch (\Exception $e) {
-            return $this->sendError('Failed to delete schedule');
+            return $this->sendError('Failed to delete schedule: ' . $e->getMessage());
         }
     }
 }

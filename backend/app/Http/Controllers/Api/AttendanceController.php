@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Events\AttendanceMarked;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends BaseController
 {
@@ -20,45 +21,85 @@ class AttendanceController extends BaseController
         try {
             $user = $request->user();
 
-            $query = Attendance::with(['student', 'class']);
+            $query = \Illuminate\Support\Facades\DB::table('attendances')
+                ->leftJoin('students', 'attendances.student_id', '=', 'students.id')
+                ->leftJoin('classes', 'attendances.class_id', '=', 'classes.id')
+                ->select([
+                    'attendances.*',
+                    'students.full_name as student_full_name',
+                    'students.nis as student_nis',
+                    'classes.class_name as class_class_name'
+                ]);
 
             // Filter by date range
             if ($request->has('start_date') && $request->has('end_date')) {
-                $query->whereBetween('date', [$request->start_date, $request->end_date]);
+                $query->whereBetween('attendances.date', [$request->start_date, $request->end_date]);
             }
 
             // Filter by status
             if ($request->has('status')) {
-                $query->where('status', $request->status);
+                $query->where('attendances.status', $request->status);
             }
 
             // Filter by class
             if ($request->has('class_id')) {
-                $query->where('class_id', $request->class_id);
+                $query->where('attendances.class_id', $request->class_id);
             }
 
             // Filter by student
             if ($request->has('student_id')) {
-                $query->where('student_id', $request->student_id);
+                $query->where('attendances.student_id', $request->student_id);
             }
 
             // Filter by schedule
             if ($request->has('schedule_id')) {
-                $query->where('schedule_id', $request->schedule_id);
+                $query->where('attendances.schedule_id', $request->schedule_id);
             }
 
             // Role-based filtering
             if ($user->hasRole('siswa') && $user->student) {
                 // Siswa can only see their own attendance
-                $query->where('student_id', $user->student->id);
+                $query->where('attendances.student_id', $user->student->id);
             }
 
             $perPage = $request->input('per_page', 20);
-            $attendances = $query->orderBy('date', 'desc')->orderBy('time', 'desc')->paginate($perPage);
+            $attendances = $query->orderBy('attendances.date', 'desc')
+                ->orderBy('attendances.time', 'desc')
+                ->paginate($perPage);
+
+            // Structure flat results into the exact nested JSON schema for frontend compatibility
+            $attendances->getCollection()->transform(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'student_id' => $item->student_id,
+                    'class_id' => $item->class_id,
+                    'schedule_id' => $item->schedule_id,
+                    'attendance_session_id' => $item->attendance_session_id,
+                    'recorded_by' => $item->recorded_by,
+                    'date' => $item->date,
+                    'time' => $item->time,
+                    'status' => $item->status,
+                    'late_minutes' => $item->late_minutes,
+                    'device_info' => $item->device_info,
+                    'notes' => $item->notes,
+                    'location' => $item->location ? json_decode($item->location, true) : null,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                    'student' => $item->student_id ? [
+                        'id' => $item->student_id,
+                        'full_name' => $item->student_full_name,
+                        'nis' => $item->student_nis
+                    ] : null,
+                    'class' => $item->class_id ? [
+                        'id' => $item->class_id,
+                        'class_name' => $item->class_class_name
+                    ] : null
+                ];
+            });
 
             return $this->sendResponse($attendances);
         } catch (\Exception $e) {
-            return $this->sendError('Gagal mengambil data absensi. Silakan coba lagi.');
+            return $this->sendError('Gagal mengambil data absensi: ' . $e->getMessage());
         }
     }
 
@@ -69,20 +110,62 @@ class AttendanceController extends BaseController
     {
         try {
             $user = $request->user();
-            $att = Attendance::with(['student', 'class'])->findOrFail($id);
+            
+            $item = \Illuminate\Support\Facades\DB::table('attendances')
+                ->leftJoin('students', 'attendances.student_id', '=', 'students.id')
+                ->leftJoin('classes', 'attendances.class_id', '=', 'classes.id')
+                ->select([
+                    'attendances.*',
+                    'students.full_name as student_full_name',
+                    'students.nis as student_nis',
+                    'classes.class_name as class_class_name'
+                ])
+                ->where('attendances.id', $id)
+                ->first();
+
+            if (!$item) {
+                return $this->sendError('Absensi tidak ditemukan', [], 404);
+            }
 
             // Log the view
             AuditLog::create([
                 'user_id' => $user->id,
                 'action' => AuditLog::ACTION_READ,
                 'description' => "Viewed attendance #{$id}",
-                'model_type' => Attendance::class,
+                'model_type' => 'App\Models\Attendance',
                 'model_id' => $id,
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
 
-            return $this->sendResponse($att);
+            $formatted = [
+                'id' => $item->id,
+                'student_id' => $item->student_id,
+                'class_id' => $item->class_id,
+                'schedule_id' => $item->schedule_id,
+                'attendance_session_id' => $item->attendance_session_id,
+                'recorded_by' => $item->recorded_by,
+                'date' => $item->date,
+                'time' => $item->time,
+                'status' => $item->status,
+                'late_minutes' => $item->late_minutes,
+                'device_info' => $item->device_info,
+                'notes' => $item->notes,
+                'location' => $item->location ? json_decode($item->location, true) : null,
+                'created_at' => $item->created_at,
+                'updated_at' => $item->updated_at,
+                'student' => $item->student_id ? [
+                    'id' => $item->student_id,
+                    'full_name' => $item->student_full_name,
+                    'nis' => $item->student_nis
+                ] : null,
+                'class' => $item->class_id ? [
+                    'id' => $item->class_id,
+                    'class_name' => $item->class_class_name
+                ] : null
+            ];
+
+            return $this->sendResponse($formatted);
         } catch (\Exception $e) {
             return $this->sendError('Absensi tidak ditemukan', [], 404);
         }
@@ -201,11 +284,12 @@ class AttendanceController extends BaseController
                 return $this->sendError('Anda tidak terdaftar di kelas untuk mata pelajaran ini.', [], 422);
             }
 
-            // GPS Validation (Within 100 meters of SMKS Rajasa Surabaya)
-            // Coordinates of SMKS Rajasa Surabaya: Latitude -7.245583, Longitude 112.737750
+            // GPS Validation (Dynamic Geofencing from Database Settings)
             if ($request->has('location') && isset($data['location']['latitude']) && isset($data['location']['longitude'])) {
-                $schoolLat = -7.245583;
-                $schoolLng = 112.737750;
+                $schoolLat = (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583;
+                $schoolLng = (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750;
+                $schoolRadius = (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100;
+ 
                 $distance = $this->calculateDistance(
                     $data['location']['latitude'],
                     $data['location']['longitude'],
@@ -213,9 +297,8 @@ class AttendanceController extends BaseController
                     $schoolLng
                 );
                 
-                // Max radius threshold: 100 meters
-                if ($distance > 100) {
-                    return $this->sendError('Anda berada di luar radius kelas (' . round($distance) . 'm dari sekolah). Absensi ditolak.', [], 422);
+                if ($distance > $schoolRadius) {
+                    return $this->sendError('Anda berada di luar radius kelas (' . round($distance) . 'm dari koordinat sekolah). Absensi ditolak.', [], 422);
                 }
             }
 
@@ -487,10 +570,12 @@ class AttendanceController extends BaseController
                 return $this->sendError('Anda sudah melakukan absen masuk sekolah hari ini.', [], 422);
             }
             
-            // GPS Geofencing (optional, validate within 100m of school)
+            // GPS Geofencing (Dynamic Geofencing from Database Settings)
             if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
-                $schoolLat = -7.245583;
-                $schoolLng = 112.737750;
+                $schoolLat = (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583;
+                $schoolLng = (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750;
+                $schoolRadius = (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100;
+ 
                 $distance = $this->calculateDistance(
                     $request->location['latitude'],
                     $request->location['longitude'],
@@ -498,8 +583,8 @@ class AttendanceController extends BaseController
                     $schoolLng
                 );
                 
-                if ($distance > 100) {
-                    return $this->sendError('Anda berada di luar radius sekolah (' . round($distance) . 'm dari sekolah).', [], 422);
+                if ($distance > $schoolRadius) {
+                    return $this->sendError('Anda berada di luar radius sekolah (' . round($distance) . 'm dari koordinat sekolah).', [], 422);
                 }
             }
             

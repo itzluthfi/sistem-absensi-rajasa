@@ -12,25 +12,103 @@ class ClassesController extends BaseController
     public function index(Request $request)
     {
         try {
-            $query = SchoolClass::with('major', 'homeroomTeacher');
+            $query = \Illuminate\Support\Facades\DB::table('classes')
+                ->leftJoin('majors', 'classes.major_id', '=', 'majors.id')
+                ->leftJoin('teachers', 'classes.homeroom_teacher_id', '=', 'teachers.id')
+                ->select([
+                    'classes.*',
+                    'majors.major_name as major_major_name',
+                    'majors.major_code as major_major_code',
+                    'teachers.full_name as teacher_full_name',
+                    'teachers.nip as teacher_nip'
+                ]);
+
             if ($request->has('academic_period_id')) {
-                $query->where('academic_period_id', $request->query('academic_period_id'));
+                $query->where('classes.academic_period_id', $request->query('academic_period_id'));
             }
+
             $classes = $query->paginate(15);
+
+            // Restructure stdClass to nested JSON structures for frontend compatibility
+            $classes->getCollection()->transform(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'major_id' => $item->major_id,
+                    'homeroom_teacher_id' => $item->homeroom_teacher_id,
+                    'academic_period_id' => $item->academic_period_id,
+                    'class_name' => $item->class_name,
+                    'academic_year' => $item->academic_year,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                    'major' => $item->major_id ? [
+                        'id' => $item->major_id,
+                        'major_name' => $item->major_major_name,
+                        'major_code' => $item->major_major_code,
+                    ] : null,
+                    'homeroom_teacher' => $item->homeroom_teacher_id ? [
+                        'id' => $item->homeroom_teacher_id,
+                        'full_name' => $item->teacher_full_name,
+                        'nip' => $item->teacher_nip,
+                    ] : null
+                ];
+            });
+
             return $this->sendResponse($classes);
         } catch (\Exception $e) {
-            return $this->sendError('Gagal mengambil data kelas. Silakan coba lagi.');
+            return $this->sendError('Gagal mengambil data kelas: ' . $e->getMessage());
         }
     }
 
     public function show($id)
     {
         try {
-            $class = SchoolClass::with('major', 'homeroomTeacher', 'students')->find($id);
-            if (!$class) return $this->sendError('Kelas tidak ditemukan', [], 404);
-            return $this->sendResponse($class);
+            $item = \Illuminate\Support\Facades\DB::table('classes')
+                ->leftJoin('majors', 'classes.major_id', '=', 'majors.id')
+                ->leftJoin('teachers', 'classes.homeroom_teacher_id', '=', 'teachers.id')
+                ->select([
+                    'classes.*',
+                    'majors.major_name as major_major_name',
+                    'majors.major_code as major_major_code',
+                    'teachers.full_name as teacher_full_name',
+                    'teachers.nip as teacher_nip'
+                ])
+                ->where('classes.id', $id)
+                ->first();
+
+            if (!$item) {
+                return $this->sendError('Kelas tidak ditemukan', [], 404);
+            }
+
+            // Fetch students inside this class with flat Query Builder
+            $students = \Illuminate\Support\Facades\DB::table('students')
+                ->where('class_id', $id)
+                ->get();
+
+            $formatted = [
+                'id' => $item->id,
+                'major_id' => $item->major_id,
+                'homeroom_teacher_id' => $item->homeroom_teacher_id,
+                'academic_period_id' => $item->academic_period_id,
+                'class_name' => $item->class_name,
+                'academic_year' => $item->academic_year,
+                'created_at' => $item->created_at,
+                'updated_at' => $item->updated_at,
+                'major' => $item->major_id ? [
+                    'id' => $item->major_id,
+                    'major_name' => $item->major_major_name,
+                    'major_code' => $item->major_major_code,
+                ] : null,
+                'homeroom_teacher' => $item->homeroom_teacher_id ? [
+                    'id' => $item->homeroom_teacher_id,
+                    'full_name' => $item->teacher_full_name,
+                    'nip' => $item->teacher_nip,
+                ] : null,
+                'students' => $students
+            ];
+
+            return $this->sendResponse($formatted);
         } catch (\Exception $e) {
-            return $this->sendError('Gagal mengambil data kelas. Silakan coba lagi.');
+            return $this->sendError('Gagal mengambil data kelas: ' . $e->getMessage());
         }
     }
 

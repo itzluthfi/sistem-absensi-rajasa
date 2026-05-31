@@ -12,27 +12,106 @@ class StudentsController extends BaseController
     public function index(Request $request)
     {
         try {
-            $query = Student::with('user', 'class');
+            $query = \Illuminate\Support\Facades\DB::table('students')
+                ->leftJoin('users', 'students.user_id', '=', 'users.id')
+                ->leftJoin('classes', 'students.class_id', '=', 'classes.id')
+                ->select([
+                    'students.*',
+                    'users.email as user_email',
+                    'users.username as user_username',
+                    'classes.class_name as class_class_name',
+                    'classes.academic_period_id as class_academic_period_id'
+                ]);
+
             if ($request->has('academic_period_id')) {
-                $query->whereHas('class', function ($q) use ($request) {
-                    $q->where('academic_period_id', $request->query('academic_period_id'));
-                });
+                $query->where('classes.academic_period_id', $request->query('academic_period_id'));
             }
+
             $students = $query->paginate(15);
+
+            // Restructure standard flat results to nested JSON arrays for Expo compatibility
+            $students->getCollection()->transform(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'user_id' => $item->user_id,
+                    'class_id' => $item->class_id,
+                    'full_name' => $item->full_name,
+                    'nisn' => $item->nisn,
+                    'nis' => $item->nis,
+                    'created_at' => $item->created_at,
+                    'updated_at' => $item->updated_at,
+                    'user' => $item->user_id ? [
+                        'id' => $item->user_id,
+                        'email' => $item->user_email,
+                        'username' => $item->user_username,
+                    ] : null,
+                    'class' => $item->class_id ? [
+                        'id' => $item->class_id,
+                        'class_name' => $item->class_class_name,
+                        'academic_period_id' => $item->class_academic_period_id,
+                    ] : null
+                ];
+            });
+
             return $this->sendResponse($students);
         } catch (\Exception $e) {
-            return $this->sendError('Gagal mengambil data siswa. Silakan coba lagi.');
+            return $this->sendError('Gagal mengambil data siswa: ' . $e->getMessage());
         }
     }
 
     public function show($id)
     {
         try {
-            $student = Student::with('user', 'class', 'attendances')->find($id);
-            if (!$student) return $this->sendError('Siswa tidak ditemukan', [], 404);
-            return $this->sendResponse($student);
+            $item = \Illuminate\Support\Facades\DB::table('students')
+                ->leftJoin('users', 'students.user_id', '=', 'users.id')
+                ->leftJoin('classes', 'students.class_id', '=', 'classes.id')
+                ->select([
+                    'students.*',
+                    'users.email as user_email',
+                    'users.username as user_username',
+                    'classes.class_name as class_class_name',
+                    'classes.academic_period_id as class_academic_period_id'
+                ])
+                ->where('students.id', $id)
+                ->first();
+
+            if (!$item) {
+                return $this->sendError('Siswa tidak ditemukan', [], 404);
+            }
+
+            // Fetch recent 10 attendances for this student using fast flat query
+            $attendances = \Illuminate\Support\Facades\DB::table('attendances')
+                ->where('student_id', $id)
+                ->orderBy('date', 'desc')
+                ->orderBy('time', 'desc')
+                ->limit(10)
+                ->get();
+
+            $formatted = [
+                'id' => $item->id,
+                'user_id' => $item->user_id,
+                'class_id' => $item->class_id,
+                'full_name' => $item->full_name,
+                'nisn' => $item->nisn,
+                'nis' => $item->nis,
+                'created_at' => $item->created_at,
+                'updated_at' => $item->updated_at,
+                'user' => $item->user_id ? [
+                    'id' => $item->user_id,
+                    'email' => $item->user_email,
+                    'username' => $item->user_username,
+                ] : null,
+                'class' => $item->class_id ? [
+                    'id' => $item->class_id,
+                    'class_name' => $item->class_class_name,
+                    'academic_period_id' => $item->class_academic_period_id,
+                ] : null,
+                'attendances' => $attendances
+            ];
+
+            return $this->sendResponse($formatted);
         } catch (\Exception $e) {
-            return $this->sendError('Gagal mengambil data siswa. Silakan coba lagi.');
+            return $this->sendError('Gagal mengambil data siswa: ' . $e->getMessage());
         }
     }
 
