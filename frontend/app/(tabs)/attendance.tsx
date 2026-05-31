@@ -26,10 +26,12 @@ import { attendanceApi, attendanceSessionsApi } from "../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FuturisticLoader from "../../components/ui/FuturisticLoader";
 import ShimmerButton from "../../components/ui/ShimmerButton";
+import { useToast } from "../../hooks/useToast";
 
 export default function AttendanceScreen() {
   const { user } = useAuthStore();
   const router = useRouter();
+  const toast = useToast();
   const {
     todaySchedules,
     fetchTodaySchedules,
@@ -54,11 +56,12 @@ export default function AttendanceScreen() {
           onPress: async () => {
             const res = await deleteAttendance(attendanceId);
             if (res.success) {
+              toast.info("Presensi siswa berhasil ditolak.");
               if (activeSchedule?.active_session) {
                 fetchSessionDetail(activeSchedule.active_session.id);
               }
             } else {
-              Alert.alert("Gagal Menolak", res.message);
+              toast.error(res.message || "Gagal menolak presensi.");
             }
           },
         },
@@ -128,10 +131,10 @@ export default function AttendanceScreen() {
           setShowSuccessModal(false);
         }, 3000);
       } else {
-        Alert.alert("Absensi Gagal", result.message);
+        toast.error(result.message || "Absensi gagal.");
       }
     } catch (e: any) {
-      Alert.alert("Gagal", "Terjadi kesalahan sistem saat memproses absensi.");
+      toast.error("Terjadi kesalahan sistem saat memproses absensi.");
     } finally {
       setIsLoadingSession(false);
     }
@@ -286,14 +289,11 @@ export default function AttendanceScreen() {
           setScanned(false);
         }, 3000);
       } else {
-        Alert.alert("Absensi Gagal", result.message);
+        toast.error(result.message || "Absensi gagal.");
         setScanned(false);
       }
     } catch (e: any) {
-      Alert.alert(
-        "Format QR Tidak Valid",
-        "Pastikan Anda men-scan QR Code Sesi yang dipasang Guru di depan kelas.",
-      );
+      toast.error("Format QR tidak valid. Pastikan Anda men-scan QR Code Sesi dari Guru.");
       setScanned(false);
     }
   };
@@ -336,14 +336,11 @@ export default function AttendanceScreen() {
           setScanned(false);
         }, 2000);
       } else {
-        Alert.alert("Gagal Memindai", result.message);
+        toast.error(result.message || "Gagal memindai QR siswa.");
         setScanned(false);
       }
     } catch (e: any) {
-      Alert.alert(
-        "Format QR Tidak Dikenal",
-        "Pastikan yang dipindai adalah QR Absen Siswa yang tertera di HP-nya.",
-      );
+      toast.error("Format QR tidak dikenal. Pastikan yang dipindai adalah QR Absen Siswa.");
       setScanned(false);
     }
   };

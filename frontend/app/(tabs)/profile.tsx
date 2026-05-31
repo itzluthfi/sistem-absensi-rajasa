@@ -18,12 +18,15 @@ import { useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
 import { authApi } from "../../services/api";
 
+import { useToast } from "../../hooks/useToast";
+
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { user, logout, isLoading } = useAuthStore();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const insets = useSafeAreaInsets();
@@ -103,11 +106,10 @@ export default function ProfileScreen() {
       setCurrentPassword("");
       setNewPassword("");
       setNewPasswordConfirmation("");
-      Alert.alert("Berhasil", "Kata sandi Anda berhasil diperbarui.");
+      toast.success("Kata sandi Anda berhasil diperbarui.");
     } catch (error: any) {
       setIsSubmittingPassword(false);
-      Alert.alert(
-        "Gagal Mengubah",
+      toast.error(
         error.response?.data?.message ||
           "Gagal mengubah kata sandi. Pastikan kata sandi saat ini benar.",
       );

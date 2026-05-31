@@ -26,6 +26,7 @@ import {
 } from "../../services/api";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useToast } from '../../hooks/useToast';
 
 type DataType = "students" | "teachers" | "classes" | "schedules" | "academicPeriods";
 
@@ -114,6 +115,7 @@ const emptyForm = {
 
 
 export default function MasterDataScreen() {
+  const toast = useToast();
   const [activeType, setActiveType] = useState<DataType>("students");
   const [records, setRecords] = useState<DataRecord[]>([]);
   const [query, setQuery] = useState("");
@@ -179,14 +181,14 @@ export default function MasterDataScreen() {
       await importExportApi.import(mappedType, file);
       setImportModalVisible(false);
       await fetchRecords();
-      Alert.alert("Sukses", "Data berhasil diimpor!");
+      toast.success("Import data Excel berhasil.");
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || "Gagal mengimpor berkas Excel.";
       const details = error.response?.data?.errors;
       if (details && Array.isArray(details)) {
-        Alert.alert("Gagal Impor (Detail)", errorMsg + "\n\nDetail:\n" + details.join("\n"));
+        toast.error(errorMsg + "\n\nDetail:\n" + details.join("\n"));
       } else {
-        Alert.alert("Gagal", errorMsg);
+        toast.error(errorMsg);
       }
     } finally {
       setImporting(false);
@@ -225,6 +227,7 @@ export default function MasterDataScreen() {
       const payload = response.data?.data ?? response.data ?? [];
       setRecords(Array.isArray(payload) ? payload : []);
     } catch (error: any) {
+      // keep as Alert since this is a data loading failure, not a user action feedback
       Alert.alert(
         "Gagal Memuat Data",
         error.response?.data?.message || "Periksa koneksi API backend.",
@@ -433,26 +436,23 @@ export default function MasterDataScreen() {
       return;
     }
 
+    const currentMode = modalMode;
     setSubmitting(true);
     try {
-      if (modalMode === "create") {
+      if (currentMode === "create") {
         await apiMap[activeType].create(buildPayload());
       } else {
         await apiMap[activeType].update(Number(form.id), buildPayload());
       }
       setModalMode(null);
       await fetchRecords();
-      Alert.alert(
-        "Berhasil",
-        modalMode === "create"
-          ? "Data berhasil ditambahkan"
-          : "Data berhasil diperbarui",
-      );
+      if (currentMode === "create") {
+        toast.success("Data berhasil ditambahkan.");
+      } else {
+        toast.success("Data berhasil diperbarui.");
+      }
     } catch (error: any) {
-      Alert.alert(
-        "Gagal Menyimpan",
-        error.response?.data?.message || "Periksa field dan hak akses akun.",
-      );
+      toast.error(error.response?.data?.message || "Periksa field dan hak akses akun.");
     }
     setSubmitting(false);
   };
@@ -467,11 +467,9 @@ export default function MasterDataScreen() {
           try {
             await apiMap[activeType].delete(item.id);
             await fetchRecords();
+            toast.success("Data berhasil dihapus.");
           } catch (error: any) {
-            Alert.alert(
-              "Gagal Menghapus",
-              error.response?.data?.message || "Data tidak dapat dihapus.",
-            );
+            toast.error(error.response?.data?.message || "Data tidak dapat dihapus.");
           }
         },
       },

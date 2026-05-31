@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   View,
   TextInput,
-  useWindowDimensions,
   Platform,
   Modal,
   KeyboardAvoidingView,
@@ -17,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { gpsLocationsApi } from "../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useToast } from "../../hooks/useToast";
 
 // Platform-safe WebView
 let WebView: any = null;
@@ -41,11 +41,36 @@ interface SearchResult {
   lon: string;
 }
 
-// ─── Leaflet Map (Cross-Platform) ─────────────────────────────────────────────
-function LeafletMap({ locations }: { locations: GpsLocation[] }) {
+// ─── Leaflet Map with flyTo support ──────────────────────────────────────────
+const LeafletMap = forwardRef(function LeafletMap(
+  { locations }: { locations: GpsLocation[] },
+  ref: any
+) {
+  const webViewRef = useRef<any>(null);
+  const iframeRef = useRef<any>(null);
   const activeLocations = locations.filter((l) => l.is_active);
 
-  if (activeLocations.length === 0) return null;
+  useImperativeHandle(ref, () => ({
+    flyTo: (lat: number, lng: number, zoom = 17) => {
+      const js = `map.flyTo([${lat}, ${lng}], ${zoom}, {animate:true, duration:0.8}); void 0;`;
+      if (Platform.OS === "web") {
+        try {
+          iframeRef.current?.contentWindow?.postMessage({ type: "flyTo", lat, lng, zoom }, "*");
+        } catch {}
+      } else {
+        webViewRef.current?.injectJavaScript(js);
+      }
+    },
+  }));
+
+  if (activeLocations.length === 0) {
+    return (
+      <View style={styles.mapEmpty}>
+        <Ionicons name="map-outline" size={40} color="#D1D5DB" />
+        <Text style={styles.mapEmptyText}>Belum ada zona aktif</Text>
+      </View>
+    );
+  }
 
   const centerLat = activeLocations[0].latitude;
   const centerLng = activeLocations[0].longitude;
@@ -63,7 +88,7 @@ function LeafletMap({ locations }: { locations: GpsLocation[] }) {
       iconSize:[16,16], iconAnchor:[8,8]
     });
     L.marker([${loc.latitude}, ${loc.longitude}], {icon: pin${i}}).addTo(map)
-      .bindPopup('<b>${loc.name.replace(/'/g, "\\'")}</b><br>Lat: ${loc.latitude}<br>Lng: ${loc.longitude}<br>Radius: ${loc.radius_meters}m');
+      .bindPopup('<b>${loc.name.replace(/'/g, "\\'")}</b><br>Lat: ${loc.latitude.toFixed(6)}<br>Lng: ${loc.longitude.toFixed(6)}<br>Radius: ${loc.radius_meters}m');
   `
     )
     .join("\n");
@@ -80,9 +105,18 @@ function LeafletMap({ locations }: { locations: GpsLocation[] }) {
   <div id="map"></div>
   <script>
     var colors = ['#2563EB','#10B981','#F59E0B','#EF4444','#8B5CF6'];
-    var map = L.map('map',{zoomControl:true,attributionControl:false}).setView([${centerLat},${centerLng}],16);
+    var map = L.map('map',{zoomControl:true,attributionControl:false}).setView([${centerLat},${centerLng}],15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
     ${circlesJs}
+    // Listen for flyTo commands from parent
+    window.addEventListener('message', function(e) {
+      try {
+        var d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (d && d.type === 'flyTo') {
+          map.flyTo([d.lat, d.lng], d.zoom || 17, {animate: true, duration: 0.8});
+        }
+      } catch(err) {}
+    });
   <\/script>
 </body>
 </html>`;
@@ -90,6 +124,7 @@ function LeafletMap({ locations }: { locations: GpsLocation[] }) {
   if (Platform.OS === "web") {
     return (
       <iframe
+        ref={iframeRef}
         srcDoc={html}
         style={{ width: "100%", height: "100%", border: "none" }}
         sandbox="allow-scripts allow-same-origin"
@@ -101,6 +136,7 @@ function LeafletMap({ locations }: { locations: GpsLocation[] }) {
   if (!WebView) return null;
   return (
     <WebView
+      ref={webViewRef}
       source={{ html }}
       style={{ flex: 1, backgroundColor: "transparent" }}
       scrollEnabled={false}
@@ -114,26 +150,40 @@ function LeafletMap({ locations }: { locations: GpsLocation[] }) {
       )}
     />
   );
-}
+});
 
 // ─── Location Card ────────────────────────────────────────────────────────────
 function LocationCard({
   loc,
+  onFocus,
   onToggle,
   onDelete,
   isDeleting,
 }: {
   loc: GpsLocation;
+  onFocus: (loc: GpsLocation) => void;
   onToggle: (id: number) => void;
   onDelete: (id: number) => void;
   isDeleting: boolean;
 }) {
   return (
-    <View style={[styles.locCard, !loc.is_active && styles.locCardInactive]}>
+    <TouchableOpacity
+      activeOpacity={0.85}
+      onPress={() => onFocus(loc)}
+      style={[styles.locCard, !loc.is_active && styles.locCardInactive]}
+    >
       <View style={styles.locCardTop}>
         <View style={[styles.locDot, { backgroundColor: loc.is_active ? "#10B981" : "#9CA3AF" }]} />
         <Text style={styles.locName} numberOfLines={1}>{loc.name}</Text>
         <View style={styles.locActions}>
+          {/* Focus/fly-to button */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: "#EFF6FF" }]}
+            onPress={() => onFocus(loc)}
+          >
+            <Ionicons name="locate-outline" size={16} color="#2563EB" />
+          </TouchableOpacity>
+          {/* Active toggle */}
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: loc.is_active ? "#D1FAE5" : "#F3F4F6" }]}
             onPress={() => onToggle(loc.id)}
@@ -144,6 +194,7 @@ function LocationCard({
               color={loc.is_active ? "#10B981" : "#9CA3AF"}
             />
           </TouchableOpacity>
+          {/* Delete */}
           <TouchableOpacity
             style={[styles.iconBtn, { backgroundColor: "#FEE2E2" }]}
             onPress={() => onDelete(loc.id)}
@@ -169,7 +220,10 @@ function LocationCard({
           <Text style={styles.locRadiusText}>{loc.radius_meters}m</Text>
         </View>
       </View>
-    </View>
+      {loc.is_active && (
+        <Text style={styles.tapHint}>Ketuk kartu atau ikon 🎯 untuk fokus ke peta</Text>
+      )}
+    </TouchableOpacity>
   );
 }
 
@@ -177,9 +231,10 @@ function LocationCard({
 export default function GpsSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isMobile = width < 600;
+  const toast = useToast();
   const paddingBottom = 24 + (insets.bottom > 0 ? insets.bottom + 8 : 16);
+
+  const mapRef = useRef<any>(null);
 
   const [locations, setLocations] = useState<GpsLocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -199,6 +254,7 @@ export default function GpsSettingsScreen() {
   const [isSearching, setIsSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [noResultsMsg, setNoResultsMsg] = useState("");
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadLocations = async () => {
@@ -209,7 +265,7 @@ export default function GpsSettingsScreen() {
         setLocations(res.data);
       }
     } catch (e) {
-      Alert.alert("Gagal", "Tidak dapat memuat data lokasi GPS.");
+      toast.error("Tidak dapat memuat data lokasi GPS.");
     } finally {
       setIsLoading(false);
     }
@@ -222,30 +278,70 @@ export default function GpsSettingsScreen() {
     };
   }, []);
 
-  // Nominatim search
+  // ─── Dual-strategy Nominatim Search ────────────────────────────────────────
+  const nominatimFetch = async (text: string, withCountry: boolean): Promise<SearchResult[]> => {
+    const params = new URLSearchParams({
+      q: text,
+      format: "json",
+      limit: "8",
+      addressdetails: "1",
+      "accept-language": "id",
+      ...(withCountry ? { countrycodes: "id" } : {}),
+    });
+    const url = `https://nominatim.openstreetmap.org/search?${params.toString()}`;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "SistemAbsensiRajasa/1.0 (educational-app)",
+        "Accept-Language": "id",
+      },
+    });
+    const data = await res.json();
+    if (!Array.isArray(data)) return [];
+    return data.map((item: any) => ({
+      place_id: item.place_id,
+      display_name: item.display_name,
+      lat: item.lat,
+      lon: item.lon,
+    }));
+  };
+
   const executeSearch = async (text: string) => {
     if (!text || text.trim().length < 3) {
       setSearchResults([]);
       setShowResults(false);
+      setNoResultsMsg("");
       return;
     }
     setIsSearching(true);
+    setNoResultsMsg("");
     try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(text)}&format=json&limit=5&countrycodes=id`;
-      const res = await fetch(url, { headers: { "User-Agent": "SistemAbsensiRajasa/1.0" } });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        const mapped: SearchResult[] = data.map((item: any) => ({
-          place_id: item.place_id,
-          display_name: item.display_name,
-          lat: item.lat,
-          lon: item.lon,
-        }));
-        setSearchResults(mapped);
-        setShowResults(mapped.length > 0);
+      // Strategy 1: with countrycodes=id (faster, more accurate for common names)
+      let results = await nominatimFetch(text, true);
+
+      // Strategy 2 fallback: without country restriction if results < 2
+      if (results.length < 2) {
+        const broader = await nominatimFetch(text, false);
+        // Merge & deduplicate by place_id
+        const ids = new Set(results.map((r) => r.place_id));
+        for (const item of broader) {
+          if (!ids.has(item.place_id)) {
+            results.push(item);
+            ids.add(item.place_id);
+          }
+        }
+      }
+
+      if (results.length > 0) {
+        setSearchResults(results.slice(0, 8));
+        setShowResults(true);
+        setNoResultsMsg("");
+      } else {
+        setSearchResults([]);
+        setShowResults(false);
+        setNoResultsMsg("Tidak ditemukan. Coba kata kunci lain atau isi koordinat manual.");
       }
     } catch {
-      // silent fail
+      setNoResultsMsg("Gagal menghubungi layanan pencarian. Periksa koneksi internet.");
     } finally {
       setIsSearching(false);
     }
@@ -253,6 +349,7 @@ export default function GpsSettingsScreen() {
 
   const handleQueryChange = (text: string) => {
     setSearchQuery(text);
+    setNoResultsMsg("");
     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (text.trim().length >= 3) {
       searchTimeoutRef.current = setTimeout(() => executeSearch(text), 700);
@@ -263,30 +360,46 @@ export default function GpsSettingsScreen() {
   };
 
   const selectPlace = (place: SearchResult) => {
-    setNewLat(parseFloat(place.lat).toFixed(6));
-    setNewLng(parseFloat(place.lon).toFixed(6));
-    setSearchQuery(place.display_name.split(",")[0]);
-    if (!newName) setNewName(place.display_name.split(",")[0]);
+    const lat = parseFloat(place.lat).toFixed(6);
+    const lng = parseFloat(place.lon).toFixed(6);
+    setNewLat(lat);
+    setNewLng(lng);
+    const shortName = place.display_name.split(",")[0].trim();
+    setSearchQuery(shortName);
+    if (!newName) setNewName(shortName);
     setShowResults(false);
+    setSearchResults([]);
   };
 
-  // Toggle location
+  // ─── Map focus handler ───────────────────────────────────────────────────────
+  const handleFocusLocation = (loc: GpsLocation) => {
+    if (!loc.is_active) {
+      toast.info("Aktifkan zona ini terlebih dahulu untuk melihatnya di peta.");
+      return;
+    }
+    mapRef.current?.flyTo(loc.latitude, loc.longitude, 17);
+  };
+
+  // ─── Toggle location ─────────────────────────────────────────────────────────
   const handleToggle = async (id: number) => {
     try {
       const res = await gpsLocationsApi.toggle(id);
       if (res.success) {
+        const loc = locations.find((l) => l.id === id);
+        const newActive = !loc?.is_active;
         setLocations((prev) =>
-          prev.map((l) => (l.id === id ? { ...l, is_active: !l.is_active } : l))
+          prev.map((l) => (l.id === id ? { ...l, is_active: newActive } : l))
         );
+        toast.info(newActive ? "Zona diaktifkan." : "Zona dinonaktifkan.");
       } else {
-        Alert.alert("Gagal", res.message || "Tidak dapat mengubah status.");
+        toast.error(res.message || "Tidak dapat mengubah status.");
       }
     } catch (e: any) {
-      Alert.alert("Gagal", e.response?.data?.message || "Terjadi kesalahan.");
+      toast.error(e.response?.data?.message || "Terjadi kesalahan.");
     }
   };
 
-  // Delete location
+  // ─── Delete location ─────────────────────────────────────────────────────────
   const handleDelete = (id: number) => {
     Alert.alert("Hapus Lokasi", "Yakin ingin menghapus titik lokasi ini?", [
       { text: "Batal", style: "cancel" },
@@ -299,11 +412,12 @@ export default function GpsSettingsScreen() {
             const res = await gpsLocationsApi.remove(id);
             if (res.success) {
               setLocations((prev) => prev.filter((l) => l.id !== id));
+              toast.success("Lokasi GPS berhasil dihapus.");
             } else {
-              Alert.alert("Gagal", res.message || "Tidak dapat menghapus.");
+              toast.error(res.message || "Tidak dapat menghapus.");
             }
           } catch (e: any) {
-            Alert.alert("Gagal", e.response?.data?.message || "Terjadi kesalahan.");
+            toast.error(e.response?.data?.message || "Terjadi kesalahan.");
           } finally {
             setDeletingId(null);
           }
@@ -312,20 +426,20 @@ export default function GpsSettingsScreen() {
     ]);
   };
 
-  // Add new location
+  // ─── Add new location ─────────────────────────────────────────────────────────
   const handleAdd = async () => {
     const lat = parseFloat(newLat);
     const lng = parseFloat(newLng);
     if (!newName.trim()) {
-      Alert.alert("Input Salah", "Nama lokasi wajib diisi.");
+      toast.error("Nama lokasi wajib diisi.");
       return;
     }
     if (isNaN(lat) || lat < -90 || lat > 90) {
-      Alert.alert("Input Salah", "Latitude tidak valid.");
+      toast.error("Latitude tidak valid. Contoh: -7.245583");
       return;
     }
     if (isNaN(lng) || lng < -180 || lng > 180) {
-      Alert.alert("Input Salah", "Longitude tidak valid.");
+      toast.error("Longitude tidak valid. Contoh: 112.737750");
       return;
     }
     setIsSaving(true);
@@ -346,11 +460,13 @@ export default function GpsSettingsScreen() {
         setNewRadius(100);
         setSearchQuery("");
         setSearchResults([]);
+        setNoResultsMsg("");
+        toast.success(`Zona "${res.data.name}" berhasil ditambahkan!`);
       } else {
-        Alert.alert("Gagal", res.message || "Gagal menambahkan lokasi.");
+        toast.error(res.message || "Gagal menambahkan lokasi.");
       }
     } catch (e: any) {
-      Alert.alert("Gagal", e.response?.data?.message || "Terjadi kesalahan sistem.");
+      toast.error(e.response?.data?.message || "Terjadi kesalahan sistem.");
     } finally {
       setIsSaving(false);
     }
@@ -395,17 +511,10 @@ export default function GpsSettingsScreen() {
               </View>
             </View>
             <View style={styles.mapWrapper}>
-              {locations.filter((l) => l.is_active).length > 0 ? (
-                <LeafletMap locations={locations} />
-              ) : (
-                <View style={styles.mapEmpty}>
-                  <Ionicons name="map-outline" size={40} color="#D1D5DB" />
-                  <Text style={styles.mapEmptyText}>Belum ada zona aktif</Text>
-                </View>
-              )}
+              <LeafletMap ref={mapRef} locations={locations} />
             </View>
             <Text style={styles.mapHint}>
-              Tiap warna = satu zona geofencing. Siswa valid jika dalam salah satu zona.
+              Ketuk kartu lokasi di bawah untuk fokus ke titik tersebut di peta ↑
             </Text>
           </View>
 
@@ -432,6 +541,7 @@ export default function GpsSettingsScreen() {
               <LocationCard
                 key={loc.id}
                 loc={loc}
+                onFocus={handleFocusLocation}
                 onToggle={handleToggle}
                 onDelete={handleDelete}
                 isDeleting={deletingId === loc.id}
@@ -474,6 +584,7 @@ export default function GpsSettingsScreen() {
                   setSearchQuery("");
                   setSearchResults([]);
                   setShowResults(false);
+                  setNoResultsMsg("");
                 }}
                 style={styles.modalCloseBtn}
               >
@@ -485,10 +596,10 @@ export default function GpsSettingsScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
-              {/* Search Box */}
-              <View style={styles.searchSection}>
+              {/* ── Search Box ─────────────────────────────────────────── */}
+              <View style={[styles.searchSection, { zIndex: 100 }]}>
                 <Text style={styles.fieldLabel}>
-                  <Ionicons name="search" size={13} color="#6B7280" /> CARI LOKASI / ALAMAT SEKOLAH
+                  CARI LOKASI / ALAMAT SEKOLAH
                 </Text>
                 <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
                   <Ionicons
@@ -509,15 +620,17 @@ export default function GpsSettingsScreen() {
                     }}
                     onBlur={() => setSearchFocused(false)}
                     returnKeyType="search"
+                    onSubmitEditing={() => executeSearch(searchQuery)}
                   />
                   {isSearching ? (
-                    <ActivityIndicator size="small" color="#2563EB" style={{ marginRight: 10 }} />
+                    <ActivityIndicator size="small" color="#2563EB" style={{ marginRight: 12 }} />
                   ) : searchQuery.length > 0 ? (
                     <TouchableOpacity
                       onPress={() => {
                         setSearchQuery("");
                         setSearchResults([]);
                         setShowResults(false);
+                        setNoResultsMsg("");
                       }}
                       style={styles.clearBtn}
                     >
@@ -549,6 +662,14 @@ export default function GpsSettingsScreen() {
                     ))}
                   </View>
                 )}
+
+                {/* No Results Message */}
+                {noResultsMsg ? (
+                  <View style={styles.noResultBox}>
+                    <Ionicons name="alert-circle-outline" size={15} color="#F59E0B" />
+                    <Text style={styles.noResultText}>{noResultsMsg}</Text>
+                  </View>
+                ) : null}
               </View>
 
               {/* Name Field */}
@@ -613,7 +734,6 @@ export default function GpsSettingsScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-                {/* Progress bar */}
                 <View style={styles.radiusTrack}>
                   <View
                     style={[
@@ -652,7 +772,6 @@ export default function GpsSettingsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F3F4F6" },
 
-  // Header
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -682,14 +801,11 @@ const styles = StyleSheet.create({
   },
   addHeaderBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
-  // Loading
   centered: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12 },
   loadingText: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
 
-  // Scroll
   scrollContent: { padding: 16, gap: 12 },
 
-  // Map Card
   mapCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -718,22 +834,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   mapBadgeText: { fontSize: 11, fontWeight: "700", color: "#2563EB" },
-  mapWrapper: {
-    height: 230,
-    backgroundColor: "#EFF6FF",
-  },
-  mapLoading: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#EFF6FF",
-  },
-  mapEmpty: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
+  mapWrapper: { height: 250, backgroundColor: "#EFF6FF" },
+  mapLoading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#EFF6FF" },
+  mapEmpty: { flex: 1, justifyContent: "center", alignItems: "center", gap: 8 },
   mapEmptyText: { fontSize: 13, color: "#9CA3AF" },
   mapHint: {
     fontSize: 11,
@@ -744,7 +847,6 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
 
-  // Section Header
   sectionHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -755,7 +857,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 13, fontWeight: "800", color: "#374151", textTransform: "uppercase" },
 
-  // Location Card
   locCard: {
     backgroundColor: "#fff",
     borderRadius: 14,
@@ -769,10 +870,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: "#2563EB",
   },
-  locCardInactive: {
-    borderLeftColor: "#E5E7EB",
-    opacity: 0.7,
-  },
+  locCardInactive: { borderLeftColor: "#E5E7EB", opacity: 0.7 },
   locCardTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   locDot: { width: 10, height: 10, borderRadius: 5 },
   locName: { flex: 1, fontSize: 15, fontWeight: "700", color: "#111827" },
@@ -786,7 +884,11 @@ const styles = StyleSheet.create({
   },
   locCardBody: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   locCoordRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  locCoord: { fontSize: 12, color: "#6B7280", fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace" },
+  locCoord: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
+  },
   locRadiusBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -797,8 +899,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   locRadiusText: { fontSize: 12, fontWeight: "700", color: "#2563EB" },
+  tapHint: { fontSize: 10, color: "#9CA3AF", marginTop: 8, fontStyle: "italic" },
 
-  // Empty state
   emptyCard: {
     backgroundColor: "#fff",
     borderRadius: 16,
@@ -820,7 +922,6 @@ const styles = StyleSheet.create({
   },
   emptyAddBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
 
-  // Info box
   infoBox: {
     flexDirection: "row",
     backgroundColor: "#EFF6FF",
@@ -832,7 +933,6 @@ const styles = StyleSheet.create({
   },
   infoText: { flex: 1, fontSize: 13, color: "#1D4ED8", lineHeight: 18 },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
@@ -844,7 +944,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingBottom: 40,
-    maxHeight: "90%",
+    maxHeight: "92%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -866,8 +966,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Search Box — NEW DESIGN
-  searchSection: { marginBottom: 18, zIndex: 100, position: "relative" },
+  // ── Search ────────────────────────────────────────────────────────────────
+  searchSection: { marginBottom: 18, position: "relative" },
   fieldLabel: {
     fontSize: 11,
     fontWeight: "800",
@@ -883,7 +983,6 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
     borderRadius: 14,
-    paddingVertical: 0,
     height: 52,
     paddingRight: 6,
     shadowColor: "#000",
@@ -896,9 +995,9 @@ const styles = StyleSheet.create({
     borderColor: "#2563EB",
     backgroundColor: "#fff",
     shadowColor: "#2563EB",
-    shadowOpacity: 0.12,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 4,
   },
   searchIcon: { marginLeft: 14, marginRight: 8 },
   searchInput: {
@@ -916,7 +1015,7 @@ const styles = StyleSheet.create({
   },
   dropdown: {
     position: "absolute",
-    top: 84,
+    top: 86,
     left: 0,
     right: 0,
     backgroundColor: "#fff",
@@ -951,7 +1050,18 @@ const styles = StyleSheet.create({
   },
   dropdownText: { fontSize: 13, color: "#374151", flex: 1, lineHeight: 18 },
 
-  // Fields
+  noResultBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+  },
+  noResultText: { fontSize: 12, color: "#92400E", flex: 1, lineHeight: 17 },
+
+  // ── Fields ────────────────────────────────────────────────────────────────
   fieldGroup: { marginBottom: 16 },
   textField: {
     backgroundColor: "#F9FAFB",
@@ -966,7 +1076,6 @@ const styles = StyleSheet.create({
   },
   coordRow: { flexDirection: "row", marginBottom: 0 },
 
-  // Radius
   radiusHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -990,14 +1099,9 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 6,
   },
-  radiusFill: {
-    height: "100%",
-    backgroundColor: "#2563EB",
-    borderRadius: 3,
-  },
+  radiusFill: { height: "100%", backgroundColor: "#2563EB", borderRadius: 3 },
   radiusHint: { fontSize: 11, color: "#9CA3AF" },
 
-  // Save Button
   saveBtn: {
     backgroundColor: "#2563EB",
     borderRadius: 14,

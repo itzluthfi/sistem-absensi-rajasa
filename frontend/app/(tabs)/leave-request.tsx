@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { leaveRequestsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
+import { useToast } from "../../hooks/useToast";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -36,6 +37,7 @@ interface LeaveRequest {
 
 export default function LeaveRequestScreen() {
   const { hasRole } = useAuthStore();
+  const toast = useToast();
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showFormModal, setShowFormModal] = useState(false);
@@ -112,13 +114,12 @@ export default function LeaveRequestScreen() {
         } as any);
       }
       await leaveRequestsApi.create(formData);
-      Alert.alert("Berhasil", "Pengajuan izin berhasil dikirim");
+      toast.success("Pengajuan izin berhasil dikirim.");
       setShowFormModal(false);
       resetForm();
       fetchLeaveRequests();
     } catch (error: any) {
-      Alert.alert(
-        "Error",
+      toast.error(
         error.response?.data?.message || "Gagal mengirim pengajuan",
       );
     } finally {
@@ -130,15 +131,15 @@ export default function LeaveRequestScreen() {
     try {
       if (decision === "approve") await leaveRequestsApi.approve(id);
       else await leaveRequestsApi.reject(id);
-      Alert.alert(
-        "Berhasil",
-        decision === "approve" ? "Izin disetujui" : "Izin ditolak",
-      );
+      if (decision === "approve") {
+        toast.success("Pengajuan izin disetujui.");
+      } else {
+        toast.info("Pengajuan izin ditolak.");
+      }
       setSelectedRequest(null);
       fetchLeaveRequests();
     } catch (error: any) {
-      Alert.alert(
-        "Error",
+      toast.error(
         error.response?.data?.message || "Gagal memproses izin",
       );
     }
