@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, useWindowDimensions, Platform, ScrollView } from 'react-native';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -96,16 +96,39 @@ export default function TabsLayout() {
     return roleMap[userRoles[0]] || 'Pengguna';
   };
 
-  const menuItems = [
-    { name: 'index', label: 'Beranda', icon: 'home-outline', activeIcon: 'home', href: '/(tabs)' },
-    { name: 'attendance', label: 'Scan Absensi', icon: 'qr-code-outline', activeIcon: 'qr-code', href: '/(tabs)/attendance', show: canSeeAttendance },
-    { name: 'history', label: 'Riwayat', icon: 'time-outline', activeIcon: 'time', href: '/(tabs)/history' },
-    { name: 'leave-request', label: 'Izin', icon: 'document-text-outline', activeIcon: 'document-text', href: '/(tabs)/leave-request', show: canSeeLeaveRequest },
-    { name: 'master-data', label: 'Master Data', icon: 'folder-outline', activeIcon: 'folder', href: '/(tabs)/master-data', show: canSeeMasterData },
-    { name: 'reports', label: 'Laporan', icon: 'bar-chart-outline', activeIcon: 'bar-chart', href: '/(tabs)/reports', show: canSeeReports },
-    { name: 'profile', label: 'Profil Saya', icon: 'person-outline', activeIcon: 'person', href: '/(tabs)/profile' },
+  const sections = [
+    {
+      title: 'UTAMA',
+      show: true,
+      items: [
+        { name: 'index', label: 'Beranda', icon: 'home-outline', activeIcon: 'home', href: '/(tabs)', show: true },
+        { name: 'attendance', label: 'Scan Absensi', icon: 'qr-code-outline', activeIcon: 'qr-code', href: '/(tabs)/attendance', show: canSeeAttendance },
+        { name: 'history', label: 'Riwayat', icon: 'time-outline', activeIcon: 'time', href: '/(tabs)/history', show: true },
+        { name: 'leave-request', label: 'Izin', icon: 'document-text-outline', activeIcon: 'document-text', href: '/(tabs)/leave-request', show: canSeeLeaveRequest },
+        { name: 'reports', label: 'Laporan', icon: 'bar-chart-outline', activeIcon: 'bar-chart', href: '/(tabs)/reports', show: canSeeReports },
+      ]
+    },
+    {
+      title: 'MANAJEMEN DATA',
+      show: isSuperAdmin || isAdmin,
+      items: [
+        { name: 'users', label: 'Data User', icon: 'people-outline', activeIcon: 'people', href: '/admin/users', show: true },
+        { name: 'students', label: 'Data Siswa', icon: 'school-outline', activeIcon: 'school', href: '/admin/students', show: true },
+        { name: 'teachers', label: 'Data Guru', icon: 'person-outline', activeIcon: 'person', href: '/admin/teachers', show: true },
+        { name: 'classes', label: 'Data Kelas', icon: 'business-outline', activeIcon: 'business', href: '/admin/classes', show: true },
+        { name: 'schedules', label: 'Data Jadwal', icon: 'calendar-outline', activeIcon: 'calendar', href: '/admin/schedules', show: true },
+        { name: 'gps-settings', label: 'Pengaturan GPS', icon: 'locate-outline', activeIcon: 'locate', href: '/admin/gps-settings', show: true },
+      ]
+    },
+    {
+      title: 'AKUN',
+      show: true,
+      items: [
+        { name: 'notifications', label: 'Notifikasi', icon: 'notifications-outline', activeIcon: 'notifications', href: '/(tabs)/notifications', show: true },
+        { name: 'profile', label: 'Profil Saya', icon: 'person-circle-outline', activeIcon: 'person-circle', href: '/(tabs)/profile', show: true },
+      ]
+    }
   ];
-
 
   const isActive = (itemHref: string) => {
     const normalizedHref = itemHref.replace('/(tabs)', '') || '/';
@@ -195,18 +218,6 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Master Data */}
-      <Tabs.Screen
-        name="master-data"
-        options={{
-          title: 'Data',
-          href: canSeeMasterData ? '/(tabs)/master-data' : null,
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="folder-outline" size={size} color={color} />
-          ),
-        }}
-      />
-
       {/* Laporan */}
       <Tabs.Screen
         name="reports"
@@ -236,6 +247,15 @@ export default function TabsLayout() {
           href: null,
         }}
       />
+
+      {/* Hide master-data route since it is removed */}
+      <Tabs.Screen
+        name="master-data"
+        options={{
+          title: 'Data',
+          href: null,
+        }}
+      />
     </Tabs>
   );
 
@@ -248,7 +268,8 @@ export default function TabsLayout() {
           {
             backgroundColor: 'transparent',
             borderBottomWidth: 0,
-            paddingTop: Platform.OS === 'web' ? 12 : Math.max(12, insets.top),
+            paddingTop: Platform.OS === 'web' ? 8 : Math.max(8, insets.top - 6),
+            paddingBottom: 8,
           }
         ]}>
           <View style={styles.headerLeft}>
@@ -300,7 +321,7 @@ export default function TabsLayout() {
     <View style={styles.desktopLayout}>
       {/* Sidebar Navigation */}
       <View style={styles.sidebarContainer}>
-        <View style={styles.sidebarTopSection}>
+        <View style={[styles.sidebarTopSection, { flex: 1 }]}>
           {/* School branding */}
           <View style={styles.sidebarHeader}>
             <Image
@@ -327,29 +348,43 @@ export default function TabsLayout() {
             </View>
           </View>
 
-          {/* Menu Items */}
-          <View style={styles.sidebarMenu}>
-            {menuItems.map((item) => {
-              if (item.show === false) return null;
-              const active = isActive(item.href);
+          {/* Grouped Menu Sections */}
+          <ScrollView
+            style={[styles.sidebarMenu, { flex: 1 }]}
+            contentContainerStyle={{ gap: 20 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {sections.map((section) => {
+              if (section.show === false) return null;
               return (
-                <TouchableOpacity
-                  key={item.name}
-                  style={[styles.sidebarMenuItem, active && styles.sidebarMenuItemActive]}
-                  onPress={() => router.push(item.href as any)}
-                >
-                  <Ionicons
-                    name={(active ? item.activeIcon : item.icon) as any}
-                    size={20}
-                    color={active ? '#3B82F6' : '#4B5563'}
-                  />
-                  <Text style={[styles.sidebarMenuText, active && styles.sidebarMenuTextActive]}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
+                <View key={section.title} style={styles.sidebarSection}>
+                  <Text style={styles.sidebarSectionHeader}>{section.title}</Text>
+                  <View style={{ gap: 4 }}>
+                    {section.items.map((item) => {
+                      if (item.show === false) return null;
+                      const active = isActive(item.href);
+                      return (
+                        <TouchableOpacity
+                          key={item.name}
+                          style={[styles.sidebarMenuItem, active && styles.sidebarMenuItemActive]}
+                          onPress={() => router.push(item.href as any)}
+                        >
+                          <Ionicons
+                            name={(active ? item.activeIcon : item.icon) as any}
+                            size={18}
+                            color={active ? '#3B82F6' : '#4B5563'}
+                          />
+                          <Text style={[styles.sidebarMenuText, active && styles.sidebarMenuTextActive]}>
+                            {item.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
               );
             })}
-          </View>
+          </ScrollView>
         </View>
 
         {/* Sidebar Footer with Logout Button */}
@@ -624,5 +659,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#1F2937',
+  },
+  sidebarSection: {
+    marginBottom: 16,
+  },
+  sidebarSectionHeader: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    marginBottom: 6,
+    paddingHorizontal: 16,
+    letterSpacing: 1,
   },
 });

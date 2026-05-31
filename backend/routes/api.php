@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\QRController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\GpsLocationsController;
+use App\Http\Controllers\Api\UsersController;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -183,6 +184,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ROLES & PERMISSIONS - Admin Only
     // ============================================
     Route::middleware('role:super_admin,admin')->group(function () {
+        Route::apiResource('users', UsersController::class);
         Route::get('roles', [RoleController::class, 'index']);
         Route::get('roles/{id}', [RoleController::class, 'show']);
         Route::post('roles', [RoleController::class, 'store']);

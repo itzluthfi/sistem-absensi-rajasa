@@ -17,6 +17,7 @@ use App\Models\AuditLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Hash;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ImportExportController extends BaseController
@@ -31,12 +32,12 @@ class ImportExportController extends BaseController
                 return [
                     'model' => Student::class,
                     'headings' => [
-                        'ID', 'User ID', 'Class ID', 'NIS', 'NISN', 'Nama Lengkap', 
+                        'ID', 'Class ID', 'NIS', 'NISN', 'Nama Lengkap', 'Email', 
                         'Jenis Kelamin', 'Tempat Lahir', 'Tanggal Lahir', 'Alamat', 
                         'Nama Orang Tua', 'No HP Orang Tua', 'Status'
                     ],
                     'template_headings' => [
-                        'User ID', 'Class ID', 'NIS', 'NISN', 'Nama Lengkap', 
+                        'Class ID', 'NIS', 'NISN', 'Nama Lengkap', 'Email', 
                         'Jenis Kelamin (L/P)', 'Tempat Lahir', 'Tanggal Lahir (YYYY-MM-DD)', 
                         'Alamat', 'Nama Orang Tua', 'No HP Orang Tua'
                     ]
@@ -45,10 +46,10 @@ class ImportExportController extends BaseController
                 return [
                     'model' => Teacher::class,
                     'headings' => [
-                        'ID', 'User ID', 'NIP', 'Nama Lengkap', 'Jenis Kelamin', 'No HP', 'Alamat'
+                        'ID', 'NIP', 'Nama Lengkap', 'Email', 'Jenis Kelamin', 'No HP', 'Alamat'
                     ],
                     'template_headings' => [
-                        'User ID', 'NIP', 'Nama Lengkap', 'Jenis Kelamin (L/P)', 'No HP', 'Alamat'
+                        'NIP', 'Nama Lengkap', 'Email', 'Jenis Kelamin (L/P)', 'No HP', 'Alamat'
                     ]
                 ];
             case 'classes':
@@ -103,19 +104,22 @@ class ImportExportController extends BaseController
             // Perform specific mapping based on type
             $data = collect();
             if ($type === 'students') {
-                $rows = $query->with(['class'])->get();
+                $rows = $query->with(['class', 'user'])->get();
                 foreach ($rows as $r) {
                     $data->push([
-                        $r->id, $r->user_id, $r->class_id, $r->nis, $r->nisn, $r->full_name,
-                        $r->gender, $r->birth_place, $r->birth_date ? $r->birth_date->format('Y-m-d') : '',
+                        $r->id, $r->class_id, $r->nis, $r->nisn, $r->full_name, $r->user?->email,
+                        $r->gender === 'female' ? 'P' : ($r->gender === 'male' ? 'L' : ''), 
+                        $r->birth_place, $r->birth_date ? $r->birth_date->format('Y-m-d') : '',
                         $r->address, $r->parent_name, $r->parent_phone, $r->status
                     ]);
                 }
             } else if ($type === 'teachers') {
-                $rows = $query->get();
+                $rows = $query->with(['user'])->get();
                 foreach ($rows as $r) {
                     $data->push([
-                        $r->id, $r->user_id, $r->nip, $r->full_name, $r->gender, $r->phone, $r->address
+                        $r->id, $r->nip, $r->full_name, $r->user?->email,
+                        $r->gender === 'female' ? 'P' : ($r->gender === 'male' ? 'L' : ''), 
+                        $r->phone, $r->address
                     ]);
                 }
             } else if ($type === 'classes') {
@@ -176,9 +180,9 @@ class ImportExportController extends BaseController
             // Fill one sample row to help guide the user
             $sampleRow = [];
             if ($type === 'students') {
-                $sampleRow = [1, 1, '12345', '0098765432', 'Budi Santoso', 'L', 'Surabaya', '2010-08-15', 'Jl. Dharmahusada No. 12', 'Slamet Santoso', '08123456789'];
+                $sampleRow = [1, '12345', '0098765432', 'Budi Santoso', 'budi@example.com', 'L', 'Surabaya', '2010-08-15', 'Jl. Dharmahusada No. 12', 'Slamet Santoso', '08123456789'];
             } else if ($type === 'teachers') {
-                $sampleRow = [2, '198705122010121002', 'Drs. Hermawan', 'L', '08122334455', 'Jl. Gubeng Kertajaya V/10'];
+                $sampleRow = ['198705122010121002', 'Drs. Hermawan', 'hermawan@example.com', 'L', '08122334455', 'Jl. Gubeng Kertajaya V/10'];
             } else if ($type === 'classes') {
                 $sampleRow = [1, 'X-RPL-1', '2025/2026', 1, 1];
             } else if ($type === 'schedules') {
@@ -234,69 +238,169 @@ class ImportExportController extends BaseController
                     continue;
                 }
 
-                $data = [];
                 if ($type === 'students') {
-                    if (count($row) < 5) {
+                    if (count($row) < 4) {
                         $errors[] = "Baris {$line}: Kolom data kurang lengkap.";
                         $line++;
                         continue;
                     }
 
-                    $data = [
-                        'user_id' => $row[0] ? (int)$row[0] : null,
-                        'class_id' => $row[1] ? (int)$row[1] : null,
-                        'nis' => $row[2] ? (string)$row[2] : null,
-                        'nisn' => $row[3] ? (string)$row[3] : null,
-                        'full_name' => $row[4] ? trim((string)$row[4]) : '',
-                        'gender' => isset($row[5]) ? trim(strtoupper((string)$row[5])) : 'L',
-                        'birth_place' => isset($row[6]) ? trim((string)$row[6]) : null,
-                        'birth_date' => isset($row[7]) ? $row[7] : null,
-                        'address' => isset($row[8]) ? trim((string)$row[8]) : null,
-                        'parent_name' => isset($row[9]) ? trim((string)$row[9]) : null,
-                        'parent_phone' => isset($row[10]) ? (string)$row[10] : null,
-                    ];
+                    $class_id = $row[0] ? (int)$row[0] : null;
+                    $nis = $row[1] ? trim((string)$row[1]) : null;
+                    $nisn = $row[2] ? trim((string)$row[2]) : null;
+                    $full_name = $row[3] ? trim((string)$row[3]) : '';
+                    $email = isset($row[4]) ? trim((string)$row[4]) : null;
+                    $genderRaw = isset($row[5]) ? trim(strtoupper((string)$row[5])) : 'L';
+                    $birth_place = isset($row[6]) ? trim((string)$row[6]) : null;
+                    $birth_date = isset($row[7]) ? $row[7] : null;
+                    $address = isset($row[8]) ? trim((string)$row[8]) : null;
+                    $parent_name = isset($row[9]) ? trim((string)$row[9]) : null;
+                    $parent_phone = isset($row[10]) ? (string)$row[10] : null;
 
-                    $validator = Validator::make($data, [
-                        'user_id' => 'required|exists:users,id|unique:students,user_id',
+                    // Generate default email if not provided
+                    if (!$email) {
+                        if (!$nis) {
+                            $errors[] = "Baris {$line}: NIS wajib diisi jika email tidak ditentukan.";
+                            $line++;
+                            continue;
+                        }
+                        $email = $nis . '@siswa.smksrajasa.sch.id';
+                    }
+
+                    // Map gender
+                    $gender = ($genderRaw === 'P' || $genderRaw === 'FEMALE') ? 'female' : 'male';
+
+                    // Validate student fields
+                    $validator = Validator::make([
+                        'class_id' => $class_id,
+                        'nis' => $nis,
+                        'nisn' => $nisn,
+                        'full_name' => $full_name,
+                        'email' => $email,
+                        'birth_date' => $birth_date
+                    ], [
                         'class_id' => 'nullable|exists:classes,id',
+                        'nis' => 'required|string|unique:students,nis',
+                        'nisn' => 'nullable|string|unique:students,nisn',
                         'full_name' => 'required|string|max:255',
-                        'gender' => 'required|in:L,P',
+                        'email' => 'required|email',
                         'birth_date' => 'nullable|date_format:Y-m-d'
                     ]);
 
                     if ($validator->fails()) {
-                        $errors[] = "Baris {$line} (Nama: " . ($data['full_name'] ?: 'Tanpa Nama') . "): " . implode(', ', $validator->errors()->all());
+                        $errors[] = "Baris {$line} (Nama: " . ($full_name ?: 'Tanpa Nama') . "): " . implode(', ', $validator->errors()->all());
                         $line++;
                         continue;
                     }
 
-                    Student::create($data);
+                    // Check if user already exists
+                    $user = User::where('email', $email)->first();
+                    if (!$user) {
+                        $password = $nis ? $nis : '12345678';
+                        $user = User::create([
+                            'name' => $full_name,
+                            'email' => $email,
+                            'password' => Hash::make($password),
+                            'is_active' => true
+                        ]);
+                        $user->assignRole('siswa');
+                    } else {
+                        // Check if student user is already tied
+                        if (Student::where('user_id', $user->id)->exists()) {
+                            $errors[] = "Baris {$line}: User email '{$email}' sudah dikaitkan dengan siswa lain.";
+                            $line++;
+                            continue;
+                        }
+                    }
+
+                    Student::create([
+                        'user_id' => $user->id,
+                        'class_id' => $class_id,
+                        'nis' => $nis,
+                        'nisn' => $nisn,
+                        'full_name' => $full_name,
+                        'gender' => $gender,
+                        'birth_place' => $birth_place,
+                        'birth_date' => $birth_date,
+                        'address' => $address,
+                        'parent_name' => $parent_name,
+                        'parent_phone' => $parent_phone,
+                        'status' => 'active'
+                    ]);
                     $importCount++;
 
                 } else if ($type === 'teachers') {
-                    $data = [
-                        'user_id' => $row[0] ? (int)$row[0] : null,
-                        'nip' => $row[1] ? (string)$row[1] : null,
-                        'full_name' => $row[2] ? trim((string)$row[2]) : '',
-                        'gender' => isset($row[3]) ? trim(strtoupper((string)$row[3])) : 'L',
-                        'phone' => isset($row[4]) ? (string)$row[4] : null,
-                        'address' => isset($row[5]) ? trim((string)$row[5]) : null,
-                    ];
-
-                    $validator = Validator::make($data, [
-                        'user_id' => 'required|exists:users,id|unique:teachers,user_id',
-                        'nip' => 'nullable|string|unique:teachers,nip',
-                        'full_name' => 'required|string|max:255',
-                        'gender' => 'required|in:L,P',
-                    ]);
-
-                    if ($validator->fails()) {
-                        $errors[] = "Baris {$line} (Nama: " . ($data['full_name'] ?: 'Tanpa Nama') . "): " . implode(', ', $validator->errors()->all());
+                    if (count($row) < 2) {
+                        $errors[] = "Baris {$line}: Kolom data kurang lengkap.";
                         $line++;
                         continue;
                     }
 
-                    Teacher::create($data);
+                    $nip = $row[0] ? trim((string)$row[0]) : null;
+                    $full_name = $row[1] ? trim((string)$row[1]) : '';
+                    $email = isset($row[2]) ? trim((string)$row[2]) : null;
+                    $genderRaw = isset($row[3]) ? trim(strtoupper((string)$row[3])) : 'L';
+                    $phone = isset($row[4]) ? (string)$row[4] : null;
+                    $address = isset($row[5]) ? trim((string)$row[5]) : null;
+
+                    // Generate default email if not provided
+                    if (!$email) {
+                        if (!$nip) {
+                            $errors[] = "Baris {$line}: NIP wajib diisi jika email tidak ditentukan.";
+                            $line++;
+                            continue;
+                        }
+                        $email = $nip . '@guru.smksrajasa.sch.id';
+                    }
+
+                    // Map gender
+                    $gender = ($genderRaw === 'P' || $genderRaw === 'FEMALE') ? 'female' : 'male';
+
+                    // Validate teacher fields
+                    $validator = Validator::make([
+                        'nip' => $nip,
+                        'full_name' => $full_name,
+                        'email' => $email
+                    ], [
+                        'nip' => 'nullable|string|unique:teachers,nip',
+                        'full_name' => 'required|string|max:255',
+                        'email' => 'required|email'
+                    ]);
+
+                    if ($validator->fails()) {
+                        $errors[] = "Baris {$line} (Nama: " . ($full_name ?: 'Tanpa Nama') . "): " . implode(', ', $validator->errors()->all());
+                        $line++;
+                        continue;
+                    }
+
+                    // Check if user already exists
+                    $user = User::where('email', $email)->first();
+                    if (!$user) {
+                        $password = $nip ? $nip : '12345678';
+                        $user = User::create([
+                            'name' => $full_name,
+                            'email' => $email,
+                            'password' => Hash::make($password),
+                            'is_active' => true
+                        ]);
+                        $user->assignRole('guru');
+                    } else {
+                        // Check if teacher user is already tied
+                        if (Teacher::where('user_id', $user->id)->exists()) {
+                            $errors[] = "Baris {$line}: User email '{$email}' sudah dikaitkan dengan guru lain.";
+                            $line++;
+                            continue;
+                        }
+                    }
+
+                    Teacher::create([
+                        'user_id' => $user->id,
+                        'nip' => $nip,
+                        'full_name' => $full_name,
+                        'gender' => $gender,
+                        'phone' => $phone,
+                        'address' => $address
+                    ]);
                     $importCount++;
 
                 } else if ($type === 'classes') {

@@ -16,6 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
+import { useToast } from "../../hooks/useToast";
 import {
   useAttendanceStore,
   type ScheduleRecord,
@@ -59,6 +60,7 @@ function getSubjectImage(subjectName: string, allSchedules: ScheduleRecord[]) {
 
 export default function HomeScreen() {
   const router = useRouter();
+  const toast = useToast();
   const { user } = useAuthStore();
   const {
     todaySchedules,
@@ -217,10 +219,7 @@ export default function HomeScreen() {
 
       const result = await dailyCheckIn({ location: coords });
       if (result.success) {
-        Alert.alert(
-          "Sukses",
-          result.message || "Absen masuk sekolah berhasil dicatat.",
-        );
+        toast.success(result.message || "Absen masuk sekolah berhasil dicatat.");
         loadData();
       } else {
         if (
@@ -228,20 +227,16 @@ export default function HomeScreen() {
           (result.message.includes("sudah melakukan absen") ||
             result.message.includes("sudah absen"))
         ) {
-          Alert.alert(
-            "Info Kehadiran",
-            "Anda sudah tercatat melakukan absen masuk sekolah hari ini.",
-          );
+          toast.info(result.message || "Anda sudah melakukan absen masuk sekolah hari ini.");
           // Force refresh
           fetchAttendances();
         } else {
-          Alert.alert("Gagal", result.message);
+          toast.error(result.message || "Gagal mencatat absen masuk.");
         }
       }
     } catch (e: any) {
-      Alert.alert(
-        "Gagal",
-        "Terjadi kesalahan sistem saat memproses absen masuk.",
+      toast.error(
+        e.response?.data?.message || "Terjadi kesalahan sistem saat memproses absen masuk."
       );
     } finally {
       setDailyCheckInLoading(false);
@@ -951,7 +946,7 @@ export default function HomeScreen() {
             {isSiswa && (
               <View style={styles.dailyCheckInContainer}>
                 <Text style={[styles.sectionTitle, { marginBottom: 12 }]}>
-                  Kehadiran Harian Sekolah
+                  Kehadiran Sekolah Hari Ini
                 </Text>
 
                 {dailyCheckInRecord ? (
@@ -970,7 +965,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.dailyCheckInTitleSuccess}>
-                        Absen Masuk Sekolah Berhasil
+                        Absen Masuk Sekolah Hari Ini Berhasil
                       </Text>
                       <Text style={styles.dailyCheckInTimeText}>
                         Jam Masuk: {dailyCheckInRecord.time?.substring(0, 5)}{" "}
@@ -997,7 +992,7 @@ export default function HomeScreen() {
                     </View>
                     <View style={{ flex: 1, paddingRight: 8 }}>
                       <Text style={styles.dailyCheckInTitlePending}>
-                        Belum Absen Masuk Sekolah
+                        Belum Absen Masuk Sekolah Hari Ini
                       </Text>
                       <Text style={styles.dailyCheckInDesc}>
                         Batas toleransi masuk 07:00 pagi. Wajib klik tombol

@@ -381,8 +381,8 @@ const styles = StyleSheet.create({
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   header: { alignItems: 'center', marginBottom: 28 },
   logoImageClean: {
-    width: 80,
-    height: 80,
+    width: 130,
+    height: 130,
     marginBottom: 16,
   },
   title: {
@@ -442,8 +442,8 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   heroSchoolLogoClean: {
-    width: 72,
-    height: 72,
+    width: 110,
+    height: 110,
   },
   schoolTitleWrapper: {
     flex: 1,

@@ -31,12 +31,13 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     primaryColor: '#DC2626',
     features: [
       { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
-      { label: 'Kelola Siswa', icon: 'school-outline', route: '/(tabs)/master-data', description: 'Tambah, edit, hapus data siswa' },
-      { label: 'Kelola Guru', icon: 'people-outline', route: '/(tabs)/master-data', description: 'Kelola data guru dan wali kelas' },
-      { label: 'Kelola Kelas', icon: 'business-outline', route: '/(tabs)/master-data', description: 'Kelola kelas dan jadwal' },
+      { label: 'Kelola User', icon: 'key-outline', route: '/admin/users', description: 'Kelola user login dan hak akses' },
+      { label: 'Kelola Siswa', icon: 'school-outline', route: '/admin/students', description: 'Tambah, edit, hapus data siswa' },
+      { label: 'Kelola Guru', icon: 'people-outline', route: '/admin/teachers', description: 'Kelola data guru dan wali kelas' },
+      { label: 'Kelola Kelas', icon: 'business-outline', route: '/admin/classes', description: 'Kelola rombel kelas' },
+      { label: 'Kelola Jadwal', icon: 'calendar-outline', route: '/admin/schedules', description: 'Kelola jadwal belajar mengajar' },
       { label: 'Laporan Absensi', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Lihat dan export laporan' },
       { label: 'Persetujuan Izin', icon: 'checkmark-circle-outline', route: '/(tabs)/leave-request', description: 'Approval pengajuan izin' },
-      { label: 'Audit Log', icon: 'shield-checkmark-outline', route: '/(tabs)/profile', description: 'Lihat log aktivitas sistem' },
     ],
   },
   [ROLES.ADMIN]: {
@@ -47,10 +48,13 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     primaryColor: '#F59E0B',
     features: [
       { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
-      { label: 'Kelola Data', icon: 'file-tray-full-outline', route: '/(tabs)/master-data', description: 'Siswa, guru, kelas' },
+      { label: 'Kelola User', icon: 'key-outline', route: '/admin/users', description: 'Kelola user login' },
+      { label: 'Kelola Siswa', icon: 'school-outline', route: '/admin/students', description: 'Kelola data siswa' },
+      { label: 'Kelola Guru', icon: 'people-outline', route: '/admin/teachers', description: 'Kelola data guru' },
+      { label: 'Kelola Kelas', icon: 'business-outline', route: '/admin/classes', description: 'Kelola kelas' },
+      { label: 'Kelola Jadwal', icon: 'calendar-outline', route: '/admin/schedules', description: 'Kelola jadwal' },
       { label: 'Scan Absensi', icon: 'qr-code-outline', route: '/(tabs)/attendance', description: 'Scan QR siswa' },
       { label: 'Laporan', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Export laporan' },
-      { label: 'Persetujuan Izin', icon: 'checkmark-circle-outline', route: '/(tabs)/leave-request', description: 'Approval izin' },
     ],
   },
   [ROLES.GURU]: {
@@ -78,7 +82,7 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
       { label: 'Absensi Siswa', icon: 'qr-code-outline', route: '/(tabs)/attendance', description: 'Scan dan input absensi' },
       { label: 'Kelola Izin', icon: 'document-text-outline', route: '/(tabs)/leave-request', description: 'Approve izin siswa' },
       { label: 'Laporan Kelas', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Statistik kelas' },
-      { label: 'Lihat Siswa', icon: 'people-outline', route: '/(tabs)/master-data', description: 'Data siswa kelas' },
+      { label: 'Lihat Siswa', icon: 'people-outline', route: '/admin/students', description: 'Data siswa kelas' },
     ],
   },
   [ROLES.SISWA]: {
