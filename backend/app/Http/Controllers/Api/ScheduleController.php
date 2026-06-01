@@ -31,7 +31,7 @@ class ScheduleController extends BaseController
             } elseif (($user->hasRole('guru') || $user->hasRole('wali_kelas')) && $user->teacher) {
                 $teacherId = $user->teacher->id;
                 // Get all class IDs where this teacher is a wali kelas
-                $classIds = DB::table('classes')->where('teacher_id', $teacherId)->pluck('id')->toArray();
+                $classIds = DB::table('classes')->where('homeroom_teacher_id', $teacherId)->pluck('id')->toArray();
                 
                 $query->where(function ($q) use ($teacherId, $classIds) {
                     $q->where('schedules.teacher_id', $teacherId);
