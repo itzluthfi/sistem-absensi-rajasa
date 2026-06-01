@@ -475,7 +475,19 @@ export const reportsApi = {
 
 // Notifications API
 export const notificationsApi = {
-  send: async (data: { user_id?: number; title: string; message: string }) => {
+  getAll: async () => {
+    const response = await api.get('/notifications');
+    return response.data;
+  },
+  markRead: async (id: string) => {
+    const response = await api.put(`/notifications/${id}/read`);
+    return response.data;
+  },
+  markAllRead: async () => {
+    const response = await api.put('/notifications/read-all');
+    return response.data;
+  },
+  send: async (data: { user_id?: number; message: string }) => {
     const response = await api.post('/notifications/send', data);
     return response.data;
   },

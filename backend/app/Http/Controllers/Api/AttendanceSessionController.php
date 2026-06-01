@@ -263,7 +263,33 @@ class AttendanceSessionController extends BaseController
             ]);
  
             DB::commit();
- 
+
+            // Send notifications to all students in this class
+            try {
+                $subjectName = DB::table('subjects')->where('id', $schedule->subject_id)->value('subject_name') ?? 'Pelajaran';
+                $teacherName = DB::table('teachers')->where('id', $schedule->teacher_id)->value('full_name') ?? 'Guru';
+                $requireQrMode = $request->input('require_qr', true);
+                $modeText = $requireQrMode ? 'Scan QR Code' : 'Klik Absen Mandiri';
+                $message = "\ud83d\udcda Presensi {$subjectName} telah dibuka oleh {$teacherName}. Mode: {$modeText}. Silakan absen sekarang!";
+
+                // Get all students in the class
+                $studentUserIds = DB::table('students')
+                    ->where('class_id', $schedule->class_id)
+                    ->pluck('user_id')
+                    ->toArray();
+
+                if (!empty($studentUserIds)) {
+                    $students = \App\Models\User::whereIn('id', $studentUserIds)->get();
+                    \Illuminate\Support\Facades\Notification::send(
+                        $students,
+                        new \App\Notifications\GenericNotification($message)
+                    );
+                }
+            } catch (\Exception $notifEx) {
+                // Notification failure should not block the session opening
+                \Illuminate\Support\Facades\Log::warning('Failed to send attendance open notifications: ' . $notifEx->getMessage());
+            }
+
             $session = $this->getSessionWithRelations($sessionId);
             return $this->sendResponse(
                 $session,

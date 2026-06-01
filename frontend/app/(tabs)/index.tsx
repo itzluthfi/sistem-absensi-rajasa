@@ -28,6 +28,7 @@ import { getDashboardConfig } from "../../src/constants/dashboard-config";
 import { useWindowDimensions } from "react-native";
 import FuturisticLoader from "../../components/ui/FuturisticLoader";
 import ShimmerButton from "../../components/ui/ShimmerButton";
+import NotificationBell from "../../components/ui/NotificationBell";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const SUBJECT_IMAGES = [
@@ -138,6 +139,17 @@ export default function HomeScreen() {
 
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
+
+  const scheduleListStyle = useMemo(() => {
+    if (Platform.OS === 'web' && !isMobile) {
+      return {
+        flexDirection: 'row' as const,
+        flexWrap: 'wrap' as const,
+        gap: 16,
+      };
+    }
+    return styles.scheduleList;
+  }, [isMobile]);
 
   const userRoles = user?.roles || [];
   const getRoleBadgeColor = () => {
@@ -510,10 +522,21 @@ export default function HomeScreen() {
   };
 
   const renderTodaySchedulesSkeleton = () => {
+    const cardWidthStyle = Platform.OS === 'web' && !isMobile
+      ? { width: width < 1024 ? '48%' : '31.5%', minWidth: 280 }
+      : { width: '100%' };
+
     return (
-      <View style={styles.scheduleList}>
-        {[1, 2].map((i) => (
-          <View key={i} style={[styles.scheduleCard, { minHeight: 120, borderColor: '#E5E7EB', opacity: 0.85 }]}>
+      <View style={scheduleListStyle}>
+        {[1, 2, 3].map((i) => (
+          <View 
+            key={i} 
+            style={[
+              styles.scheduleCard, 
+              { minHeight: 120, borderColor: '#E5E7EB', opacity: 0.85 },
+              cardWidthStyle
+            ]}
+          >
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <SkeletonItem style={{ width: 100, height: 18, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
               <SkeletonItem style={{ width: 80, height: 18, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
@@ -580,15 +603,20 @@ export default function HomeScreen() {
 
     const handleSelectMode = async (requireQr: boolean) => {
       const scheduleId = selectedScheduleForSession;
+      // Find subject name for notification
+      const schedule = mergedSchedules.find((s: any) => s.id === scheduleId);
+      const subjectName = schedule?.subject?.subject_name || "Kelas";
       setOpenPresensiModalVisible(false);
       setSelectedScheduleForSession(null);
       
       const result = await openAttendanceSession(scheduleId, requireQr);
       if (result.success) {
+        toast.success(`✅ Presensi ${subjectName} berhasil dibuka! Siswa sudah bisa absen.`);
         await fetchTodaySchedulesWithParams();
-        if (requireQr) {
-          router.push("/(tabs)/attendance" as never);
-        }
+        // Selalu navigate ke halaman presensi (baik mode QR maupun klik mandiri)
+        router.push("/(tabs)/attendance" as never);
+      } else {
+        toast.error(result.message || "Gagal membuka presensi.");
       }
     };
 
@@ -708,10 +736,13 @@ export default function HomeScreen() {
     );
   };
 
-  const handleClosePresensi = async (sessionId: number) => {
+  const handleClosePresensi = async (sessionId: number, subjectName?: string) => {
     const result = await closeAttendanceSession(sessionId);
     if (result.success) {
+      toast.success(`🔒 Sesi presensi ${subjectName || ""} berhasil ditutup.`);
       fetchTodaySchedulesWithParams();
+    } else {
+      toast.error(result.message || "Gagal menutup sesi.");
     }
   };
 
@@ -1168,20 +1199,20 @@ export default function HomeScreen() {
       (schedule.attendance_status === "hadir" ||
         schedule.attendance_status === "telat");
 
+    const cardWidthStyle = Platform.OS === 'web' && !isMobile && scheduleViewMode === 'list'
+      ? { width: width < 1024 ? '48%' : '31.5%', minWidth: 280 }
+      : { width: '100%' };
+
     return (
       <View
         key={schedule.id}
         style={[
           styles.scheduleCard,
           isActive && styles.activeScheduleCard,
-          { position: 'relative', overflow: 'hidden' }
+          { position: 'relative', overflow: 'hidden' },
+          cardWidthStyle
         ]}
       >
-        <Image
-          source={getSubjectImage(schedule.subject?.subject_name || "", todaySchedules)}
-          style={[StyleSheet.absoluteFillObject, { opacity: 0.18 }]}
-          resizeMode="cover"
-        />
         <TouchableOpacity
           onPress={() => handleSubjectCardClick(schedule)}
           activeOpacity={0.85}
@@ -1251,9 +1282,14 @@ export default function HomeScreen() {
         {isToday && !isSiswaMode && !isPerwalianMode && (
           <View style={styles.cardActions}>
             {isActive ? (
-              <View style={[styles.activeActionsRow, (scheduleViewMode === 'calendar' && !isMobile) && { flexDirection: 'column' }]}>
+              <View style={[styles.activeActionsRow, (scheduleViewMode === 'calendar' && !isMobile) && { flexDirection: 'column', gap: 8 }]}>
                 <TouchableOpacity
-                  style={[styles.manageButton, (scheduleViewMode === 'calendar' && !isMobile) && { flex: 0, width: '100%' }]}
+                  style={[
+                    styles.manageButton,
+                    (scheduleViewMode === 'calendar' && !isMobile)
+                      ? { width: '100%' }
+                      : { flex: 2 }
+                  ]}
                   onPress={() =>
                     router.push("/(tabs)/attendance" as never)
                   }
@@ -1268,10 +1304,16 @@ export default function HomeScreen() {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.closeButton, (scheduleViewMode === 'calendar' && !isMobile) && { flex: 0, width: '100%' }]}
+                  style={[
+                    styles.closeButton,
+                    (scheduleViewMode === 'calendar' && !isMobile)
+                      ? { width: '100%', marginTop: 8 }
+                      : { flex: 1 }
+                  ]}
                   onPress={() =>
                     handleClosePresensi(
                       schedule.active_session!.id,
+                      schedule.subject?.subject_name,
                     )
                   }
                 >
@@ -1354,7 +1396,7 @@ export default function HomeScreen() {
           <RefreshControl refreshing={isLoading} onRefresh={loadData} />
         }
       >
-        {/* Header with User Info and Role Badge (Exactly like user screenshot) */}
+        {/* Header with User Info and Role Badge */}
         <View style={[styles.header, styles.headerGradient]}>
           <View style={[styles.headerText, { paddingRight: isMobile ? 110 : 260 }]}>
             <Text style={styles.greeting}>{getGreeting()},</Text>
@@ -1372,9 +1414,14 @@ export default function HomeScreen() {
 
             <View style={styles.quoteContainer}>
               <Text style={styles.quoteText}>
-                “ Terus belajar, berusaha, dan berdoa untuk masa depan yang lebih baik.
+                " Terus belajar, berusaha, dan berdoa untuk masa depan yang lebih baik.
               </Text>
             </View>
+          </View>
+          
+          {/* Notification Bell — top right of header */}
+          <View style={{ position: 'absolute', top: 12, right: isMobile ? 8 : 16, zIndex: 10 }}>
+            <NotificationBell iconColor="#fff" iconSize={22} />
           </View>
           
           <Image
@@ -1811,7 +1858,7 @@ export default function HomeScreen() {
                   </View>
 
                   {listSchedulesData.todayList.length > 0 ? (
-                    <View style={styles.scheduleList}>
+                    <View style={scheduleListStyle}>
                       {listSchedulesData.todayList.map((schedule) => {
                         const isPerwalian = isGuru && schedule.teacher_id !== user?.teacher_info?.id && (user?.teacher_info?.class_ids || []).includes(schedule.class_id);
                         return renderScheduleCard(schedule, !!isSiswa, isPerwalian);
@@ -1836,7 +1883,7 @@ export default function HomeScreen() {
                   </View>
 
                   {listSchedulesData.otherList.length > 0 ? (
-                    <View style={styles.scheduleList}>
+                    <View style={scheduleListStyle}>
                       {listSchedulesData.otherList.map((schedule) => {
                         const isPerwalian = isGuru && schedule.teacher_id !== user?.teacher_info?.id && (user?.teacher_info?.class_ids || []).includes(schedule.class_id);
                         return renderScheduleCard(schedule, !!isSiswa, isPerwalian);
@@ -2117,7 +2164,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   manageButton: {
-    flex: 2,
     backgroundColor: "#2563EB",
     borderRadius: 10,
     height: 42,
@@ -2149,7 +2195,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   closeButton: {
-    flex: 1,
     borderWidth: 1.5,
     borderColor: "#EF4444",
     borderRadius: 10,

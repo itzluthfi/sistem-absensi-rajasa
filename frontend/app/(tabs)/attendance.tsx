@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   Modal,
   ScrollView,
@@ -15,6 +14,7 @@ import {
   Linking,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
@@ -28,6 +28,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FuturisticLoader from "../../components/ui/FuturisticLoader";
 import ShimmerButton from "../../components/ui/ShimmerButton";
 import { useToast } from "../../hooks/useToast";
+import NotificationBell from "../../components/ui/NotificationBell";
+import { Platform } from "react-native";
 
 export default function AttendanceScreen() {
   const { user } = useAuthStore();
@@ -203,9 +205,18 @@ export default function AttendanceScreen() {
     }
   };
 
-  useEffect(() => {
-    loadActiveSession();
-  }, []);
+  // useFocusEffect: reload setiap kali halaman ini di-focus
+  // (fix bug: stuck di mapel pertama ketika router.push dari dashboard)
+  useFocusEffect(
+    useCallback(() => {
+      loadActiveSession();
+      // Reset scan state setiap kali masuk halaman
+      setScanMode("none");
+      setScanned(false);
+      setStudentOpsi("menu");
+    }, [])
+  );
+
 
   // Sync the active schedule from todaySchedules
   useEffect(() => {
@@ -360,9 +371,10 @@ export default function AttendanceScreen() {
 
   const handleCloseActiveSession = async () => {
     if (activeSchedule?.active_session) {
+      const subjectName = activeSchedule.subject?.subject_name || "Kelas";
       Alert.alert(
         "Tutup Presensi",
-        "Apakah Anda yakin ingin menutup sesi absensi kelas ini sekarang?",
+        `Apakah Anda yakin ingin menutup sesi absensi ${subjectName} sekarang?`,
         [
           { text: "Batal", style: "cancel" },
           {
@@ -373,7 +385,10 @@ export default function AttendanceScreen() {
                 activeSchedule.active_session!.id,
               );
               if (res.success) {
+                toast.success(`🔒 Sesi presensi ${subjectName} berhasil ditutup.`);
                 loadActiveSession();
+              } else {
+                toast.error(res.message || "Gagal menutup sesi presensi.");
               }
             },
           },
@@ -382,8 +397,8 @@ export default function AttendanceScreen() {
     }
   };
 
-  // Camera permissions view
-  if (scanMode !== "none") {
+  // Camera permissions view (fullscreen for students)
+  if (isSiswa && scanMode === "siswa_scan_guru") {
     if (!permission) {
       return (
         <View style={styles.centeredContainer}>
@@ -481,12 +496,15 @@ export default function AttendanceScreen() {
       />
       {/* Dynamic Header */}
       <View style={styles.indicatorHeader}>
-        <Ionicons name="finger-print" size={16} color="#fff" />
-        <Text style={styles.indicatorText}>
-          {isSiswa
-            ? "PRESENSI SISWA • RADJASA SECURE HIBRIDA"
-            : "KONTROL PRESENSI GURU • REALTIME FEED"}
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+          <Ionicons name="finger-print" size={16} color="#fff" />
+          <Text style={styles.indicatorText} numberOfLines={1}>
+            {isSiswa
+              ? "PRESENSI SISWA • RADJASA SECURE HIBRIDA"
+              : "KONTROL PRESENSI GURU • REALTIME FEED"}
+          </Text>
+        </View>
+        <NotificationBell iconColor="#fff" iconSize={20} />
       </View>
 
       {isLoadingSession ? (
@@ -621,7 +639,7 @@ export default function AttendanceScreen() {
                 <View style={styles.qrWrapper}>
                   <Image
                     source={{
-                      uri: `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(
+                      uri: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
                         JSON.stringify({
                           student_id:
                             (user?.student_info as any)?.id || user?.id,
@@ -655,242 +673,244 @@ export default function AttendanceScreen() {
           </ScrollView>
         ) : (
           // TEACHER VIEW FOR ACTIVE SESSION
-          <FlatList
-            data={sessionDetail?.attendances ?? []}
-            keyExtractor={(item) => String(item.id)}
+          <ScrollView
             contentContainerStyle={[styles.scrollContent, { paddingBottom }]}
-            ListHeaderComponent={
-              <View style={styles.teacherHeaderContainer}>
-                {/* Session Summary Card */}
-                <View style={styles.sessionStatusCard}>
-                  <View style={styles.pulseIndicator}>
-                    <View
-                      style={[
-                        styles.pulseCircle,
-                        { backgroundColor: "#3B82F6" },
-                      ]}
-                    />
-                    <Text style={[styles.pulseText, { color: "#3B82F6" }]}>
-                      SESI ABSENSI KELAS SEDANG BERLANGSUNG
+          >
+            <View style={styles.teacherHeaderContainer}>
+              {/* Session Summary Card */}
+              <View style={styles.sessionStatusCard}>
+                <View style={styles.pulseIndicator}>
+                  <View
+                    style={[
+                      styles.pulseCircle,
+                      { backgroundColor: "#3B82F6" },
+                    ]}
+                  />
+                  <Text style={[styles.pulseText, { color: "#3B82F6" }]}>
+                    SESI ABSENSI KELAS SEDANG BERLANGSUNG
+                  </Text>
+                </View>
+                <Text style={styles.sessionSubject}>
+                  {activeSchedule.subject?.subject_name}
+                </Text>
+                <Text style={styles.sessionClass}>
+                  {activeSchedule.class?.class_name} • Jam:{" "}
+                  {activeSchedule.start_time.substring(0, 5)} -{" "}
+                  {activeSchedule.end_time.substring(0, 5)}
+                </Text>
+
+                {/* Rotating QR Sesi / Mode Status */}
+                {scanMode === "guru_scan_siswa" ? (
+                  <View style={[styles.sessionQrCard, { paddingVertical: 20 }]}>
+                    <Text style={[styles.teacherQrTitle, { color: "#2563EB", marginBottom: 12 }]}>
+                      PEMINDAI QR SISWA AKTIF
                     </Text>
-                  </View>
-                  <Text style={styles.sessionSubject}>
-                    {activeSchedule.subject?.subject_name}
-                  </Text>
-                  <Text style={styles.sessionClass}>
-                    {activeSchedule.class?.class_name} • Jam:{" "}
-                    {activeSchedule.start_time.substring(0, 5)} -{" "}
-                    {activeSchedule.end_time.substring(0, 5)}
-                  </Text>
-
-                  {/* Rotating QR Sesi / Mode Status */}
-                  {activeSchedule.active_session?.require_qr === false ? (
-                    <View
-                      style={[
-                        styles.sessionQrCard,
-                        {
-                          backgroundColor: "#F0FDF4",
-                          borderColor: "#BBF7D0",
-                          paddingVertical: 24,
-                          gap: 4,
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name="checkbox-outline"
-                        size={48}
-                        color="#10B981"
-                        style={{ marginBottom: 6, alignSelf: "center" }}
-                      />
-                      <Text
-                        style={[
-                          styles.teacherQrTitle,
-                          { color: "#166534", textAlign: "center" },
-                        ]}
-                      >
-                        MODE KLIK MANDIRI AKTIF
-                      </Text>
-                      <Text
-                        style={[
-                          styles.teacherQrDesc,
-                          {
-                            color: "#15803D",
-                            textAlign: "center",
-                            paddingHorizontal: 12,
-                          },
-                        ]}
-                      >
-                        Siswa dapat langsung menekan tombol absensi di HP
-                        masing-masing tanpa memindai kode QR. Anda dapat
-                        memantau daftar hadir di bawah dan membatalkan/menolak
-                        siswa yang tidak ada di kelas.
-                      </Text>
-                    </View>
-                  ) : (
-                    <View style={styles.sessionQrCard}>
-                      <Text style={styles.teacherQrTitle}>
-                        QR CODE SESI GURU
-                      </Text>
-                      <Text style={styles.teacherQrDesc}>
-                        Pasang layar ini di proyektor atau tunjukkan ke siswa
-                        untuk dipindai secara instan.
-                      </Text>
-
-                      <View style={styles.teacherQrWrapper}>
-                        <Image
-                          source={{
-                            uri: `https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl=${encodeURIComponent(
-                              JSON.stringify({
-                                session_id: activeSchedule.active_session!.id,
-                                qr_token:
-                                  activeSchedule.active_session!.qr_token,
-                              }),
-                            )}`,
-                          }}
-                          style={styles.qrImage}
-                        />
+                    {!permission ? (
+                      <ActivityIndicator size="small" color="#2563EB" />
+                    ) : !permission.granted ? (
+                      <View style={{ alignItems: 'center', padding: 20 }}>
+                        <Ionicons name="camera-outline" size={48} color="#3B82F6" style={{ marginBottom: 10 }} />
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#1E293B', marginBottom: 8, textAlign: 'center' }}>
+                          Izin Kamera Diperlukan
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.primaryButton, { height: 36, paddingHorizontal: 16, borderRadius: 8 }]}
+                          onPress={requestPermission}
+                        >
+                          <Text style={[styles.buttonText, { fontSize: 12, fontWeight: '700' }]}>Izinkan Kamera</Text>
+                        </TouchableOpacity>
                       </View>
+                    ) : (
+                      <View style={{ width: 280, height: 280, borderRadius: 16, overflow: 'hidden', position: 'relative', borderWidth: 1, borderColor: '#CBD5E1', alignSelf: 'center' }}>
+                        <CameraView
+                          style={StyleSheet.absoluteFillObject}
+                          facing="back"
+                          onBarcodeScanned={scanned ? undefined : handleGuruScanSiswa}
+                          barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+                        />
+                        <View style={styles.cameraOverlayInline}>
+                          <View style={[styles.scannerTarget, { width: 160, height: 160 }]}>
+                            <View style={[styles.targetCorner, styles.cTopLeft]} />
+                            <View style={[styles.targetCorner, styles.cTopRight]} />
+                            <View style={[styles.targetCorner, styles.cBottomLeft]} />
+                            <View style={[styles.targetCorner, styles.cBottomRight]} />
+                          </View>
+                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', marginTop: 12, textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                            {scanned ? "Memproses..." : "Posisikan QR Siswa di kotak"}
+                          </Text>
+                        </View>
+                      </View>
+                    )}
+                  </View>
+                ) : (
+                  <View style={styles.sessionQrCard}>
+                    {activeSchedule.active_session?.require_qr === false ? (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#DCFCE7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 12 }}>
+                        <Ionicons name="checkmark-circle" size={14} color="#16A34A" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#16A34A' }}>Mode Klik Mandiri Aktif</Text>
+                      </View>
+                    ) : (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#DBEAFE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, marginBottom: 12 }}>
+                        <Ionicons name="qr-code" size={14} color="#2563EB" />
+                        <Text style={{ fontSize: 11, fontWeight: '700', color: '#2563EB' }}>Mode Wajib Scan QR Aktif</Text>
+                      </View>
+                    )}
 
-                      <TouchableOpacity
-                        style={styles.downloadQrButton}
-                        onPress={() => {
-                          const url = `https://chart.googleapis.com/chart?cht=qr&chs=500x500&chl=${encodeURIComponent(
+                    <Text style={styles.teacherQrTitle}>QR CODE SESI GURU</Text>
+                    <Text style={styles.teacherQrDesc}>
+                      {activeSchedule.active_session?.require_qr === false
+                        ? "Siswa dapat absen mandiri atau memindai QR Code di bawah."
+                        : "Tunjukkan QR Code ke proyektor / HP agar siswa dapat memindai."}
+                    </Text>
+
+                    <View style={styles.teacherQrWrapper}>
+                      <Image
+                        source={{
+                          uri: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
                             JSON.stringify({
                               session_id: activeSchedule.active_session!.id,
                               qr_token: activeSchedule.active_session!.qr_token,
                             }),
-                          )}`;
-                          Linking.openURL(url);
+                          )}`,
                         }}
-                      >
-                        <Ionicons name="download-outline" size={16} color="#0284C7" />
-                        <Text style={styles.downloadQrText}>Unduh / Perbesar QR Code</Text>
-                      </TouchableOpacity>
+                        style={styles.qrImage}
+                      />
                     </View>
-                  )}
 
-                  {/* Quick Control Options */}
-                  <View style={styles.teacherControlsRow}>
+                    <TouchableOpacity
+                      style={styles.downloadQrButton}
+                      onPress={() => {
+                        const qrData = encodeURIComponent(
+                          JSON.stringify({
+                            session_id: activeSchedule.active_session!.id,
+                            qr_token: activeSchedule.active_session!.qr_token,
+                          }),
+                        );
+                        Linking.openURL(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${qrData}`);
+                      }}
+                    >
+                      <Ionicons name="download-outline" size={16} color="#0284C7" />
+                      <Text style={styles.downloadQrText}>Unduh / Perbesar QR Code</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Quick Control Options */}
+                <View style={styles.teacherControlsRow}>
+                  {scanMode === "guru_scan_siswa" ? (
+                    <TouchableOpacity
+                      style={[styles.teacherScanButton, { backgroundColor: "#0284C7" }]}
+                      onPress={() => setScanMode("none")}
+                    >
+                      <Ionicons name="qr-code-outline" size={18} color="#fff" />
+                      <Text style={styles.teacherScanBtnText}>Tampilkan QR Saya</Text>
+                    </TouchableOpacity>
+                  ) : (
                     <TouchableOpacity
                       style={styles.teacherScanButton}
                       onPress={() => setScanMode("guru_scan_siswa")}
                     >
                       <Ionicons name="scan-outline" size={18} color="#fff" />
-                      <Text style={styles.teacherScanBtnText}>
-                        Scan QR Siswa
-                      </Text>
+                      <Text style={styles.teacherScanBtnText}>Scan QR Siswa</Text>
                     </TouchableOpacity>
+                  )}
 
-                    <TouchableOpacity
-                      style={styles.teacherCloseBtn}
-                      onPress={handleCloseActiveSession}
-                    >
-                      <Ionicons name="power" size={18} color="#EF4444" />
-                      <Text style={styles.teacherCloseBtnText}>
-                        Tutup Kelas
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Present Students List Header */}
-                <View style={styles.studentsListHeader}>
-                  <Text style={styles.listTitle}>
-                    Siswa Hadir ({sessionDetail?.attendances?.length ?? 0}{" "}
-                    Orang)
-                  </Text>
                   <TouchableOpacity
-                    style={styles.refreshListBtn}
-                    onPress={() =>
-                      fetchSessionDetail(activeSchedule.active_session!.id)
-                    }
+                    style={styles.teacherCloseBtn}
+                    onPress={handleCloseActiveSession}
                   >
-                    <Ionicons name="refresh" size={16} color="#3B82F6" />
-                    <Text style={styles.refreshText}>Refresh Realtime</Text>
+                    <Ionicons name="power" size={18} color="#EF4444" />
+                    <Text style={styles.teacherCloseBtnText}>Tutup Kelas</Text>
                   </TouchableOpacity>
                 </View>
               </View>
-            }
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={48} color="#1E3A8A" />
-                <Text style={styles.emptyTitle}>
-                  Belum ada siswa yang hadir
+
+              {/* Present Students List Header */}
+              <View style={styles.studentsListHeader}>
+                <Text style={styles.listTitle}>
+                  Siswa Hadir ({sessionDetail?.attendances?.length ?? 0} Orang)
                 </Text>
-                <Text style={styles.emptyText}>
-                  Siswa dapat melakukan scan QR Sesi Anda atau menunjukkan QR
-                  personal mereka untuk Anda scan.
-                </Text>
-              </View>
-            }
-            renderItem={({ item }: { item: AttendanceRecord }) => (
-              <View style={styles.attendanceListItem}>
-                <View style={styles.studentProfileCircle}>
-                  <Text style={styles.profileInitials}>
-                    {item.student?.full_name?.charAt(0).toUpperCase() || "S"}
-                  </Text>
-                </View>
-                <View style={styles.studentListItemTexts}>
-                  <Text style={styles.studentListName}>
-                    {item.student?.full_name || "Siswa"}
-                  </Text>
-                  <Text style={styles.studentListNis}>
-                    NIS: {item.student?.nis || ""} • Jam:{" "}
-                    {item.time?.substring(0, 5)}
-                  </Text>
-                </View>
-                <View
-                  style={[
-                    styles.attendanceListBadge,
-                    {
-                      backgroundColor:
-                        item.status === "hadir"
-                          ? "#E6F4EA"
-                          : item.status === "ditolak"
-                            ? "#FEE2E2"
-                            : "#FEF3C7",
-                    },
-                  ]}
+                <TouchableOpacity
+                  style={styles.refreshListBtn}
+                  onPress={() => fetchSessionDetail(activeSchedule.active_session!.id)}
                 >
-                  <Text
-                    style={[
-                      styles.attendanceListBadgeText,
-                      {
-                        color:
-                          item.status === "hadir"
-                            ? "#10B981"
-                            : item.status === "ditolak"
-                              ? "#EF4444"
-                              : "#F59E0B",
-                      },
-                    ]}
-                  >
-                    {item.status === "hadir"
-                      ? "Hadir"
-                      : item.status === "ditolak"
-                        ? "Ditolak"
-                        : `Telat (${item.late_minutes}m)`}
+                  <Ionicons name="refresh" size={16} color="#3B82F6" />
+                  <Text style={styles.refreshText}>Refresh Realtime</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Students list */}
+              {(sessionDetail?.attendances ?? []).length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Ionicons name="people-outline" size={48} color="#1E3A8A" />
+                  <Text style={styles.emptyTitle}>Belum ada siswa yang hadir</Text>
+                  <Text style={styles.emptyText}>
+                    Siswa dapat melakukan scan QR Sesi Anda atau menunjukkan QR
+                    personal mereka untuk Anda scan.
                   </Text>
                 </View>
-                {item.status !== "ditolak" && (
-                  <TouchableOpacity
-                    style={{
-                      marginLeft: 8,
-                      padding: 6,
-                      backgroundColor: "#FEE2E2",
-                      borderRadius: 8,
-                      alignSelf: "center",
-                    }}
-                    onPress={() =>
-                      handleRejectAttendance(item.id, item.student?.full_name)
-                    }
-                  >
-                    <Ionicons name="trash-outline" size={14} color="#EF4444" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-          />
+              ) : (
+                (sessionDetail?.attendances ?? []).map((item: AttendanceRecord) => (
+                  <View key={String(item.id)} style={styles.attendanceListItem}>
+                    <View style={styles.studentProfileCircle}>
+                      <Text style={styles.profileInitials}>
+                        {item.student?.full_name?.charAt(0).toUpperCase() || "S"}
+                      </Text>
+                    </View>
+                    <View style={styles.studentListItemTexts}>
+                      <Text style={styles.studentListName}>
+                        {item.student?.full_name || "Siswa"}
+                      </Text>
+                      <Text style={styles.studentListNis}>
+                        NIS: {item.student?.nis || ""} • Jam: {item.time?.substring(0, 5)}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.attendanceListBadge,
+                        {
+                          backgroundColor:
+                            item.status === "hadir" ? "#E6F4EA"
+                            : item.status === "ditolak" ? "#FEE2E2"
+                            : "#FEF3C7",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.attendanceListBadgeText,
+                          {
+                            color:
+                              item.status === "hadir" ? "#10B981"
+                              : item.status === "ditolak" ? "#EF4444"
+                              : "#F59E0B",
+                          },
+                        ]}
+                      >
+                        {item.status === "hadir" ? "Hadir"
+                          : item.status === "ditolak" ? "Ditolak"
+                          : `Telat (${item.late_minutes}m)`}
+                      </Text>
+                    </View>
+                    {item.status !== "ditolak" && (
+                      <TouchableOpacity
+                        style={{
+                          marginLeft: 8,
+                          padding: 6,
+                          backgroundColor: "#FEE2E2",
+                          borderRadius: 8,
+                          alignSelf: "center",
+                        }}
+                        onPress={() => handleRejectAttendance(item.id, item.student?.full_name)}
+                      >
+                        <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+          </ScrollView>
         )
       ) : (
         // NO ACTIVE SESSIONS FOUND FOR TODAY
@@ -951,7 +971,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "space-between",
     gap: 6,
   },
   indicatorText: {
@@ -1090,10 +1110,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: "#E5E7EB",
     marginBottom: 16,
+    alignItems: "center",
+    alignSelf: "center",
+    width: 272,
+    height: 272,
   },
   qrImage: {
-    width: 200,
-    height: 200,
+    width: 240,
+    height: 240,
+    alignSelf: "center",
   },
   studentNameText: {
     fontSize: 16,
@@ -1153,6 +1178,10 @@ const styles = StyleSheet.create({
     padding: 12,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    alignItems: "center",
+    alignSelf: "center",
+    width: 272,
+    height: 272,
   },
   teacherControlsRow: {
     flexDirection: "row",
@@ -1329,6 +1358,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.6)",
+  },
+  cameraOverlayInline: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(15, 23, 42, 0.25)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   scannerTarget: { width: 240, height: 240, position: "relative" },
   targetCorner: { position: "absolute", width: 36, height: 36 },
