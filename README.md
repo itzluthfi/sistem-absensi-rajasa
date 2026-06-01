@@ -130,15 +130,97 @@ attendances
 
 ## 👥 User & Role Uji Coba
 
-Gunakan kredensial berikut untuk melakukan pengujian lokal (Password untuk semua akun adalah `password`):
+Gunakan kredensial berikut untuk melakukan pengujian lokal. Password untuk seluruh akun di bawah ini adalah **`password`**:
 
-| Email | Role | Nama Lengkap / Kegunaan |
-|---|---|---|
-| `admin@example.com` | **Super Admin** | Akses Penuh Sistem & Pengaturan Periode |
-| `siswa@example.com` | **Siswa** | Akun Siswa Utama (Terdaftar di Kelas **X TKJ 1**) |
-| `rina@example.com` | **Wali Kelas** | Wali Kelas **X TKJ 1** / Kelola Absensi & Izin |
-| `budi@example.com` | **Guru** | Guru Pengajar (Buka Sesi & Scan QR Siswa) |
-| `siswa1@example.com` s/d `siswa20@example.com` | **Siswa** | Siswa Mockup yang didistribusikan di berbagai kelas |
+### 🔑 Akun Uji Coba Terdaftar
+
+| Email | Nama Akun / Pengguna | Role Utama | Hak Akses & Cakupan Kelas |
+|---|---|---|---|
+| `admin@example.com` | **Administrator** | `super_admin` | Akses penuh seluruh sistem, pengaturan data master, periode akademik, dan GPS sekolah. |
+| `kepala@example.com` | **Kepala Sekolah** | `kepala_sekolah` | Pengawasan absensi, melihat seluruh laporan kehadiran kelas, dan mengunduh berkas laporan PDF. |
+| `budi@example.com` | **Pak Budi Santoso, S.T.** | `guru` | Guru biasa. Mengajar **hanya 1 kelas** (`X TITL 1`) untuk menguji skenario beban kerja guru terfokus. |
+| `siti@example.com` | **Ibu Siti Aminah, S.Pd.** | `guru` | Guru biasa. Mengajar **banyak kelas** secara dinamis (non-overlapping). |
+| `rina@example.com` | **Ibu Dra. Rina Marlina** | `wali_kelas`, `guru` | Wali Kelas **X TKJ 1**. Mengajar banyak kelas & mengelola izin siswa kelas X TKJ 1. |
+| `ahmad@example.com` | **Pak H. Ahmad Wijaya, S.E.** | `wali_kelas`, `guru` | Wali Kelas **X AKL 1**. Mengajar banyak kelas & mengelola izin siswa kelas X AKL 1. |
+| `eko@example.com` | **Pak Eko Prasetyo, S.T.** | `wali_kelas`, `guru` | Wali Kelas **X TPM 1**. Mengajar banyak kelas & mengelola izin siswa kelas X TPM 1. |
+| `lilis@example.com` | **Ibu Lilis Suryani, S.Pd.** | `wali_kelas`, `guru` | Wali Kelas **X MP 1**. Mengajar banyak kelas & mengelola izin siswa kelas X MP 1. |
+| `siswa@example.com` | **Siswa Test Rajasa** | `siswa` | Siswa utama. Terdaftar di kelas **X TKJ 1** di bawah bimbingan Wali Kelas Ibu Rina. |
+| `siswa1@example.com` s.d. `siswa20@example.com` | **Siswa Rombel Mockup** | `siswa` | Siswa simulasi yang terdistribusi merata di berbagai kelas jurusan lainnya. |
+
+---
+
+## 🛠️ Matriks Fungsi & Peran Pengguna (Role Capabilities)
+
+Sistem ini menggunakan pengamanan tingkat granular berbasis RBAC (*Role-Based Access Control*):
+
+1. **Super Admin (`admin`)**:
+   * Mengelola data master sekolah: Pengguna (Siswa/Guru/Admin), Mata Pelajaran, Jurusan, Rombel Kelas, dan Jadwal Pelajaran (`schedules`).
+   * Mengonfigurasi parameter krusial GPS Lokasi Sekolah (Titik koordinat Sekolah & toleransi radius presensi).
+   * Membuka/Menutup Periode Akademik Aktif (Tahun Ajaran/Semester).
+   * Memantau Log Audit Keamanan (`audit_logs`) secara terpusat.
+
+2. **Kepala Sekolah (`kepala_sekolah`)**:
+   * Memantau statistik dan persentase kehadiran sekolah realtime melalui visualisasi data di beranda.
+   * Mengakses seluruh Laporan Rekap Kehadiran siswa di semua kelas secara transparan.
+   * Mengekspor laporan rekap presensi per kelas ke dalam format dokumen PDF resmi.
+
+3. **Wali Kelas (`wali_kelas`)**:
+   * Mengelola permohonan izin (Sakit/Izin/Dispen) siswa kelas perwaliannya secara mandiri (Approve/Reject).
+   * Memantau rekap absensi realtime dan daftar siswa kelas perwaliannya yang tidak masuk hari ini.
+   * Bertindak sebagai guru pengajar (membuka sesi kelas mandiri, mengelola kehadiran, dsb.).
+
+4. **Guru Pengajar (`guru`)**:
+   * Membuka sesi absensi baru (`attendance_sessions`) per jadwal mata pelajaran hari ini di beranda.
+   * Menampilkan QR Code Sesi di HP untuk discan oleh siswa di kelas.
+   * Menggunakan pemindai kamera HP Guru untuk men-scan QR Code Siswa (skenario cadangan).
+   * Mengelola daftar hadir kelas: Mengubah status kehadiran manual atau menghapus absensi jika terjadi salah input.
+
+5. **Siswa (`siswa`)**:
+   * Melakukan check-in masuk sekolah dan check-out pulang sekolah harian (Daily Check) dengan validasi GPS.
+   * Memindai QR Code Sesi Guru untuk mencatat kehadiran per mata pelajaran secara instan.
+   * Memunculkan QR Code Profil Pribadi jika kamera perangkat siswa mengalami kendala.
+   * Mengajukan surat izin online (mengunggah berkas/foto bukti) jika berhalangan hadir.
+   * Memantau histori kehadiran pribadi dan kalender jadwal mingguan kelasnya.
+
+---
+
+## 🔄 Alur Kerja Sistem Terpadu (System Workflows)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin
+    actor Guru
+    actor Siswa
+    actor Wali as Wali Kelas
+
+    %% Inisialisasi
+    Note over Admin, Siswa: 1. FASE INISIALISASI (AKADEMIK)
+    Admin->>Database: Daftarkan Jurusan, Kelas Rombel, Siswa, Guru & Jadwal Pelajaran
+    Admin->>Database: Set Periode Akademik Aktif & Koordinat Sekolah (GPS)
+
+    %% Harian Sekolah
+    Note over Admin, Siswa: 2. FASE KEHADIRAN HARIAN SEKOLAH (DAILY ATTENDANCE)
+    Siswa->>Database: Daily Check-in Masuk (Validasi GPS Sekolah < 100 Meter)
+    
+    %% Sesi Pelajaran
+    Note over Admin, Siswa: 3. FASE ABSENSI SESI MATA PELAJARAN (CLASS ATTENDANCE)
+    Guru->>Database: Klik "Buka Presensi Kelas" pada Jadwal Hari Ini
+    Database-->>Guru: Hasilkan Sesi QR Code Baru (Secure Token)
+    Siswa->>Guru: Scan QR Code Sesi Guru di Kelas
+    Siswa->>Database: Kirim Hasil Scan & Koordinat GPS HP Siswa
+    Note over Database: Validasi Jarak GPS HP Siswa dengan Titik Sekolah
+    Database-->>Siswa: Sukses Absen (Status Terlambat otomatis dihitung jika > 15 Menit)
+    
+    %% Izin & Rekap
+    Note over Admin, Siswa: 4. ALUR PENGECUALIAN (IZIN & REKAP)
+    Siswa->>Database: Unggah Surat Permohonan Izin / Sakit
+    Wali->>Database: Tinjau & Setujui Pengajuan Izin Siswa
+    Note over Database: Otomatis perbarui status kehadiran pelajaran hari itu menjadi 'Izin' / 'Sakit'
+    Wali->>Database: Unduh Dokumen PDF Rekap Bulanan Kelas
+```
+
+### 🔄 Alur Absensi Hibrida (Session-Based QR)
 
 ---
 

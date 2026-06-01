@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
   useWindowDimensions,
+  Linking,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import * as Location from "expo-location";
@@ -182,7 +183,19 @@ export default function AttendanceScreen() {
   const loadActiveSession = async () => {
     setIsLoadingSession(true);
     try {
-      await fetchTodaySchedules();
+      const daysEng = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const now = new Date();
+      const todayEng = daysEng[now.getDay()];
+      
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      const todayDate = `${year}-${month}-${day}`;
+
+      await fetchTodaySchedules({
+        day: todayEng,
+        date: todayDate,
+      });
     } catch (e) {
       console.error("Gagal mengambil jadwal", e);
     } finally {
@@ -737,6 +750,22 @@ export default function AttendanceScreen() {
                           style={styles.qrImage}
                         />
                       </View>
+
+                      <TouchableOpacity
+                        style={styles.downloadQrButton}
+                        onPress={() => {
+                          const url = `https://chart.googleapis.com/chart?cht=qr&chs=500x500&chl=${encodeURIComponent(
+                            JSON.stringify({
+                              session_id: activeSchedule.active_session!.id,
+                              qr_token: activeSchedule.active_session!.qr_token,
+                            }),
+                          )}`;
+                          Linking.openURL(url);
+                        }}
+                      >
+                        <Ionicons name="download-outline" size={16} color="#0284C7" />
+                        <Text style={styles.downloadQrText}>Unduh / Perbesar QR Code</Text>
+                      </TouchableOpacity>
                     </View>
                   )}
 
@@ -1444,5 +1473,23 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "800",
+  },
+  downloadQrButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#DBEAFE",
+    backgroundColor: "#F0F9FF",
+  },
+  downloadQrText: {
+    color: "#0284C7",
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

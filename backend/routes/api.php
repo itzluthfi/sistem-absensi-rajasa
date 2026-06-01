@@ -220,12 +220,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============================================
     // SCHEDULES (Jadwal Pelajaran)
     // ============================================
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
+        Route::get('schedules/today', [\App\Http\Controllers\Api\ScheduleController::class, 'today']);
+    });
+
     Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
         Route::apiResource('schedules', \App\Http\Controllers\Api\ScheduleController::class);
     });
 
     Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
-        Route::get('schedules/today', [\App\Http\Controllers\Api\ScheduleController::class, 'today']);
         Route::get('schedules', [\App\Http\Controllers\Api\ScheduleController::class, 'index']);
         Route::get('schedules/{id}', [\App\Http\Controllers\Api\ScheduleController::class, 'show']);
     });
