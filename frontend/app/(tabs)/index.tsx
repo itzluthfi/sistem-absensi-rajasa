@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import * as Location from "expo-location";
 import {
   ActivityIndicator,
@@ -109,6 +109,22 @@ export default function HomeScreen() {
     const dayNameEng = new Date().toLocaleDateString("en-US", { weekday: "long" });
     return DAY_MAP_ENG_TO_IND[dayNameEng] || "Senin";
   };
+
+  const fetchTodaySchedulesWithParams = useCallback(() => {
+    const daysEng = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const now = new Date();
+    const todayEng = daysEng[now.getDay()];
+    
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayDate = `${year}-${month}-${day}`;
+
+    fetchTodaySchedules({
+      day: todayEng,
+      date: todayDate,
+    });
+  }, [fetchTodaySchedules]);
 
 
 
@@ -224,7 +240,7 @@ export default function HomeScreen() {
 
   const loadData = async () => {
     if (isSiswa || isGuru) {
-      fetchTodaySchedules();
+      fetchTodaySchedulesWithParams();
       
       try {
         let params: any = { all: true };
@@ -504,7 +520,7 @@ export default function HomeScreen() {
           onPress: async () => {
             const result = await openAttendanceSession(scheduleId, false);
             if (result.success) {
-              fetchTodaySchedules();
+              fetchTodaySchedulesWithParams();
               router.push("/(tabs)/attendance" as never);
             }
           },
@@ -514,7 +530,7 @@ export default function HomeScreen() {
           onPress: async () => {
             const result = await openAttendanceSession(scheduleId, true);
             if (result.success) {
-              fetchTodaySchedules();
+              fetchTodaySchedulesWithParams();
               router.push("/(tabs)/attendance" as never);
             }
           },
@@ -530,7 +546,7 @@ export default function HomeScreen() {
   const handleClosePresensi = async (sessionId: number) => {
     const result = await closeAttendanceSession(sessionId);
     if (result.success) {
-      fetchTodaySchedules();
+      fetchTodaySchedulesWithParams();
     }
   };
 
