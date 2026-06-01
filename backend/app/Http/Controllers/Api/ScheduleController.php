@@ -28,8 +28,17 @@ class ScheduleController extends BaseController
             // Apply role-based filters
             if ($user->hasRole('siswa') && $user->student) {
                 $query->where('schedules.class_id', $user->student->class_id);
-            } elseif ($user->hasRole('guru') && $user->teacher) {
-                $query->where('schedules.teacher_id', $user->teacher->id);
+            } elseif (($user->hasRole('guru') || $user->hasRole('wali_kelas')) && $user->teacher) {
+                $teacherId = $user->teacher->id;
+                // Get all class IDs where this teacher is a wali kelas
+                $classIds = DB::table('classes')->where('teacher_id', $teacherId)->pluck('id')->toArray();
+                
+                $query->where(function ($q) use ($teacherId, $classIds) {
+                    $q->where('schedules.teacher_id', $teacherId);
+                    if (!empty($classIds)) {
+                        $q->orWhereIn('schedules.class_id', $classIds);
+                    }
+                });
             } else {
                 if ($request->has('class_id')) {
                     $query->where('schedules.class_id', $request->class_id);

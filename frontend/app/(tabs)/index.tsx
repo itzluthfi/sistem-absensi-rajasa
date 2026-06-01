@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import * as Location from "expo-location";
 import {
   ActivityIndicator,
@@ -12,6 +12,7 @@ import {
   View,
   Image,
   Platform,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -359,6 +360,18 @@ export default function HomeScreen() {
     };
   }, [todaySchedules]);
 
+  const { teachingSchedules, perwalianSchedules } = useMemo(() => {
+    if (!isGuru) return { teachingSchedules: todaySchedules, perwalianSchedules: [] };
+    
+    const teacherId = user?.teacher_info?.id;
+    const classIds = user?.teacher_info?.class_ids || [];
+    
+    const teaching = todaySchedules.filter((s) => s.teacher_id === teacherId);
+    const perwalian = todaySchedules.filter((s) => s.teacher_id !== teacherId && classIds.includes(s.class_id));
+    
+    return { teachingSchedules: teaching, perwalianSchedules: perwalian };
+  }, [todaySchedules, isGuru, user]);
+
   const getSchedulesForDay = (dayNameInd: string) => {
     const dayInEng = DAY_MAP_IND_TO_ENG[dayNameInd] || "Monday";
     const daySchedules = allSchedules.filter((s) => s.day_name === dayInEng);
@@ -369,6 +382,11 @@ export default function HomeScreen() {
       return daySchedules.filter((s) => {
         return s.teacher_id === teacherId || classIds.includes(s.class_id);
       });
+    }
+
+    if (isSiswa) {
+      const classId = user?.student_info?.class_id;
+      return daySchedules.filter((s) => s.class_id === classId);
     }
     
     return daySchedules;
@@ -387,6 +405,93 @@ export default function HomeScreen() {
     if (hour < 15) return "Selamat Siang";
     if (hour < 18) return "Selamat Sore";
     return "Selamat Malam";
+  };
+
+  // Helper to render pulsing skeleton block
+  const SkeletonItem = ({ style }: { style: any }) => {
+    const pulseAnim = useRef(new Animated.Value(0.3)).current;
+
+    useEffect(() => {
+      const animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 0.8,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 0.3,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animation.start();
+      return () => animation.stop();
+    }, [pulseAnim]);
+
+    return <Animated.View style={[style, { opacity: pulseAnim }]} />;
+  };
+
+  const renderTodaySchedulesSkeleton = () => {
+    return (
+      <View style={styles.scheduleList}>
+        {[1, 2].map((i) => (
+          <View key={i} style={[styles.scheduleCard, { minHeight: 120, borderColor: '#E5E7EB', opacity: 0.85 }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <SkeletonItem style={{ width: 100, height: 18, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
+              <SkeletonItem style={{ width: 80, height: 18, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
+            </View>
+            <View style={{ marginTop: 16 }}>
+              <SkeletonItem style={{ width: '70%', height: 22, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12, alignItems: 'center' }}>
+                <SkeletonItem style={{ width: 60, height: 14, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+                <SkeletonItem style={{ width: 80, height: 14, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+              </View>
+            </View>
+            {!isSiswa && (
+              <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 12 }}>
+                <SkeletonItem style={{ width: '100%', height: 38, borderRadius: 8, backgroundColor: '#E5E7EB' }} />
+              </View>
+            )}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  const renderWeeklyScheduleSkeleton = () => {
+    return (
+      <View style={styles.weeklyScheduleWrapper}>
+        {['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'].map((day) => (
+          <View 
+            key={day} 
+            style={[
+              styles.dayColumn,
+              { width: width >= 1024 ? '18.5%' : width >= 768 ? '48%' : '100%', opacity: 0.85 }
+            ]}
+          >
+            <View style={[styles.dayHeader, { borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }]}>
+              <SkeletonItem style={{ width: 65, height: 16, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+            </View>
+            <View style={{ gap: 10 }}>
+              {[1, 2].map((i) => (
+                <View key={i} style={[styles.calendarScheduleCard, { borderColor: '#E5E7EB' }]}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <SkeletonItem style={{ width: 80, height: 14, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+                  </View>
+                  <SkeletonItem style={{ width: '90%', height: 16, borderRadius: 4, backgroundColor: '#E5E7EB', marginTop: 8 }} />
+                  <View style={{ flexDirection: 'row', gap: 6, marginTop: 8, alignItems: 'center' }}>
+                    <SkeletonItem style={{ width: 40, height: 12, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+                    <SkeletonItem style={{ width: 50, height: 12, borderRadius: 4, backgroundColor: '#E5E7EB' }} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
+    );
   };
 
   const handleOpenPresensi = async (scheduleId: number) => {
@@ -874,6 +979,154 @@ export default function HomeScreen() {
     );
   };
 
+  const renderScheduleCard = (schedule: ScheduleRecord, isSiswaMode: boolean, isPerwalianMode: boolean = false) => {
+    const isActive = !!schedule.active_session;
+    const isFinished =
+      schedule.attendance_status === "hadir" ||
+      schedule.attendance_status === "telat";
+
+    return (
+      <TouchableOpacity
+        key={schedule.id}
+        style={[
+          styles.scheduleCard,
+          isActive && styles.activeScheduleCard,
+        ]}
+        onPress={() => handleSubjectCardClick(schedule)}
+        activeOpacity={0.85}
+      >
+        <Image
+          source={getSubjectImage(schedule.subject?.subject_name || "", todaySchedules)}
+          style={[StyleSheet.absoluteFillObject, { opacity: 0.18 }]}
+          resizeMode="cover"
+        />
+        {/* Card Header info */}
+        <View style={styles.cardHeader}>
+          <View style={styles.timeContainer}>
+            <Ionicons
+              name="time-outline"
+              size={14}
+              color="#6B7280"
+            />
+            <Text style={styles.timeText}>
+              {schedule.start_time.substring(0, 5)} -{" "}
+              {schedule.end_time.substring(0, 5)}
+            </Text>
+          </View>
+          {isSiswaMode ? (
+            <StudentStatusBadge
+              status={schedule.attendance_status}
+              time={schedule.attendance_time}
+            />
+          ) : (
+            <TeacherSessionBadge isActive={isActive} />
+          )}
+        </View>
+
+        {/* Main content: Subject and Class */}
+        <View style={styles.cardBody}>
+          <Text style={styles.subjectName}>
+            {schedule.subject?.subject_name || "Mata Pelajaran"}
+          </Text>
+          <View style={classInfoStyle(isActive)}>
+            <Ionicons
+              name="business-outline"
+              size={14}
+              color="#4B5563"
+            />
+            <Text style={styles.classNameText}>
+              {schedule.class?.class_name || "Rombel"}
+            </Text>
+            <View style={styles.bulletSeparator} />
+            <Ionicons
+              name="person-outline"
+              size={14}
+              color="#4B5563"
+            />
+            <Text style={styles.teacherNameText}>
+              {isSiswaMode || isPerwalianMode
+                ? schedule.teacher?.full_name || "Guru"
+                : "Mengajar"}
+            </Text>
+          </View>
+        </View>
+
+        {/* Action triggers */}
+        {!isSiswaMode && !isPerwalianMode && (
+          <View style={styles.cardActions}>
+            {isActive ? (
+              <View style={styles.activeActionsRow}>
+                <TouchableOpacity
+                  style={styles.manageButton}
+                  onPress={() =>
+                    router.push("/(tabs)/attendance" as never)
+                  }
+                >
+                  <Ionicons
+                    name="qr-code-outline"
+                    size={16}
+                    color="#fff"
+                  />
+                  <Text style={styles.actionButtonText}>
+                    Kelola Presensi
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={() =>
+                    handleClosePresensi(
+                      schedule.active_session!.id,
+                    )
+                  }
+                >
+                  <Text style={styles.closeButtonText}>
+                    Tutup Sesi
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <ShimmerButton
+                onPress={() => handleOpenPresensi(schedule.id)}
+                style={styles.shimmerBtnStyle}
+              >
+                <View style={styles.shimmerBtnContent}>
+                  <Ionicons
+                    name="play-circle-outline"
+                    size={18}
+                    color="#fff"
+                  />
+                  <Text style={styles.actionButtonText}>
+                    Buka Presensi Kelas
+                  </Text>
+                </View>
+              </ShimmerButton>
+            )}
+          </View>
+        )}
+
+        {isSiswaMode && isActive && !isFinished && !activeApprovedLeave && (
+          <View style={styles.cardActions}>
+            <TouchableOpacity
+              style={styles.studentAbsenButton}
+              onPress={() =>
+                router.push("/(tabs)/attendance" as never)
+              }
+            >
+              <Ionicons
+                name="scan-outline"
+                size={16}
+                color="#fff"
+              />
+              <Text style={styles.actionButtonText}>
+                Absen Sekarang
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: "transparent" }]}>
       <Image
@@ -1194,180 +1447,91 @@ export default function HomeScreen() {
               </View>
             )}
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>
-                {isSiswa
-                  ? "Jadwal Pelajaran Saya Hari Ini"
-                  : "Jadwal Mengajar Saya Hari Ini"}
-              </Text>
-              <Text style={styles.currentDate}>
-                {new Date().toLocaleDateString("id-ID", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
-              </Text>
-            </View>
+            {/* Section(s) for Today's Schedule */}
+            {isSiswa ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Jadwal Pelajaran Saya Hari Ini</Text>
+                  <Text style={styles.currentDate}>
+                    {new Date().toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
+                  </Text>
+                </View>
 
-            {todaySchedules.length > 0 ? (
-              <View style={styles.scheduleList}>
-                {todaySchedules.map((schedule: ScheduleRecord) => {
-                  const isActive = !!schedule.active_session;
-                  const isFinished =
-                    schedule.attendance_status === "hadir" ||
-                    schedule.attendance_status === "telat";
-
-                  return (
-                    <TouchableOpacity
-                      key={schedule.id}
-                      style={[
-                        styles.scheduleCard,
-                        isActive && styles.activeScheduleCard,
-                      ]}
-                      onPress={() => handleSubjectCardClick(schedule)}
-                      activeOpacity={0.85}
-                    >
-                      <Image
-                        source={getSubjectImage(schedule.subject?.subject_name || "", todaySchedules)}
-                        style={[StyleSheet.absoluteFillObject, { opacity: 0.18 }]}
-                        resizeMode="cover"
-                      />
-                      {/* Card Header info */}
-                      <View style={styles.cardHeader}>
-                        <View style={styles.timeContainer}>
-                          <Ionicons
-                            name="time-outline"
-                            size={14}
-                            color="#6B7280"
-                          />
-                          <Text style={styles.timeText}>
-                            {schedule.start_time.substring(0, 5)} -{" "}
-                            {schedule.end_time.substring(0, 5)}
-                          </Text>
-                        </View>
-                        {isSiswa ? (
-                          <StudentStatusBadge
-                            status={schedule.attendance_status}
-                            time={schedule.attendance_time}
-                          />
-                        ) : (
-                          <TeacherSessionBadge isActive={isActive} />
-                        )}
-                      </View>
-
-                      {/* Main content: Subject and Class */}
-                      <View style={styles.cardBody}>
-                        <Text style={styles.subjectName}>
-                          {schedule.subject?.subject_name || "Mata Pelajaran"}
-                        </Text>
-                        <View style={classInfoStyle(isActive)}>
-                          <Ionicons
-                            name="business-outline"
-                            size={14}
-                            color="#4B5563"
-                          />
-                          <Text style={styles.classNameText}>
-                            {schedule.class?.class_name || "Rombel"}
-                          </Text>
-                          <View style={styles.bulletSeparator} />
-                          <Ionicons
-                            name="person-outline"
-                            size={14}
-                            color="#4B5563"
-                          />
-                          <Text style={styles.teacherNameText}>
-                            {isSiswa
-                              ? schedule.teacher?.full_name || "Guru"
-                              : "Mengajar"}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Action triggers */}
-                      {!isSiswa && (
-                        <View style={styles.cardActions}>
-                          {isActive ? (
-                            <View style={styles.activeActionsRow}>
-                              <TouchableOpacity
-                                style={styles.manageButton}
-                                onPress={() =>
-                                  router.push("/(tabs)/attendance" as never)
-                                }
-                              >
-                                <Ionicons
-                                  name="qr-code-outline"
-                                  size={16}
-                                  color="#fff"
-                                />
-                                <Text style={styles.actionButtonText}>
-                                  Kelola Presensi
-                                </Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={styles.closeButton}
-                                onPress={() =>
-                                  handleClosePresensi(
-                                    schedule.active_session!.id,
-                                  )
-                                }
-                              >
-                                <Text style={styles.closeButtonText}>
-                                  Tutup Sesi
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-                          ) : (
-                            <ShimmerButton
-                              onPress={() => handleOpenPresensi(schedule.id)}
-                              style={styles.shimmerBtnStyle}
-                            >
-                              <View style={styles.shimmerBtnContent}>
-                                <Ionicons
-                                  name="play-circle-outline"
-                                  size={18}
-                                  color="#fff"
-                                />
-                                <Text style={styles.actionButtonText}>
-                                  Buka Presensi Kelas
-                                </Text>
-                              </View>
-                            </ShimmerButton>
-                          )}
-                        </View>
-                      )}
-
-                      {isSiswa && isActive && !isFinished && !activeApprovedLeave && (
-                        <View style={styles.cardActions}>
-                          <TouchableOpacity
-                            style={styles.studentAbsenButton}
-                            onPress={() =>
-                              router.push("/(tabs)/attendance" as never)
-                            }
-                          >
-                            <Ionicons
-                              name="scan-outline"
-                              size={16}
-                              color="#fff"
-                            />
-                            <Text style={styles.actionButtonText}>
-                              Absen Sekarang
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+                {isLoading && todaySchedules.length === 0 ? (
+                  renderTodaySchedulesSkeleton()
+                ) : todaySchedules.length > 0 ? (
+                  <View style={styles.scheduleList}>
+                    {todaySchedules.map((schedule: ScheduleRecord) => renderScheduleCard(schedule, true, false))}
+                  </View>
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
+                    <Text style={styles.emptyTitle}>Tidak Ada Jadwal Hari Ini</Text>
+                    <Text style={styles.emptyText}>
+                      Nikmati hari libur Anda! Tidak ada jadwal pelajaran terdaftar hari ini.
+                    </Text>
+                  </View>
+                )}
+              </>
             ) : (
-              <View style={styles.emptyState}>
-                <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
-                <Text style={styles.emptyTitle}>Tidak Ada Jadwal Hari Ini</Text>
-                <Text style={styles.emptyText}>
-                  Nikmati hari libur Anda! Tidak ada jadwal mengajar atau
-                  pelajaran terdaftar hari ini.
-                </Text>
-              </View>
+              <>
+                {/* 1. Jadwal Mengajar */}
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Jadwal Mengajar Saya Hari Ini</Text>
+                  <Text style={styles.currentDate}>
+                    {new Date().toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
+                  </Text>
+                </View>
+
+                {isLoading && todaySchedules.length === 0 ? (
+                  renderTodaySchedulesSkeleton()
+                ) : teachingSchedules.length > 0 ? (
+                  <View style={styles.scheduleList}>
+                    {teachingSchedules.map((schedule: ScheduleRecord) => renderScheduleCard(schedule, false, false))}
+                  </View>
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
+                    <Text style={styles.emptyTitle}>Tidak Ada Jadwal Mengajar Hari Ini</Text>
+                    <Text style={styles.emptyText}>
+                      Anda tidak memiliki jadwal mengajar terdaftar hari ini.
+                    </Text>
+                  </View>
+                )}
+
+                {/* 2. Jadwal Kelas Perwalian (Wali Kelas) */}
+                {user?.roles?.includes("wali_kelas") && (
+                  <>
+                    <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+                      <Text style={styles.sectionTitle}>Jadwal Kelas Perwalian Saya Hari Ini</Text>
+                    </View>
+
+                    {isLoading && todaySchedules.length === 0 ? (
+                      renderTodaySchedulesSkeleton()
+                    ) : perwalianSchedules.length > 0 ? (
+                      <View style={styles.scheduleList}>
+                        {perwalianSchedules.map((schedule: ScheduleRecord) => renderScheduleCard(schedule, false, true))}
+                      </View>
+                    ) : (
+                      <View style={styles.emptyState}>
+                        <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
+                        <Text style={styles.emptyTitle}>Tidak Ada Pelajaran Kelas Perwalian Hari Ini</Text>
+                        <Text style={styles.emptyText}>
+                          Tidak ada mata pelajaran terdaftar untuk kelas perwalian Anda hari ini.
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </>
             )}
 
             {/* Weekly Calendar Section */}
@@ -1376,116 +1540,120 @@ export default function HomeScreen() {
                 Jadwal Mingguan (Senin - Jumat)
               </Text>
               
-              <View style={styles.weeklyScheduleWrapper}>
-                {DAYS_OF_WEEK.map((day) => {
-                  const daySchedules = getSchedulesForDay(day);
-                  const isDayToday = getTodayDayNameInd() === day;
-                  
-                  return (
-                    <View 
-                      key={day} 
-                      style={[
-                        styles.dayColumn,
-                        isDayToday && styles.dayColumnToday,
-                        { width: width >= 1024 ? '18.5%' : width >= 768 ? '48%' : '100%' }
-                      ]}
-                    >
-                      {/* Day Header Badge */}
-                      <View style={[
-                        styles.dayHeader,
-                        isDayToday && styles.dayHeaderToday
-                      ]}>
-                        <Text style={[
-                          styles.dayHeaderText,
-                          isDayToday && styles.dayHeaderTextToday
+              {isLoading && allSchedules.length === 0 ? (
+                renderWeeklyScheduleSkeleton()
+              ) : (
+                <View style={styles.weeklyScheduleWrapper}>
+                  {DAYS_OF_WEEK.map((day) => {
+                    const daySchedules = getSchedulesForDay(day);
+                    const isDayToday = getTodayDayNameInd() === day;
+                    
+                    return (
+                      <View 
+                        key={day} 
+                        style={[
+                          styles.dayColumn,
+                          isDayToday && styles.dayColumnToday,
+                          { width: width >= 1024 ? '18.5%' : width >= 768 ? '48%' : '100%' }
+                        ]}
+                      >
+                        {/* Day Header Badge */}
+                        <View style={[
+                          styles.dayHeader,
+                          isDayToday && styles.dayHeaderToday
                         ]}>
-                          {day}
-                        </Text>
-                        {isDayToday && (
-                          <View style={styles.todayBadge}>
-                            <Text style={styles.todayBadgeText}>Hari Ini</Text>
-                          </View>
-                        )}
-                      </View>
+                          <Text style={[
+                            styles.dayHeaderText,
+                            isDayToday && styles.dayHeaderTextToday
+                          ]}>
+                            {day}
+                          </Text>
+                          {isDayToday && (
+                            <View style={styles.todayBadge}>
+                              <Text style={styles.todayBadgeText}>Hari Ini</Text>
+                            </View>
+                          )}
+                        </View>
 
-                      {/* Day Schedules List */}
-                      {daySchedules.length > 0 ? (
-                        <View style={{ gap: 10 }}>
-                          {daySchedules.map((schedule) => {
-                            const isActive = isDayToday && !!schedule.active_session;
-                            
-                            return (
-                              <View
-                                key={schedule.id}
-                                style={[
-                                  styles.calendarScheduleCard,
-                                  isActive && styles.activeScheduleCard,
-                                  isDayToday && styles.calendarScheduleCardToday,
-                                ]}
-                              >
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <View style={styles.timeContainer}>
+                        {/* Day Schedules List */}
+                        {daySchedules.length > 0 ? (
+                          <View style={{ gap: 10 }}>
+                            {daySchedules.map((schedule) => {
+                              const isActive = isDayToday && !!schedule.active_session;
+                              
+                              return (
+                                <View
+                                  key={schedule.id}
+                                  style={[
+                                    styles.calendarScheduleCard,
+                                    isActive && styles.activeScheduleCard,
+                                    isDayToday && styles.calendarScheduleCardToday,
+                                  ]}
+                                >
+                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <View style={styles.timeContainer}>
+                                      <Ionicons
+                                        name="time-outline"
+                                        size={12}
+                                        color="#6B7280"
+                                      />
+                                      <Text style={styles.timeText}>
+                                        {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                                      </Text>
+                                    </View>
+                                    {isDayToday && (
+                                      <View style={{ alignSelf: 'flex-start' }}>
+                                        {isSiswa ? (
+                                          <StudentStatusBadge
+                                            status={schedule.attendance_status}
+                                            time={schedule.attendance_time}
+                                          />
+                                        ) : (
+                                          <TeacherSessionBadge isActive={isActive} />
+                                        )}
+                                      </View>
+                                    )}
+                                  </View>
+
+                                  <Text style={[styles.subjectName, { fontSize: 14, marginTop: 6, fontWeight: '700' }]}>
+                                    {schedule.subject?.subject_name || "Mata Pelajaran"}
+                                  </Text>
+
+                                  <View style={[styles.classInfo, { borderBottomWidth: 0, marginTop: 4 }]}>
                                     <Ionicons
-                                      name="time-outline"
+                                      name="business-outline"
                                       size={12}
                                       color="#6B7280"
                                     />
-                                    <Text style={styles.timeText}>
-                                      {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                                    <Text style={[styles.classNameText, { fontSize: 11 }]}>
+                                      {schedule.class?.class_name || "Rombel"}
+                                    </Text>
+                                    <View style={styles.bulletSeparator} />
+                                    <Ionicons
+                                      name="person-outline"
+                                      size={12}
+                                      color="#6B7280"
+                                    />
+                                    <Text style={[styles.teacherNameText, { fontSize: 11 }]} numberOfLines={1}>
+                                      {isSiswa
+                                        ? schedule.teacher?.full_name || "Guru"
+                                        : "Mengajar"}
                                     </Text>
                                   </View>
-                                  {isDayToday && (
-                                    <View style={{ alignSelf: 'flex-start' }}>
-                                      {isSiswa ? (
-                                        <StudentStatusBadge
-                                          status={schedule.attendance_status}
-                                          time={schedule.attendance_time}
-                                        />
-                                      ) : (
-                                        <TeacherSessionBadge isActive={isActive} />
-                                      )}
-                                    </View>
-                                  )}
                                 </View>
-
-                                <Text style={[styles.subjectName, { fontSize: 14, marginTop: 6, fontWeight: '700' }]}>
-                                  {schedule.subject?.subject_name || "Mata Pelajaran"}
-                                </Text>
-
-                                <View style={[styles.classInfo, { borderBottomWidth: 0, marginTop: 4 }]}>
-                                  <Ionicons
-                                    name="business-outline"
-                                    size={12}
-                                    color="#6B7280"
-                                  />
-                                  <Text style={[styles.classNameText, { fontSize: 11 }]}>
-                                    {schedule.class?.class_name || "Rombel"}
-                                  </Text>
-                                  <View style={styles.bulletSeparator} />
-                                  <Ionicons
-                                    name="person-outline"
-                                    size={12}
-                                    color="#6B7280"
-                                  />
-                                  <Text style={[styles.teacherNameText, { fontSize: 11 }]} numberOfLines={1}>
-                                    {isSiswa
-                                      ? schedule.teacher?.full_name || "Guru"
-                                      : "Mengajar"}
-                                  </Text>
-                                </View>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      ) : (
-                        <View style={styles.emptyDayContainer}>
-                          <Text style={styles.emptyDayText}>Tidak ada jadwal</Text>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
+                              );
+                            })}
+                          </View>
+                        ) : (
+                          <View style={styles.emptyDayContainer}>
+                            <Text style={styles.emptyDayText}>Tidak ada jadwal</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
             </View>
           </View>
         )}

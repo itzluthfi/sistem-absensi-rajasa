@@ -230,12 +230,14 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Hide Profile from bottom tab bar */}
+      {/* Profil Saya */}
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
-          href: null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-circle" size={size} color={color} />
+          ),
         }}
       />
 
@@ -341,16 +343,6 @@ export default function TabsLayout() {
                   <Text style={styles.badgeText}>{notificationCount > 99 ? '99+' : notificationCount}</Text>
                 </View>
               )}
-            </TouchableOpacity>
-
-            {/* Profile Button */}
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => router.push('/(tabs)/profile')}
-            >
-              <View style={styles.avatarSmall}>
-                <Text style={styles.avatarText}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
-              </View>
             </TouchableOpacity>
           </View>
         </View>

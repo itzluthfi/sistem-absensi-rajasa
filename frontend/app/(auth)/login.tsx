@@ -183,6 +183,13 @@ export default function LoginScreen() {
                 </Link>
               </View>
             </View>
+
+            {/* Web System Footer */}
+            <View style={styles.systemFooter}>
+              <Text style={styles.systemFooterText}>
+                © 2026 SMKS Rajasa Surabaya • Versi 1.0.0
+              </Text>
+            </View>
           </View>
         </View>
       ) : (
@@ -259,6 +266,13 @@ export default function LoginScreen() {
                 </Link>
               </View>
             </View>
+
+            {/* Mobile System Footer */}
+            <View style={styles.systemFooter}>
+              <Text style={styles.systemFooterText}>
+                © 2026 SMKS Rajasa Surabaya • Versi 1.0.0
+              </Text>
+            </View>
           </ScrollView>
         </View>
       )}
@@ -333,6 +347,7 @@ function FuturisticInput({
     <View style={styles.inputContainer}>
       <Text style={styles.label}>{label}</Text>
       <View
+        collapsable={false}
         style={[
           styles.futuristicInputWrapper,
           isFocused && styles.inputFocused,
@@ -378,28 +393,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.65)',
   },
   container: { flex: 1, position: 'relative' },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
-  header: { alignItems: 'center', marginBottom: 28 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 30 },
+  header: { alignItems: 'center', marginBottom: 20 },
   logoImageClean: {
-    width: 130,
-    height: 130,
-    marginBottom: 16,
+    width: 110,
+    height: 110,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     color: '#1E3A8A',
     letterSpacing: 2,
-    marginBottom: 6,
+    marginBottom: 4,
     textShadowColor: 'rgba(0, 0, 0, 0.08)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#2563EB',
-    letterSpacing: 3,
+    letterSpacing: 2,
     textShadowColor: 'rgba(37, 99, 235, 0.1)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
@@ -669,5 +684,19 @@ const styles = StyleSheet.create({
   resetBtnText: {
     fontWeight: '900',
     letterSpacing: 1.5,
+  },
+  systemFooter: {
+    marginTop: 20,
+    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  systemFooterText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
 });

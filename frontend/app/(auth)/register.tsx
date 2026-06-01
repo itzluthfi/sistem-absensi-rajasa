@@ -174,24 +174,33 @@ export default function RegisterScreen() {
                 </Link>
               </View>
             </View>
+
+            {/* Web System Footer */}
+            <View style={styles.systemFooter}>
+              <Text style={styles.systemFooterText}>
+                © 2026 SMKS Rajasa Surabaya • Versi 1.0.0
+              </Text>
+            </View>
           </View>
         </View>
       ) : (
         /* Mobile Layout */
         <View style={styles.container}>
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-            <View style={styles.header}>
+            <View style={styles.mobileRegisterHeader}>
               <Image
                 source={require('../../assets/images/logo.png')}
-                style={styles.logoImageClean}
+                style={styles.mobileRegisterLogo}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>SISTEM ABSENSI</Text>
-              <Text style={styles.subtitle}>SMKS RAJASA • PORTAL DIGITAL</Text>
+              <View style={styles.mobileRegisterTitleWrapper}>
+                <Text style={styles.mobileRegisterTitle}>SISTEM ABSENSI</Text>
+                <Text style={styles.mobileRegisterSubtitle}>SMKS RAJASA • PORTAL DIGITAL</Text>
+              </View>
             </View>
 
-            <View style={styles.glassCard}>
-              <View style={styles.formCardHeader}>
+            <View style={styles.mobileRegisterGlassCard}>
+              <View style={styles.mobileFormCardHeader}>
                 <Text style={styles.formTitle}>REGISTRASI AKUN</Text>
                 <Text style={styles.formSubtitle}>Daftarkan akun baru Anda</Text>
               </View>
@@ -267,6 +276,13 @@ export default function RegisterScreen() {
                 </Link>
               </View>
             </View>
+
+            {/* Mobile System Footer */}
+            <View style={styles.systemFooter}>
+              <Text style={styles.systemFooterText}>
+                © 2026 SMKS Rajasa Surabaya • Versi 1.0.0
+              </Text>
+            </View>
           </ScrollView>
         </View>
       )}
@@ -303,6 +319,7 @@ function FuturisticInput({
     <View style={styles.inputContainer}>
       <Text style={styles.label}>{label}</Text>
       <View
+        collapsable={false}
         style={[
           styles.futuristicInputWrapper,
           isFocused && styles.inputFocused,
@@ -348,28 +365,28 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.65)',
   },
   container: { flex: 1, position: 'relative' },
-  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 40 },
-  header: { alignItems: 'center', marginBottom: 28 },
+  scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24, paddingVertical: 30 },
+  header: { alignItems: 'center', marginBottom: 20 },
   logoImageClean: {
-    width: 130,
-    height: 130,
-    marginBottom: 16,
+    width: 110,
+    height: 110,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
     color: '#1E3A8A',
     letterSpacing: 2,
-    marginBottom: 6,
+    marginBottom: 4,
     textShadowColor: 'rgba(0, 0, 0, 0.08)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#2563EB',
-    letterSpacing: 3,
+    letterSpacing: 2,
     textShadowColor: 'rgba(37, 99, 235, 0.1)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
@@ -561,4 +578,65 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 24 },
   footerText: { fontSize: 13.5, color: '#4B5563', fontWeight: '500' },
   linkText: { fontSize: 13.5, color: '#2563EB', fontWeight: '800' },
+  systemFooter: {
+    marginTop: 20,
+    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  systemFooterText: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  mobileRegisterHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  mobileRegisterLogo: {
+    width: 60,
+    height: 60,
+  },
+  mobileRegisterTitleWrapper: {
+    justifyContent: 'center',
+  },
+  mobileRegisterTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#1E3A8A',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  mobileRegisterSubtitle: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#2563EB',
+    letterSpacing: 1,
+  },
+  mobileRegisterGlassCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 1)',
+    shadowColor: '#1E3A8A',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 8,
+    maxWidth: 460,
+    width: '100%',
+    alignSelf: 'center',
+    position: 'relative',
+  },
+  mobileFormCardHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
 });
