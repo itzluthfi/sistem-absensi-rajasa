@@ -1,0 +1,12 @@
+# Ignore local native directories (EAS will generate them dynamically on the cloud)
+android/
+ios/
+
+# Ignore dependency and build cache directories
+node_modules/
+.expo/
+dist/
+web-build/
+bin/
+build/
+*.log
