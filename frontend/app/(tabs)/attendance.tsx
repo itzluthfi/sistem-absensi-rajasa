@@ -181,6 +181,18 @@ export default function AttendanceScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successText, setSuccessText] = useState("");
 
+  // Close Session Modal
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [closeMode, setCloseMode] = useState<"now" | "scheduled">("now");
+  // scheduled time: hours and minutes
+  const [schedHour, setSchedHour] = useState<string>("08");
+  const [schedMinute, setSchedMinute] = useState<string>("30");
+  // countdown timer ref
+  const [autoCloseTimer, setAutoCloseTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [autoCloseAt, setAutoCloseAt] = useState<Date | null>(null);
+  const [countdown, setCountdown] = useState<string>("");
+  const [isCancellingTimer, setIsCancellingTimer] = useState(false);
+
   // Fetch / find active session on load
   const loadActiveSession = async () => {
     setIsLoadingSession(true);
@@ -369,32 +381,104 @@ export default function AttendanceScreen() {
     }
   };
 
-  const handleCloseActiveSession = async () => {
-    if (activeSchedule?.active_session) {
-      const subjectName = activeSchedule.subject?.subject_name || "Kelas";
-      Alert.alert(
-        "Tutup Presensi",
-        `Apakah Anda yakin ingin menutup sesi absensi ${subjectName} sekarang?`,
-        [
-          { text: "Batal", style: "cancel" },
-          {
-            text: "Tutup Sesi",
-            style: "destructive",
-            onPress: async () => {
-              const res = await closeAttendanceSession(
-                activeSchedule.active_session!.id,
-              );
-              if (res.success) {
-                toast.success(`🔒 Sesi presensi ${subjectName} berhasil ditutup.`);
-                loadActiveSession();
-              } else {
-                toast.error(res.message || "Gagal menutup sesi presensi.");
-              }
-            },
-          },
-        ],
-      );
+  // ─── AUTO CLOSE COUNTDOWN ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!autoCloseAt) {
+      setCountdown("");
+      return;
     }
+    const tick = setInterval(() => {
+      const now = new Date();
+      const diff = autoCloseAt.getTime() - now.getTime();
+      if (diff <= 0) {
+        setCountdown("Menutup...");
+        clearInterval(tick);
+        return;
+      }
+      const totalSec = Math.floor(diff / 1000);
+      const h = Math.floor(totalSec / 3600);
+      const m = Math.floor((totalSec % 3600) / 60);
+      const s = totalSec % 60;
+      if (h > 0) {
+        setCountdown(`${h}j ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}d`);
+      } else {
+        setCountdown(`${m}m ${String(s).padStart(2,'0')}d`);
+      }
+    }, 1000);
+    return () => clearInterval(tick);
+  }, [autoCloseAt]);
+
+  const handleCancelAutoClose = () => {
+    if (autoCloseTimer) {
+      clearTimeout(autoCloseTimer);
+      setAutoCloseTimer(null);
+    }
+    setAutoCloseAt(null);
+    setCountdown("");
+    toast.info("Jadwal tutup otomatis dibatalkan.");
+  };
+
+  // ─── CLOSE SESSION MODAL HANDLER ────────────────────────────────────────
+  const handleCloseActiveSession = () => {
+    if (!activeSchedule?.active_session) return;
+    // Pre-fill hour from session end_time (e.g. "08:30:00" → hour=08, min=30)
+    const endParts = activeSchedule.end_time?.split(':');
+    if (endParts && endParts.length >= 2) {
+      setSchedHour(endParts[0]);
+      setSchedMinute(endParts[1]);
+    }
+    setCloseMode("now");
+    setShowCloseModal(true);
+  };
+
+  const doCloseNow = async () => {
+    setShowCloseModal(false);
+    const subjectName = activeSchedule?.subject?.subject_name || "Kelas";
+    const res = await closeAttendanceSession(activeSchedule!.active_session!.id);
+    if (res.success) {
+      toast.success(`🔒 Sesi presensi ${subjectName} berhasil ditutup.`);
+      if (autoCloseTimer) { clearTimeout(autoCloseTimer); setAutoCloseTimer(null); }
+      setAutoCloseAt(null);
+      loadActiveSession();
+    } else {
+      toast.error(res.message || "Gagal menutup sesi presensi.");
+    }
+  };
+
+  const doScheduleClose = () => {
+    const subjectName = activeSchedule?.subject?.subject_name || "Kelas";
+    const h = parseInt(schedHour, 10);
+    const m = parseInt(schedMinute, 10);
+    if (isNaN(h) || isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) {
+      toast.error("Waktu tidak valid. Masukkan jam (0–23) dan menit (0–59).");
+      return;
+    }
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(h, m, 0, 0);
+    // If target is in the past, close next day (edge case)
+    if (target <= now) {
+      toast.error(`Waktu ${schedHour}:${schedMinute} sudah lewat. Pilih waktu yang akan datang.`);
+      return;
+    }
+    const delayMs = target.getTime() - now.getTime();
+    const sessionId = activeSchedule!.active_session!.id;
+    // Cancel any existing timer
+    if (autoCloseTimer) clearTimeout(autoCloseTimer);
+    const timer = setTimeout(async () => {
+      const res = await closeAttendanceSession(sessionId);
+      if (res.success) {
+        toast.success(`🔒 Sesi presensi ${subjectName} otomatis ditutup pada ${schedHour}:${schedMinute}.`);
+        setAutoCloseAt(null);
+        setAutoCloseTimer(null);
+        loadActiveSession();
+      }
+    }, delayMs);
+    setAutoCloseTimer(timer);
+    setAutoCloseAt(target);
+    setShowCloseModal(false);
+    const mins = Math.round(delayMs / 60000);
+    toast.success(`⏰ Presensi akan otomatis ditutup pukul ${schedHour}:${schedMinute} (${mins} menit lagi).`);
   };
 
   // Camera permissions view (fullscreen for students)
@@ -825,6 +909,32 @@ export default function AttendanceScreen() {
                 </View>
               </View>
 
+              {/* Auto-Close Countdown Banner */}
+              {autoCloseAt && countdown ? (
+                <View style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 8,
+                  backgroundColor: '#FEF3C7', borderRadius: 10,
+                  paddingHorizontal: 14, paddingVertical: 10,
+                  marginBottom: 12, borderWidth: 1, borderColor: '#FCD34D',
+                }}>
+                  <Ionicons name="time-outline" size={18} color="#D97706" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#92400E' }}>
+                      ⏰ Tutup Otomatis Pukul {schedHour}:{schedMinute}
+                    </Text>
+                    <Text style={{ fontSize: 11, color: '#B45309', marginTop: 1 }}>
+                      Sisa waktu: <Text style={{ fontWeight: '800' }}>{countdown}</Text>
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={handleCancelAutoClose}
+                    style={{ backgroundColor: '#FCD34D', borderRadius: 6, paddingHorizontal: 10, paddingVertical: 5 }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#78350F' }}>Batalkan</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+
               {/* Present Students List Header */}
               <View style={styles.studentsListHeader}>
                 <Text style={styles.listTitle}>
@@ -944,6 +1054,219 @@ export default function AttendanceScreen() {
             </View>
             <Text style={styles.modalTitle}>PRESENSI BERHASIL</Text>
             <Text style={styles.modalText}>{successText}</Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── CLOSE SESSION MODAL ──────────────────────────────── */}
+      <Modal visible={showCloseModal} transparent animationType="slide" onRequestClose={() => setShowCloseModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { width: isMobile ? '92%' : 420, padding: 0, overflow: 'hidden' }]}>
+
+            {/* Modal Header */}
+            <View style={{ backgroundColor: '#1E293B', paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="power" size={20} color="#F87171" />
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>Tutup Presensi</Text>
+              <TouchableOpacity onPress={() => setShowCloseModal(false)}>
+                <Ionicons name="close" size={22} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ padding: 20 }}>
+              <Text style={{ fontSize: 13, color: '#475569', marginBottom: 16, lineHeight: 19 }}>
+                Pilih cara menutup sesi presensi{' '}
+                <Text style={{ fontWeight: '700', color: '#0F172A' }}>
+                  {activeSchedule?.subject?.subject_name || 'Kelas'}
+                </Text>:
+              </Text>
+
+              {/* Toggle: Sekarang vs Jadwalkan */}
+              <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+                <TouchableOpacity
+                  onPress={() => setCloseMode('now')}
+                  style={[
+                    { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 2, gap: 4 },
+                    closeMode === 'now'
+                      ? { backgroundColor: '#FEE2E2', borderColor: '#EF4444' }
+                      : { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
+                  ]}
+                >
+                  <Ionicons name="power" size={20} color={closeMode === 'now' ? '#EF4444' : '#94A3B8'} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: closeMode === 'now' ? '#EF4444' : '#64748B' }}>
+                    Tutup Sekarang
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setCloseMode('scheduled')}
+                  style={[
+                    { flex: 1, borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 2, gap: 4 },
+                    closeMode === 'scheduled'
+                      ? { backgroundColor: '#EFF6FF', borderColor: '#3B82F6' }
+                      : { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' },
+                  ]}
+                >
+                  <Ionicons name="time-outline" size={20} color={closeMode === 'scheduled' ? '#3B82F6' : '#94A3B8'} />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: closeMode === 'scheduled' ? '#3B82F6' : '#64748B' }}>
+                    Jadwalkan Waktu
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Sekarang Info */}
+              {closeMode === 'now' && (
+                <View style={{ backgroundColor: '#FEF2F2', borderRadius: 10, padding: 14, borderWidth: 1, borderColor: '#FECACA', marginBottom: 16 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Ionicons name="warning-outline" size={16} color="#EF4444" />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#EF4444' }}>Tutup Sekarang</Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: '#7F1D1D', lineHeight: 17 }}>
+                    Sesi presensi akan langsung ditutup. Siswa yang belum absen tidak dapat melakukan presensi lagi.
+                  </Text>
+                </View>
+              )}
+
+              {/* Jadwalkan: Time Picker */}
+              {closeMode === 'scheduled' && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#475569', marginBottom: 10 }}>
+                    Pilih waktu tutup otomatis:
+                  </Text>
+
+                  {/* Time Display */}
+                  <View style={{ alignItems: 'center', marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1E293B', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 14 }}>
+                      <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
+                        {schedHour.padStart(2, '0')}
+                      </Text>
+                      <Text style={{ fontSize: 36, fontWeight: '800', color: '#3B82F6', marginBottom: 2 }}>:</Text>
+                      <Text style={{ fontSize: 40, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'], letterSpacing: 2 }}>
+                        {schedMinute.padStart(2, '0')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Quick presets from schedule */}
+                  <Text style={{ fontSize: 11, color: '#94A3B8', marginBottom: 8, textAlign: 'center' }}>Pilih preset atau ketik manual:</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 12 }}>
+                    {[
+                      activeSchedule?.end_time ? `${activeSchedule.end_time.slice(0,5)}` : null,
+                      '+15',
+                      '+30',
+                      '+45',
+                      '+60',
+                    ].filter(Boolean).map((preset) => {
+                      const isEndTime = preset && !preset.startsWith('+');
+                      return (
+                        <TouchableOpacity
+                          key={preset!}
+                          onPress={() => {
+                            if (isEndTime) {
+                              const parts = preset!.split(':');
+                              setSchedHour(parts[0]);
+                              setSchedMinute(parts[1]);
+                            } else {
+                              const addMins = parseInt(preset!.replace('+', ''), 10);
+                              const now = new Date();
+                              const future = new Date(now.getTime() + addMins * 60000);
+                              setSchedHour(String(future.getHours()).padStart(2, '0'));
+                              setSchedMinute(String(future.getMinutes()).padStart(2, '0'));
+                            }
+                          }}
+                          style={{ backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#BFDBFE' }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#2563EB' }}>
+                            {isEndTime ? `⏰ Akhir Jam (${preset})` : `+ ${preset!.replace('+','')} mnt`}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Manual Input */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center' }}>
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 10, color: '#94A3B8', marginBottom: 4, fontWeight: '600' }}>JAM</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <TouchableOpacity
+                          onPress={() => setSchedHour(h => String(Math.max(0, parseInt(h,10)-1)).padStart(2,'0'))}
+                          style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}
+                        >
+                          <Text style={{ fontSize: 16, color: '#475569', fontWeight: '700' }}>-</Text>
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#0F172A', minWidth: 32, textAlign: 'center' }}>
+                          {schedHour.padStart(2,'0')}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => setSchedHour(h => String(Math.min(23, parseInt(h,10)+1)).padStart(2,'0'))}
+                          style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}
+                        >
+                          <Text style={{ fontSize: 16, color: '#475569', fontWeight: '700' }}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <Text style={{ fontSize: 22, fontWeight: '800', color: '#CBD5E1', marginTop: 18 }}>:</Text>
+
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={{ fontSize: 10, color: '#94A3B8', marginBottom: 4, fontWeight: '600' }}>MENIT</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <TouchableOpacity
+                          onPress={() => setSchedMinute(m => String(Math.max(0, parseInt(m,10)-5)).padStart(2,'0'))}
+                          style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}
+                        >
+                          <Text style={{ fontSize: 16, color: '#475569', fontWeight: '700' }}>-</Text>
+                        </TouchableOpacity>
+                        <Text style={{ fontSize: 18, fontWeight: '800', color: '#0F172A', minWidth: 32, textAlign: 'center' }}>
+                          {schedMinute.padStart(2,'0')}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => setSchedMinute(m => String(Math.min(59, parseInt(m,10)+5)).padStart(2,'0'))}
+                          style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 28, height: 28, justifyContent: 'center', alignItems: 'center' }}
+                        >
+                          <Text style={{ fontSize: 16, color: '#475569', fontWeight: '700' }}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={{ backgroundColor: '#EFF6FF', borderRadius: 8, padding: 10, marginTop: 12, borderWidth: 1, borderColor: '#BFDBFE' }}>
+                    <Text style={{ fontSize: 11, color: '#1D4ED8', textAlign: 'center', fontWeight: '600' }}>
+                      ⏰ Presensi akan otomatis ditutup tepat pukul {schedHour.padStart(2,'0')}:{schedMinute.padStart(2,'0')}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setShowCloseModal(false)}
+                  style={{ flex: 1, backgroundColor: '#F1F5F9', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#64748B' }}>Batal</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={closeMode === 'now' ? doCloseNow : doScheduleClose}
+                  style={[
+                    { flex: 2, borderRadius: 10, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 },
+                    closeMode === 'now'
+                      ? { backgroundColor: '#EF4444' }
+                      : { backgroundColor: '#2563EB' },
+                  ]}
+                >
+                  <Ionicons
+                    name={closeMode === 'now' ? 'power' : 'time'}
+                    size={16}
+                    color="#fff"
+                  />
+                  <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>
+                    {closeMode === 'now' ? 'Tutup Sekarang' : `Set Waktu ${schedHour}:${schedMinute}`}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         </View>
       </Modal>
