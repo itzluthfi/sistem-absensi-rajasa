@@ -295,10 +295,7 @@ export default function HomeScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Izin Lokasi Diperlukan",
-          "Kami memerlukan akses lokasi Anda untuk memastikan Anda berada di area sekolah.",
-        );
+        toast.error("Akses lokasi ditolak. Kami memerlukan izin lokasi untuk memverifikasi Anda berada di area sekolah.");
         setDailyCheckInLoading(false);
         return;
       }
@@ -342,10 +339,7 @@ export default function HomeScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Izin Lokasi Diperlukan",
-          "Kami memerlukan akses lokasi Anda untuk memastikan Anda berada di area sekolah.",
-        );
+        toast.error("Akses lokasi ditolak. Kami memerlukan izin lokasi untuk memverifikasi Anda berada di area sekolah.");
         setDailyCheckOutLoading(false);
         return;
       }
@@ -523,8 +517,8 @@ export default function HomeScreen() {
 
   const renderTodaySchedulesSkeleton = () => {
     const cardWidthStyle = Platform.OS === 'web' && !isMobile
-      ? { width: width < 1024 ? '48%' : '31.5%', minWidth: 280 }
-      : { width: '100%' };
+      ? { width: (width < 1024 ? '48%' : '31.5%') as any, minWidth: 280 }
+      : { width: '100%' as any };
 
     return (
       <View style={scheduleListStyle}>
@@ -1200,8 +1194,8 @@ export default function HomeScreen() {
         schedule.attendance_status === "telat");
 
     const cardWidthStyle = Platform.OS === 'web' && !isMobile && scheduleViewMode === 'list'
-      ? { width: width < 1024 ? '48%' : '31.5%', minWidth: 280 }
-      : { width: '100%' };
+      ? { width: (width < 1024 ? '48%' : '31.5%') as any, minWidth: 280 }
+      : { width: '100%' as any };
 
     return (
       <View
@@ -1366,29 +1360,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <Image
-        source={
-          isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: "100%", height: "100%" },
-        ]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: "rgba(243, 244, 246, 0.85)",
-            width: "100%",
-            height: "100%",
-          },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
       <ScrollView
         style={{ flex: 1, backgroundColor: "transparent" }}
         contentContainerStyle={[styles.content, { paddingBottom }]}

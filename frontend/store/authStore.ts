@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { authApi, setAuthToken, setUserData, removeAuthToken, removeUserData } from '../services/api';
+import { initEcho, disconnectEcho } from '../services/echo';
 
 interface User {
   id: number;
@@ -77,6 +78,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await setAuthToken(token);
       await setUserData(userData);
 
+      try {
+        initEcho(token);
+      } catch (echoError) {
+        console.error('Failed to initialize Laravel Echo on login:', echoError);
+      }
+
       set({ user: userData, token, isLoading: false, isAuthenticated: true });
       return { success: true, message: response.message || 'Login berhasil' };
     } catch (error: any) {
@@ -101,6 +108,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await setAuthToken(token);
       await setUserData(userData);
 
+      try {
+        initEcho(token);
+      } catch (echoError) {
+        console.error('Failed to initialize Laravel Echo on register:', echoError);
+      }
+
       set({ user: userData, token, isLoading: false, isAuthenticated: true });
       return { success: true, message: response.message || 'Pendaftaran berhasil' };
     } catch (error: any) {
@@ -119,6 +132,13 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     }
     await removeAuthToken();
     await removeUserData();
+
+    try {
+      disconnectEcho();
+    } catch (echoError) {
+      console.error('Failed to disconnect Laravel Echo on logout:', echoError);
+    }
+
     set({ user: null, token: null, isLoading: false, isAuthenticated: false });
   },
 
@@ -142,11 +162,21 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             teacher_info: response.data.teacher_info,
           };
           await setUserData(user);
+          try {
+            initEcho(token);
+          } catch (echoError) {
+            console.error('Failed to initialize Laravel Echo on checkAuth (fresh):', echoError);
+          }
           set({ user, token, isLoading: false, isAuthenticated: true, isInitialized: true });
         } catch (apiError) {
           // If API fails, use stored user data
           if (storedUser) {
             const user = JSON.parse(storedUser);
+            try {
+              initEcho(token);
+            } catch (echoError) {
+              console.error('Failed to initialize Laravel Echo on checkAuth (stored):', echoError);
+            }
             set({ user, token, isLoading: false, isAuthenticated: true, isInitialized: true });
           } else {
             await removeAuthToken();

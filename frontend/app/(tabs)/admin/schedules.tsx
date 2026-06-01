@@ -20,6 +20,7 @@ import { schedulesApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
 import { useAuthStore } from "../../../store/authStore";
+import Skeleton from "../../../components/ui/Skeleton";
 
 type ScheduleRecord = {
   id: number;
@@ -80,8 +81,7 @@ export default function SchedulesAdminScreen() {
       const payload = response.data?.data ?? response.data ?? [];
       setRecords(Array.isArray(payload) ? payload : []);
     } catch (error: any) {
-      Alert.alert(
-        "Gagal Memuat Data",
+      toast.error(
         error.response?.data?.message || "Periksa koneksi API backend."
       );
     }
@@ -114,9 +114,9 @@ export default function SchedulesAdminScreen() {
       link.click();
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
-      Alert.alert("Sukses", "Ekspor data jadwal berhasil diunduh.");
+      toast.success("Ekspor data jadwal berhasil diunduh.");
     } catch (error) {
-      Alert.alert("Gagal", "Gagal mengekspor data ke Excel.");
+      toast.error("Gagal mengekspor data ke Excel.");
     }
   };
 
@@ -135,7 +135,7 @@ export default function SchedulesAdminScreen() {
       link.parentNode?.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      Alert.alert("Gagal", "Gagal mengunduh templat Excel.");
+      toast.error("Gagal mengunduh templat Excel.");
     }
   };
 
@@ -194,7 +194,7 @@ export default function SchedulesAdminScreen() {
   const handleSubmit = async () => {
     const validationError = validateForm();
     if (validationError) {
-      Alert.alert("Data Belum Lengkap", validationError);
+      toast.error("Data Belum Lengkap: " + validationError);
       return;
     }
 
@@ -246,22 +246,7 @@ export default function SchedulesAdminScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={
-          isMobile
-            ? require("../../../assets/images/wallpaper-app-mobile.png")
-            : require("../../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[StyleSheet.absoluteFillObject, { width: "100%", height: "100%" }]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { backgroundColor: "rgba(243, 244, 246, 0.85)", width: "100%", height: "100%" },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
       <View style={styles.headerTitleContainer}>
         <Text style={styles.headerTitle}>Master Data Jadwal</Text>
@@ -313,101 +298,146 @@ export default function SchedulesAdminScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={filteredRecords}
-        keyExtractor={(item) => String(item.id)}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchRecords} />}
-        contentContainerStyle={[styles.listContent, { paddingBottom }]}
-        ListHeaderComponent={
-          !isMobile && filteredRecords.length > 0 ? (
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Mata Pelajaran</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Kelas</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>Guru Pengajar</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Waktu & Ruang</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
+      {isLoading && records.length === 0 ? (
+        <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom }]}>
+          {isMobile ? (
+            [1, 2, 3, 4, 5].map((i) => (
+              <View key={i} style={styles.card}>
+                <Skeleton width={42} height={42} borderRadius={10} style={{ marginRight: 12 }} />
+                <View style={styles.cardBody}>
+                  <Skeleton width={150} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width="90%" height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <Skeleton width={50} height={10} borderRadius={4} />
+                </View>
+                <View style={styles.cardActions}>
+                  <Skeleton width={34} height={34} borderRadius={8} />
+                  <Skeleton width={34} height={34} borderRadius={8} />
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={{ borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: "#E2E8F0" }}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Mata Pelajaran</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Kelas</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>Guru Pengajar</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Waktu & Ruang</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
+              </View>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <View key={i} style={styles.tableRow}>
+                  <View style={{ flex: 0.8 }}><Skeleton width={30} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 2 }}><Skeleton width={140} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 1.5 }}><Skeleton width={80} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 2.2 }}><Skeleton width={140} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 1.5 }}><Skeleton width={120} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                    <Skeleton width={34} height={34} borderRadius={8} />
+                    <Skeleton width={34} height={34} borderRadius={8} />
+                  </View>
+                </View>
+              ))}
             </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            {isLoading ? (
-              <ActivityIndicator color="#2563EB" />
-            ) : (
-              <>
-                <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
-                <Text style={styles.emptyTitle}>Jadwal belum tersedia</Text>
-                <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah jadwal baru.</Text>
-              </>
-            )}
-          </View>
-        }
-        renderItem={({ item }) => {
-          if (!isMobile) {
+          )}
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={filteredRecords}
+          keyExtractor={(item) => String(item.id)}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchRecords} />}
+          contentContainerStyle={[styles.listContent, { paddingBottom }]}
+          ListHeaderComponent={
+            !isMobile && filteredRecords.length > 0 ? (
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Mata Pelajaran</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Kelas</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>Guru Pengajar</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Waktu & Ruang</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              {isLoading ? (
+                <ActivityIndicator color="#2563EB" />
+              ) : (
+                <>
+                  <Ionicons name="calendar-outline" size={48} color="#1E3A8A" />
+                  <Text style={styles.emptyTitle}>Jadwal belum tersedia</Text>
+                  <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah jadwal baru.</Text>
+                </>
+              )}
+            </View>
+          }
+          renderItem={({ item }) => {
+            if (!isMobile) {
+              return (
+                <View style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}>{item.id}</Text>
+                  <Text style={[styles.tableCell, { flex: 2, fontWeight: "700", color: "#1E293B" }]}>
+                    {item.subject?.subject_name || "-"}
+                  </Text>
+                  <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.class?.class_name || "-"}</Text>
+                  <Text style={[styles.tableCell, { flex: 2.2 }]}>{item.teacher?.full_name || "-"}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                    {(() => {
+                      const days = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+                      const dayName = days[Number(item.day_of_week)] || "Hari";
+                      return `${dayName}, ${item.start_time?.substring(0, 5)}-${item.end_time?.substring(0, 5)}${item.room ? ` (${item.room})` : ""}`;
+                    })()}
+                  </Text>
+                  <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                    <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
+                      <Ionicons name="create-outline" size={16} color="#3B82F6" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }
+
             return (
-              <View style={styles.tableRow}>
-                <Text style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}>{item.id}</Text>
-                <Text style={[styles.tableCell, { flex: 2, fontWeight: "700", color: "#1E293B" }]}>
-                  {item.subject?.subject_name || "-"}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.class?.class_name || "-"}</Text>
-                <Text style={[styles.tableCell, { flex: 2.2 }]}>{item.teacher?.full_name || "-"}</Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                  {(() => {
-                    const days = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-                    const dayName = days[Number(item.day_of_week)] || "Hari";
-                    return `${dayName}, ${item.start_time?.substring(0, 5)}-${item.end_time?.substring(0, 5)}${item.room ? ` (${item.room})` : ""}`;
-                  })()}
-                </Text>
-                <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+              <View style={styles.card}>
+                <View style={styles.cardIcon}>
+                  <Ionicons name="calendar-outline" size={22} color="#3B82F6" />
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>{item.subject?.subject_name || "Jadwal"}</Text>
+                  <Text style={styles.cardSubtitle}>
+                    {(() => {
+                      const days = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
+                      const dayName = days[Number(item.day_of_week)] || "Hari";
+                      return [
+                        dayName,
+                        `${item.start_time?.substring(0, 5)} - ${item.end_time?.substring(0, 5)}`,
+                        item.class?.class_name,
+                        item.teacher?.full_name,
+                        item.room ? `Ruang ${item.room}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" | ");
+                    })()}
+                  </Text>
+                  <Text style={styles.cardMeta}>ID: {item.id}</Text>
+                </View>
+                <View style={styles.cardActions}>
                   <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
-                    <Ionicons name="create-outline" size={16} color="#3B82F6" />
+                    <Ionicons name="create-outline" size={18} color="#3B82F6" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               </View>
             );
-          }
-
-          return (
-            <View style={styles.card}>
-              <View style={styles.cardIcon}>
-                <Ionicons name="calendar-outline" size={22} color="#3B82F6" />
-              </View>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{item.subject?.subject_name || "Jadwal"}</Text>
-                <Text style={styles.cardSubtitle}>
-                  {(() => {
-                    const days = ["", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"];
-                    const dayName = days[Number(item.day_of_week)] || "Hari";
-                    return [
-                      dayName,
-                      `${item.start_time?.substring(0, 5)} - ${item.end_time?.substring(0, 5)}`,
-                      item.class?.class_name,
-                      item.teacher?.full_name,
-                      item.room ? `Ruang ${item.room}` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" | ");
-                  })()}
-                </Text>
-                <Text style={styles.cardMeta}>ID: {item.id}</Text>
-              </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
-                  <Ionicons name="create-outline" size={18} color="#3B82F6" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
-                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        }}
-      />
+          }}
+        />
+      )}
 
       {/* Input Modal */}
       <Modal visible={!!modalMode} animationType="slide" transparent>
@@ -568,7 +598,7 @@ export default function SchedulesAdminScreen() {
                   if (Platform.OS === "web") {
                     document.getElementById("excel-file-input")?.click();
                   } else {
-                    Alert.alert("Info", "Unggahan berkas Excel hanya didukung pada mode desktop/web.");
+                    toast.info("Unggahan berkas Excel hanya didukung pada mode desktop/web.");
                   }
                 }}
                 disabled={importing}

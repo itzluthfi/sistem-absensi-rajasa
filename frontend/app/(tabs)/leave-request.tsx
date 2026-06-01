@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { leaveRequestsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useToast } from "../../hooks/useToast";
+import Skeleton from "../../components/ui/Skeleton";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -72,9 +73,8 @@ export default function LeaveRequestScreen() {
       const payload = response.data?.data ?? response.data ?? [];
       setLeaveRequests(Array.isArray(payload) ? payload : []);
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.response?.data?.message || "Gagal memuat data izin",
+      toast.error(
+        error.response?.data?.message || "Gagal memuat data izin"
       );
     } finally {
       setIsLoading(false);
@@ -84,7 +84,7 @@ export default function LeaveRequestScreen() {
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("Error", "Izin akses galeri diperlukan");
+      toast.error("Izin akses galeri diperlukan.");
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -96,7 +96,7 @@ export default function LeaveRequestScreen() {
 
   const handleSubmit = async () => {
     if (!startDate || !endDate || !reason.trim()) {
-      Alert.alert("Error", "Tanggal dan alasan wajib diisi");
+      toast.error("Tanggal dan alasan wajib diisi.");
       return;
     }
     setSubmitting(true);
@@ -154,29 +154,7 @@ export default function LeaveRequestScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <Image
-        source={
-          isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: "100%", height: "100%" },
-        ]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: "rgba(243, 244, 246, 0.85)",
-            width: "100%",
-            height: "100%",
-          },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
       <View
         style={[
           styles.header,
@@ -196,136 +174,157 @@ export default function LeaveRequestScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={leaveRequests}
-        onRefresh={fetchLeaveRequests}
-        refreshing={isLoading}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.listContent, { paddingBottom }]}
-        ListHeaderComponent={
-          !isMobile && leaveRequests.length > 0 ? (
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Jenis</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Alasan</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Mulai</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                Selesai
-              </Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                Status
-              </Text>
-              <Text
-                style={[
-                  styles.tableHeaderCell,
-                  { flex: 1, textAlign: "center" },
-                ]}
-              >
-                Aksi
-              </Text>
+      {isLoading && leaveRequests.length === 0 ? (
+        <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom }]}>
+          {[1, 2, 3, 4].map((i) => (
+            <View key={i} style={styles.requestCard}>
+              <View style={styles.requestHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Skeleton width={20} height={20} borderRadius={10} />
+                  <Skeleton width={60} height={16} borderRadius={4} />
+                </View>
+                <Skeleton width={80} height={24} borderRadius={8} />
+              </View>
+              <View style={{ gap: 6, marginBottom: 10, marginTop: 4 }}>
+                <Skeleton width="100%" height={16} borderRadius={4} />
+                <Skeleton width="70%" height={16} borderRadius={4} />
+              </View>
+              <Skeleton width={120} height={12} borderRadius={4} />
             </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            {isLoading ? (
-              <ActivityIndicator color="#2563EB" />
-            ) : (
-              <>
-                <Ionicons
-                  name="document-text-outline"
-                  size={48}
-                  color="#1E3A8A"
-                />
-                <Text style={styles.emptyTitle}>Belum Ada Data</Text>
-                <Text style={styles.emptyText}>
-                  Belum ada pengajuan izin terdaftar.
+          ))}
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={leaveRequests}
+          onRefresh={fetchLeaveRequests}
+          refreshing={isLoading}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={[styles.listContent, { paddingBottom }]}
+          ListHeaderComponent={
+            !isMobile && leaveRequests.length > 0 ? (
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Jenis</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Alasan</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Mulai</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
+                  Selesai
                 </Text>
-              </>
-            )}
-          </View>
-        }
-        renderItem={({ item }) => {
-          if (!isMobile) {
-            const formattedStart = new Date(item.start_date).toLocaleDateString(
-              "id-ID",
-            );
-            const formattedEnd = new Date(item.end_date).toLocaleDateString(
-              "id-ID",
-            );
-
-            return (
-              <View style={styles.tableRow}>
-                <Text
-                  style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}
-                >
-                  {item.id}
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
+                  Status
                 </Text>
                 <Text
                   style={[
-                    styles.tableCell,
-                    { flex: 1.2, fontWeight: "700", color: "#1E293B" },
+                    styles.tableHeaderCell,
+                    { flex: 1, textAlign: "center" },
                   ]}
                 >
-                  {item.permission_type === "izin" ? "Izin" : "Sakit"}
+                  Aksi
                 </Text>
-                <Text style={[styles.tableCell, { flex: 3 }]} numberOfLines={1}>
-                  {item.reason}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                  {formattedStart}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                  {formattedEnd}
-                </Text>
-                <View style={{ flex: 1.5, alignItems: "flex-start" }}>
-                  <StatusBadge status={item.approval_status} />
-                </View>
-                <View style={{ flex: 1, alignItems: "center" }}>
-                  <TouchableOpacity
-                    style={styles.smallButton}
-                    onPress={() => setSelectedRequest(item)}
-                  >
-                    <Ionicons name="eye-outline" size={16} color="#3B82F6" />
-                  </TouchableOpacity>
-                </View>
               </View>
-            );
+            ) : null
           }
-
-          return (
-            <TouchableOpacity
-              style={styles.requestCard}
-              onPress={() => setSelectedRequest(item)}
-            >
-              <View style={styles.requestHeader}>
-                <View style={styles.requestType}>
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              {isLoading ? (
+                <ActivityIndicator color="#2563EB" />
+              ) : (
+                <>
                   <Ionicons
-                    name={
-                      item.permission_type === "izin"
-                        ? "document-text-outline"
-                        : "medkit-outline"
-                    }
-                    size={20}
-                    color="#3B82F6"
+                    name="document-text-outline"
+                    size={48}
+                    color="#1E3A8A"
                   />
-                  <Text style={styles.requestTypeText}>
+                  <Text style={styles.emptyTitle}>Belum Ada Data</Text>
+                  <Text style={styles.emptyText}>
+                    Belum ada pengajuan izin terdaftar.
+                  </Text>
+                </>
+              )}
+            </View>
+          }
+          renderItem={({ item }) => {
+            if (!isMobile) {
+              const formattedStart = new Date(item.start_date).toLocaleDateString(
+                "id-ID",
+              );
+              const formattedEnd = new Date(item.end_date).toLocaleDateString(
+                "id-ID",
+              );
+
+              return (
+                <View style={styles.tableRow}>
+                  <Text
+                    style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}
+                  >
+                    {item.id}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tableCell,
+                      { flex: 1.2, fontWeight: "700", color: "#1E293B" },
+                    ]}
+                  >
                     {item.permission_type === "izin" ? "Izin" : "Sakit"}
                   </Text>
+                  <Text style={[styles.tableCell, { flex: 3 }]} numberOfLines={1}>
+                    {item.reason}
+                  </Text>
+                  <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                    {formattedStart}
+                  </Text>
+                  <Text style={[styles.tableCell, { flex: 1.5 }]}>
+                    {formattedEnd}
+                  </Text>
+                  <View style={{ flex: 1.5, alignItems: "flex-start" }}>
+                    <StatusBadge status={item.approval_status} />
+                  </View>
+                  <View style={{ flex: 1, alignItems: "center" }}>
+                    <TouchableOpacity
+                      style={styles.smallButton}
+                      onPress={() => setSelectedRequest(item)}
+                    >
+                      <Ionicons name="eye-outline" size={16} color="#3B82F6" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <StatusBadge status={item.approval_status} />
-              </View>
-              <Text style={styles.requestReason} numberOfLines={2}>
-                {item.reason}
-              </Text>
-              <Text style={styles.requestDate}>
-                {new Date(item.start_date).toLocaleDateString("id-ID")} -{" "}
-                {new Date(item.end_date).toLocaleDateString("id-ID")}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
-      />
+              );
+            }
+
+            return (
+              <TouchableOpacity
+                style={styles.requestCard}
+                onPress={() => setSelectedRequest(item)}
+              >
+                <View style={styles.requestHeader}>
+                  <View style={styles.requestType}>
+                    <Ionicons
+                      name={
+                        item.permission_type === "izin"
+                          ? "document-text-outline"
+                          : "medkit-outline"
+                      }
+                      size={20}
+                      color="#3B82F6"
+                    />
+                    <Text style={styles.requestTypeText}>
+                      {item.permission_type === "izin" ? "Izin" : "Sakit"}
+                    </Text>
+                  </View>
+                  <StatusBadge status={item.approval_status} />
+                </View>
+                <Text style={styles.requestReason} numberOfLines={2}>
+                  {item.reason}
+                </Text>
+                <Text style={styles.requestDate}>
+                  {new Date(item.start_date).toLocaleDateString("id-ID")} -{" "}
+                  {new Date(item.end_date).toLocaleDateString("id-ID")}
+                </Text>
+              </TouchableOpacity>
+            );
+          }}
+        />
+      )}
 
       <Modal visible={showFormModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>

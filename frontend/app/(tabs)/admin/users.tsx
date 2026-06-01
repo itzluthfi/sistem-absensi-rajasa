@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { usersApi, rolesApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
+import Skeleton from "../../../components/ui/Skeleton";
 
 type UserRecord = {
   id: number;
@@ -80,8 +81,7 @@ export default function UsersAdminScreen() {
       const payload = response.data?.data ?? response.data ?? [];
       setRecords(Array.isArray(payload) ? payload : []);
     } catch (error: any) {
-      Alert.alert(
-        "Gagal Memuat Data",
+      toast.error(
         error.response?.data?.message || "Periksa koneksi API backend."
       );
     }
@@ -133,7 +133,7 @@ export default function UsersAdminScreen() {
   const handleSubmit = async () => {
     const validationError = validateForm();
     if (validationError) {
-      Alert.alert("Data Belum Lengkap", validationError);
+      toast.error("Data Belum Lengkap: " + validationError);
       return;
     }
 
@@ -186,22 +186,7 @@ export default function UsersAdminScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Image
-        source={
-          isMobile
-            ? require("../../../assets/images/wallpaper-app-mobile.png")
-            : require("../../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[StyleSheet.absoluteFillObject, { width: "100%", height: "100%" }]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { backgroundColor: "rgba(243, 244, 246, 0.85)", width: "100%", height: "100%" },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
       <View style={styles.headerTitleContainer}>
         <Text style={styles.headerTitle}>Master Data User</Text>
@@ -269,126 +254,171 @@ export default function UsersAdminScreen() {
         </View>
       )}
 
-      <FlatList
-        data={filteredRecords}
-        keyExtractor={(item) => String(item.id)}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchRecords} />}
-        contentContainerStyle={[styles.listContent, { paddingBottom }]}
-        ListHeaderComponent={
-          !isMobile && filteredRecords.length > 0 ? (
-            <View style={styles.tableHeader}>
-              <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Email</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran (Role)</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
-              <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
-            </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            {isLoading ? (
-              <ActivityIndicator color="#2563EB" />
-            ) : (
-              <>
-                <Ionicons name="people-outline" size={48} color="#1E3A8A" />
-                <Text style={styles.emptyTitle}>User belum tersedia</Text>
-                <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah user baru.</Text>
-              </>
-            )}
-          </View>
-        }
-        renderItem={({ item }) => {
-          const roleName = item.roles && item.roles.length > 0 ? item.roles[0].name : "-";
-          if (!isMobile) {
-            return (
-              <View style={styles.tableRow}>
-                <Text style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}>{item.id}</Text>
-                <Text style={[styles.tableCell, { flex: 2.5, fontWeight: "700", color: "#1E293B" }]}>
-                  {item.name || "-"}
-                </Text>
-                <Text style={[styles.tableCell, { flex: 2.5 }]}>{item.email || "-"}</Text>
-                <Text style={[styles.tableCell, { flex: 1.5, textTransform: "uppercase", fontSize: 11, fontWeight: "700", color: "#4F46E5" }]}>
-                  {roleName.replace("_", " ")}
-                </Text>
-                <View style={{ flex: 1.2, alignItems: "center" }}>
-                  <View
-                    style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 3,
-                      borderRadius: 6,
-                      backgroundColor: item.is_active ? "#D1FAE5" : "#F3F4F6",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        fontWeight: "700",
-                        color: item.is_active ? "#065F46" : "#6B7280",
-                      }}
-                    >
-                      {item.is_active ? "Aktif" : "Nonaktif"}
-                    </Text>
+      {isLoading && records.length === 0 ? (
+        <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom }]}>
+          {isMobile ? (
+            [1, 2, 3, 4, 5].map((i) => (
+              <View key={i} style={styles.card}>
+                <Skeleton width={42} height={42} borderRadius={10} style={{ marginRight: 12 }} />
+                <View style={styles.cardBody}>
+                  <Skeleton width={150} height={16} borderRadius={4} style={{ marginBottom: 6 }} />
+                  <Skeleton width="90%" height={14} borderRadius={4} style={{ marginBottom: 4 }} />
+                  <Skeleton width={50} height={10} borderRadius={4} />
+                </View>
+                <View style={styles.cardActions}>
+                  <Skeleton width={34} height={34} borderRadius={8} />
+                  <Skeleton width={34} height={34} borderRadius={8} />
+                </View>
+              </View>
+            ))
+          ) : (
+            <View style={{ borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: "#E2E8F0" }}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Email</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran (Role)</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
+              </View>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <View key={i} style={styles.tableRow}>
+                  <View style={{ flex: 0.8 }}><Skeleton width={30} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 2.5 }}><Skeleton width={180} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 2.5 }}><Skeleton width={180} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 1.5 }}><Skeleton width={100} height={14} borderRadius={4} /></View>
+                  <View style={{ flex: 1.2, alignItems: "center" }}><Skeleton width={60} height={18} borderRadius={6} /></View>
+                  <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                    <Skeleton width={34} height={34} borderRadius={8} />
+                    <Skeleton width={34} height={34} borderRadius={8} />
                   </View>
                 </View>
-                <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+              ))}
+            </View>
+          )}
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={filteredRecords}
+          keyExtractor={(item) => String(item.id)}
+          refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchRecords} />}
+          contentContainerStyle={[styles.listContent, { paddingBottom }]}
+          ListHeaderComponent={
+            !isMobile && filteredRecords.length > 0 ? (
+              <View style={styles.tableHeader}>
+                <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Email</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran (Role)</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              {isLoading ? (
+                <ActivityIndicator color="#2563EB" />
+              ) : (
+                <>
+                  <Ionicons name="people-outline" size={48} color="#1E3A8A" />
+                  <Text style={styles.emptyTitle}>User belum tersedia</Text>
+                  <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah user baru.</Text>
+                </>
+              )}
+            </View>
+          }
+          renderItem={({ item }) => {
+            const roleName = item.roles && item.roles.length > 0 ? item.roles[0].name : "-";
+            if (!isMobile) {
+              return (
+                <View style={styles.tableRow}>
+                  <Text style={[styles.tableCell, { flex: 0.8, fontWeight: "700" }]}>{item.id}</Text>
+                  <Text style={[styles.tableCell, { flex: 2.5, fontWeight: "700", color: "#1E293B" }]}>
+                    {item.name || "-"}
+                  </Text>
+                  <Text style={[styles.tableCell, { flex: 2.5 }]}>{item.email || "-"}</Text>
+                  <Text style={[styles.tableCell, { flex: 1.5, textTransform: "uppercase", fontSize: 11, fontWeight: "700", color: "#4F46E5" }]}>
+                    {roleName.replace("_", " ")}
+                  </Text>
+                  <View style={{ flex: 1.2, alignItems: "center" }}>
+                    <View
+                      style={{
+                        paddingHorizontal: 8,
+                        paddingVertical: 3,
+                        borderRadius: 6,
+                        backgroundColor: item.is_active ? "#D1FAE5" : "#F3F4F6",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 10,
+                          fontWeight: "700",
+                          color: item.is_active ? "#065F46" : "#6B7280",
+                        }}
+                      >
+                        {item.is_active ? "Aktif" : "Nonaktif"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                    <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
+                      <Ionicons name="create-outline" size={16} color="#3B82F6" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
+                      <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            }
+
+            return (
+              <View style={styles.card}>
+                <View style={styles.cardIcon}>
+                  <Ionicons name="person-outline" size={22} color="#3B82F6" />
+                </View>
+                <View style={styles.cardBody}>
+                  <Text style={styles.cardTitle}>{item.name}</Text>
+                  <Text style={styles.cardSubtitle}>{item.email}</Text>
+                  <Text style={[styles.cardMeta, { color: "#4F46E5", fontWeight: "700" }]}>
+                    Peran: {roleName.replace("_", " ").toUpperCase()}
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 }}>
+                    <Text style={{ fontSize: 11, color: "#9CA3AF" }}>Status: </Text>
+                    <View
+                      style={{
+                        paddingHorizontal: 6,
+                        paddingVertical: 1,
+                        borderRadius: 4,
+                        backgroundColor: item.is_active ? "#D1FAE5" : "#F3F4F6",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          fontWeight: "700",
+                          color: item.is_active ? "#065F46" : "#6B7280",
+                        }}
+                      >
+                        {item.is_active ? "Aktif" : "Nonaktif"}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.cardActions}>
                   <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
-                    <Ionicons name="create-outline" size={16} color="#3B82F6" />
+                    <Ionicons name="create-outline" size={18} color="#3B82F6" />
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
-                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
               </View>
             );
-          }
-
-          return (
-            <View style={styles.card}>
-              <View style={styles.cardIcon}>
-                <Ionicons name="person-outline" size={22} color="#3B82F6" />
-              </View>
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-                <Text style={styles.cardSubtitle}>{item.email}</Text>
-                <Text style={[styles.cardMeta, { color: "#4F46E5", fontWeight: "700" }]}>
-                  Peran: {roleName.replace("_", " ").toUpperCase()}
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6, gap: 6 }}>
-                  <Text style={{ fontSize: 11, color: "#9CA3AF" }}>Status: </Text>
-                  <View
-                    style={{
-                      paddingHorizontal: 6,
-                      paddingVertical: 1,
-                      borderRadius: 4,
-                      backgroundColor: item.is_active ? "#D1FAE5" : "#F3F4F6",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 9,
-                        fontWeight: "700",
-                        color: item.is_active ? "#065F46" : "#6B7280",
-                      }}
-                    >
-                      {item.is_active ? "Aktif" : "Nonaktif"}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
-                  <Ionicons name="create-outline" size={18} color="#3B82F6" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.smallButton} onPress={() => handleDelete(item)}>
-                  <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        }}
-      />
+          }}
+        />
+      )}
 
       {/* Form modal */}
       <Modal visible={!!modalMode} animationType="slide" transparent>

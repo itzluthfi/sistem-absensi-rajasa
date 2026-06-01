@@ -81,15 +81,15 @@ export default function ProfileScreen() {
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !newPasswordConfirmation) {
-      Alert.alert("Error", "Semua kolom wajib diisi.");
+      toast.error("Semua kolom wajib diisi.");
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert("Error", "Kata sandi baru minimal 6 karakter.");
+      toast.error("Kata sandi baru minimal 6 karakter.");
       return;
     }
     if (newPassword !== newPasswordConfirmation) {
-      Alert.alert("Error", "Konfirmasi kata sandi baru tidak cocok.");
+      toast.error("Konfirmasi kata sandi baru tidak cocok.");
       return;
     }
 
@@ -123,29 +123,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <Image
-        source={
-          isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: "100%", height: "100%" },
-        ]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: "rgba(243, 244, 246, 0.85)",
-            width: "100%",
-            height: "100%",
-          },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom }]}>

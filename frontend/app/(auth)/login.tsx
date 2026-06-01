@@ -18,11 +18,13 @@ import { Link, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import ShimmerButton from '../../components/ui/ShimmerButton';
 import { authApi } from '../../services/api';
+import { useToast } from '../../hooks/useToast';
 
 const wallpaperWeb = require('../../assets/images/wallpaper-web.png');
 const wallpaperMobile = require('../../assets/images/wallpaper-mobile.png');
 
 export default function LoginScreen() {
+  const toast = useToast();
   const router = useRouter();
   const { login, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
@@ -59,17 +61,17 @@ export default function LoginScreen() {
     if (result.success) {
       router.replace('/(tabs)');
     } else {
-      Alert.alert('Login Gagal', result.message);
+      toast.error(result.message || 'Login gagal.');
     }
   };
 
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim()) {
-      Alert.alert('Error', 'Silakan masukkan alamat email Anda.');
+      toast.error('Silakan masukkan alamat email Anda.');
       return;
     }
     if (!/\S+@\S+\.\S+/.test(forgotEmail)) {
-      Alert.alert('Error', 'Format email tidak valid.');
+      toast.error('Format email tidak valid.');
       return;
     }
 
@@ -79,14 +81,12 @@ export default function LoginScreen() {
       setIsSubmittingForgot(false);
       setShowForgotModal(false);
       setForgotEmail('');
-      Alert.alert(
-        'Berhasil',
-        'Kata sandi Anda berhasil disetel ulang menjadi default: "rajasa123".\n\nSilakan login menggunakan kata sandi ini dan segera ubah kata sandi di halaman Profil.'
+      toast.success(
+        'Kata sandi disetel ulang ke default: "rajasa123". Silakan login dan ubah kata sandi di Profil.'
       );
     } catch (error: any) {
       setIsSubmittingForgot(false);
-      Alert.alert(
-        'Gagal Reset',
+      toast.error(
         error.response?.data?.message || 'Alamat email tidak cocok atau belum terdaftar.'
       );
     }

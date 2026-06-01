@@ -257,10 +257,7 @@ export default function AttendanceScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert(
-          "Izin Lokasi Diperlukan",
-          "Kami memerlukan akses lokasi Anda untuk memvalidasi presensi di dalam radius kelas.",
-        );
+        toast.error("Akses lokasi ditolak. Kami memerlukan izin lokasi untuk memvalidasi presensi di dalam radius kelas.");
         setLocationLoading(false);
         return false;
       }
@@ -275,10 +272,7 @@ export default function AttendanceScreen() {
       setLocationLoading(false);
       return coords;
     } catch (e) {
-      Alert.alert(
-        "Gagal Mendeteksi Lokasi",
-        "Pastikan GPS HP Anda aktif dan coba lagi.",
-      );
+      toast.error("Gagal mendeteksi lokasi. Pastikan GPS HP Anda aktif dan coba lagi.");
       setLocationLoading(false);
       return false;
     }
@@ -346,10 +340,7 @@ export default function AttendanceScreen() {
       }
 
       if (qrData.session_id !== activeSchedule?.active_session?.id) {
-        Alert.alert(
-          "Sesi Berbeda",
-          "Siswa ini menampilkan QR untuk sesi pelajaran yang berbeda.",
-        );
+        toast.error("Siswa ini menampilkan QR untuk sesi pelajaran yang berbeda.");
         setScanned(false);
         return;
       }
@@ -555,29 +546,7 @@ export default function AttendanceScreen() {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <Image
-        source={
-          isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: "100%", height: "100%" },
-        ]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: "rgba(243, 244, 246, 0.85)",
-            width: "100%",
-            height: "100%",
-          },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
       {/* Dynamic Header */}
       <View style={styles.indicatorHeader}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>

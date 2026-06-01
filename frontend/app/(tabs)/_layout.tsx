@@ -1,21 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, useWindowDimensions, Platform, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image, useWindowDimensions, Platform, ScrollView, DeviceEventEmitter } from 'react-native';
 import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-// Notification badge count helper
-async function getNotificationCount(): Promise<number> {
-  try {
-    const stored = await AsyncStorage.getItem('notifications');
-    if (stored) {
-      const notifications = JSON.parse(stored);
-      return notifications.filter((n: any) => !n.is_read).length;
-    }
-  } catch {}
-  return 0;
-}
+import { notificationsApi } from '../../services/api';
+import { getEcho } from '../../services/echo';
+import { useToast } from '../../hooks/useToast';
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -23,6 +14,7 @@ export default function TabsLayout() {
   const { user, isInitialized, isAuthenticated } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const toast = useToast();
 
   const insets = useSafeAreaInsets();
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
@@ -35,9 +27,59 @@ export default function TabsLayout() {
   }, []);
 
   const loadNotificationCount = async () => {
-    const count = await getNotificationCount();
-    setNotificationCount(count);
+    try {
+      const res = await notificationsApi.getAll();
+      if (res && res.data && typeof res.data.unread_count === 'number') {
+        setNotificationCount(res.data.unread_count);
+      }
+    } catch (e) {
+      console.log('Error loading notification count:', e);
+    }
   };
+
+  // Listen to local triggers to reload notification count (e.g. when notifications are marked read)
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('notifications_updated', () => {
+      loadNotificationCount();
+    });
+    return () => {
+      sub.remove();
+    };
+  }, []);
+
+  // Listen to Laravel Echo real-time notification events
+  useEffect(() => {
+    if (!user || !user.id) return;
+
+    const echo = getEcho();
+    if (!echo) {
+      console.log('Laravel Echo instance not available in layout.');
+      return;
+    }
+
+    const channelName = `App.Models.User.${user.id}`;
+    console.log(`Subscribing to Laravel Echo channel: ${channelName}`);
+
+    const channel = echo.private(channelName);
+    
+    channel.notification((notification: any) => {
+      console.log('Received real-time notification in Layout:', notification);
+      
+      const messageText = notification.message || 'Ada pemberitahuan baru!';
+      toast.info(messageText);
+
+      // Refresh badge count
+      loadNotificationCount();
+
+      // Dispatch global event for active Notifications screen
+      DeviceEventEmitter.emit('notification_received', notification);
+    });
+
+    return () => {
+      console.log(`Leaving Laravel Echo channel: ${channelName}`);
+      echo.leaveChannel(channelName);
+    };
+  }, [user, isInitialized, isAuthenticated]);
 
   // Wait for auth to initialize
   if (!mounted || !isInitialized) {

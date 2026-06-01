@@ -16,11 +16,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import ShimmerButton from '../../components/ui/ShimmerButton';
+import { useToast } from '../../hooks/useToast';
 
 const wallpaperWeb = require('../../assets/images/wallpaper-web.png');
 const wallpaperMobile = require('../../assets/images/wallpaper-mobile.png');
 
 export default function RegisterScreen() {
+  const toast = useToast();
   const router = useRouter();
   const { register, isLoading } = useAuthStore();
   const [name, setName] = useState('');
@@ -58,11 +60,10 @@ export default function RegisterScreen() {
     });
 
     if (result.success) {
-      Alert.alert('Berhasil', 'Pendaftaran berhasil.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)') },
-      ]);
+      toast.success('Pendaftaran berhasil.');
+      router.replace('/(tabs)');
     } else {
-      Alert.alert('Pendaftaran Gagal', result.message);
+      toast.error(result.message || 'Pendaftaran gagal.');
     }
   };
 

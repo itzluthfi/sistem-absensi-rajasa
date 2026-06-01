@@ -9,10 +9,14 @@ import {
   View,
   Image,
   useWindowDimensions,
+  ScrollView,
+  DeviceEventEmitter,
 } from "react-native";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
+import { notificationsApi } from "../../services/api";
+import { useToast } from "../../hooks/useToast";
+import Skeleton from "../../components/ui/Skeleton";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -29,6 +33,7 @@ interface Notification {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const toast = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const insets = useSafeAreaInsets();
@@ -41,45 +46,90 @@ export default function NotificationsScreen() {
     loadNotifications();
   }, []);
 
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('notification_received', (notification) => {
+      console.log('Notification screen received real-time trigger. Reloading list...');
+      loadNotifications();
+    });
+    return () => {
+      sub.remove();
+    };
+  }, []);
+
   const loadNotifications = async () => {
     setIsLoading(true);
     try {
-      const stored = await AsyncStorage.getItem("notifications");
-      setNotifications(stored ? JSON.parse(stored) : []);
-    } catch {
-      Alert.alert("Error", "Gagal memuat notifikasi lokal");
+      const res = await notificationsApi.getAll();
+      if (res.data && res.data.notifications) {
+        const payload = res.data.notifications;
+        const mapped = payload.map((notif: any) => {
+          let title = "Pemberitahuan";
+          const msg = notif.message.toLowerCase();
+          if (msg.includes("absensi") || msg.includes("presensi") || msg.includes("hadir") || msg.includes("kelas")) {
+            title = "Absensi Kelas";
+          } else if (msg.includes("izin") || msg.includes("sakit") || msg.includes("sakit")) {
+            title = "Pengajuan Izin";
+          } else if (msg.includes("jadwal")) {
+            title = "Jadwal Pelajaran";
+          } else if (msg.includes("laporan") || msg.includes("rekap")) {
+            title = "Laporan Absensi";
+          }
+          
+          return {
+            id: notif.id,
+            title,
+            message: notif.message,
+            is_read: !!notif.is_read,
+            created_at: notif.created_at,
+          };
+        });
+        setNotifications(mapped);
+      } else {
+        setNotifications([]);
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || "Gagal memuat notifikasi.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const persist = async (next: Notification[]) => {
-    setNotifications(next);
-    await AsyncStorage.setItem("notifications", JSON.stringify(next));
-  };
-
   const markAsRead = async (id: string) => {
-    await persist(
-      notifications.map((item) =>
-        item.id === id ? { ...item, is_read: true } : item,
-      ),
-    );
+    try {
+      await notificationsApi.markRead(id);
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id === id ? { ...item, is_read: true } : item
+        )
+      );
+      DeviceEventEmitter.emit('notifications_updated');
+    } catch (e: any) {
+      toast.error("Gagal menandai notifikasi dibaca.");
+    }
   };
 
   const markAllAsRead = async () => {
-    await persist(notifications.map((item) => ({ ...item, is_read: true })));
-    Alert.alert("Berhasil", "Semua notifikasi telah dibaca");
+    try {
+      await notificationsApi.markAllRead();
+      setNotifications((prev) =>
+        prev.map((item) => ({ ...item, is_read: true }))
+      );
+      toast.success("Semua notifikasi telah ditandai dibaca.");
+      DeviceEventEmitter.emit('notifications_updated');
+    } catch (e: any) {
+      toast.error("Gagal menandai semua notifikasi.");
+    }
   };
 
   const clearAllNotifications = () => {
-    Alert.alert("Konfirmasi", "Hapus semua notifikasi?", [
+    Alert.alert("Konfirmasi", "Hapus semua notifikasi dari tampilan?", [
       { text: "Batal", style: "cancel" },
       {
         text: "Hapus",
         style: "destructive",
         onPress: async () => {
           setNotifications([]);
-          await AsyncStorage.removeItem("notifications");
+          toast.success("Tampilan notifikasi dibersihkan.");
         },
       },
     ]);
@@ -123,29 +173,7 @@ export default function NotificationsScreen() {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <Image
-        source={
-          isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: "100%", height: "100%" },
-        ]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: "rgba(243, 244, 246, 0.85)",
-            width: "100%",
-            height: "100%",
-          },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
 
       {/* Action buttons */}
@@ -165,27 +193,48 @@ export default function NotificationsScreen() {
         </View>
       )}
 
-      <FlatList
-        data={notifications}
-        keyExtractor={(item) => item.id}
-        renderItem={renderNotification}
-        contentContainerStyle={[styles.listContent, { paddingBottom }]}
-        refreshControl={
-          <RefreshControl
-            refreshing={isLoading}
-            onRefresh={loadNotifications}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="notifications-outline" size={48} color="#1E3A8A" />
-            <Text style={styles.emptyTitle}>Tidak Ada Notifikasi</Text>
-            <Text style={styles.emptyText}>
-              Notifikasi akan muncul di sini ketika ada pembaruan terbaru.
-            </Text>
-          </View>
-        }
-      />
+      {isLoading && notifications.length === 0 ? (
+        <ScrollView contentContainerStyle={[styles.listContent, { paddingBottom }]}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <View key={i} style={styles.notificationCard}>
+              <Skeleton width={48} height={48} borderRadius={12} style={{ marginRight: 12 }} />
+              <View style={styles.notificationContent}>
+                <View style={[styles.notificationHeader, { gap: 8, marginBottom: 8 }]}>
+                  <Skeleton width={120} height={16} borderRadius={4} />
+                  <Skeleton width={8} height={8} borderRadius={4} />
+                </View>
+                <View style={{ gap: 4, marginBottom: 8 }}>
+                  <Skeleton width="100%" height={14} borderRadius={4} />
+                  <Skeleton width="80%" height={14} borderRadius={4} />
+                </View>
+                <Skeleton width={60} height={10} borderRadius={4} />
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={notifications}
+          keyExtractor={(item) => item.id}
+          renderItem={renderNotification}
+          contentContainerStyle={[styles.listContent, { paddingBottom }]}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={loadNotifications}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyState}>
+              <Ionicons name="notifications-outline" size={48} color="#1E3A8A" />
+              <Text style={styles.emptyTitle}>Tidak Ada Notifikasi</Text>
+              <Text style={styles.emptyText}>
+                Notifikasi akan muncul di sini ketika ada pembaruan terbaru.
+              </Text>
+            </View>
+          }
+        />
+      )}
     </View>
   );
 }

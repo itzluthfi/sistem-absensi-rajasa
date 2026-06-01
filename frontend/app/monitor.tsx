@@ -19,6 +19,8 @@ import { useRouter } from "expo-router";
 import { attendanceApi, classesApi } from "../services/api";
 import { useAuthStore } from "../store/authStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useToast } from "../hooks/useToast";
+import Skeleton from "../components/ui/Skeleton";
 
 type MonitorRecord = {
   id: number;
@@ -42,6 +44,7 @@ type MonitorRecord = {
 };
 
 export default function LiveMonitorScreen() {
+  const toast = useToast();
   const router = useRouter();
   const { user } = useAuthStore();
   const { width } = useWindowDimensions();
@@ -160,8 +163,9 @@ export default function LiveMonitorScreen() {
             try {
               await attendanceApi.delete(id);
               fetchLiveFeed(false);
+              toast.success("Absensi berhasil ditolak.");
             } catch (err: any) {
-              Alert.alert("Gagal", err.response?.data?.message || "Gagal menolak absensi");
+              toast.error(err.response?.data?.message || "Gagal menolak absensi");
             }
           }
         }
@@ -244,23 +248,7 @@ export default function LiveMonitorScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      {/* Background wallpaper with thicker overlay */}
-      <Image
-        source={
-          isMobile
-            ? require("../assets/images/wallpaper-app-mobile.png")
-            : require("../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[StyleSheet.absoluteFillObject, { width: "100%", height: "100%" }]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          { backgroundColor: "rgba(243, 244, 246, 0.85)", width: "100%", height: "100%" },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
       {/* Header bar */}
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -291,22 +279,45 @@ export default function LiveMonitorScreen() {
       >
         {/* Real-time stats count block */}
         <View style={styles.statsRow}>
-          <View style={[styles.statsCard, { borderLeftColor: "#10B981" }]}>
-            <Text style={styles.statsValue}>{stats.hadir}</Text>
-            <Text style={styles.statsLabel}>Hadir</Text>
-          </View>
-          <View style={[styles.statsCard, { borderLeftColor: "#F59E0B" }]}>
-            <Text style={styles.statsValue}>{stats.telat}</Text>
-            <Text style={styles.statsLabel}>Terlambat</Text>
-          </View>
-          <View style={[styles.statsCard, { borderLeftColor: "#3B82F6" }]}>
-            <Text style={styles.statsValue}>{stats.izinSakit}</Text>
-            <Text style={styles.statsLabel}>Izin/Sakit</Text>
-          </View>
-          <View style={[styles.statsCard, { borderLeftColor: "#EF4444" }]}>
-            <Text style={styles.statsValue}>{stats.alpha}</Text>
-            <Text style={styles.statsLabel}>Alpha</Text>
-          </View>
+          {isLoading ? (
+            <>
+              <View style={[styles.statsCard, { borderLeftColor: "#10B981" }]}>
+                <Skeleton width={30} height={20} borderRadius={4} />
+                <Text style={styles.statsLabel}>Hadir</Text>
+              </View>
+              <View style={[styles.statsCard, { borderLeftColor: "#F59E0B" }]}>
+                <Skeleton width={30} height={20} borderRadius={4} />
+                <Text style={styles.statsLabel}>Terlambat</Text>
+              </View>
+              <View style={[styles.statsCard, { borderLeftColor: "#3B82F6" }]}>
+                <Skeleton width={30} height={20} borderRadius={4} />
+                <Text style={styles.statsLabel}>Izin/Sakit</Text>
+              </View>
+              <View style={[styles.statsCard, { borderLeftColor: "#EF4444" }]}>
+                <Skeleton width={30} height={20} borderRadius={4} />
+                <Text style={styles.statsLabel}>Alpha</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={[styles.statsCard, { borderLeftColor: "#10B981" }]}>
+                <Text style={styles.statsValue}>{stats.hadir}</Text>
+                <Text style={styles.statsLabel}>Hadir</Text>
+              </View>
+              <View style={[styles.statsCard, { borderLeftColor: "#F59E0B" }]}>
+                <Text style={styles.statsValue}>{stats.telat}</Text>
+                <Text style={styles.statsLabel}>Terlambat</Text>
+              </View>
+              <View style={[styles.statsCard, { borderLeftColor: "#3B82F6" }]}>
+                <Text style={styles.statsValue}>{stats.izinSakit}</Text>
+                <Text style={styles.statsLabel}>Izin/Sakit</Text>
+              </View>
+              <View style={[styles.statsCard, { borderLeftColor: "#EF4444" }]}>
+                <Text style={styles.statsValue}>{stats.alpha}</Text>
+                <Text style={styles.statsLabel}>Alpha</Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Latest Scan Showroom (Physical Scanner Gate HUD) */}
@@ -315,17 +326,32 @@ export default function LiveMonitorScreen() {
             <View style={styles.showroomIndicator}>
               <View style={[styles.showroomPulse, { backgroundColor: records.length > 0 ? "#10B981" : "#3B82F6" }]} />
               <Text style={styles.showroomIndicatorText}>
-                {records.length > 0 ? "PANDUAN PEMINDAIAN TERAKHIR" : "STANDBY PEMINDAIAN GERBANG"}
+                {isLoading ? "MEMUAT DATA..." : records.length > 0 ? "PANDUAN PEMINDAIAN TERAKHIR" : "STANDBY PEMINDAIAN GERBANG"}
               </Text>
             </View>
-            {records.length > 0 && (
+            {!isLoading && records.length > 0 && (
               <View style={styles.showroomTimeBadge}>
                 <Text style={styles.showroomTimeText}>Baru Saja</Text>
               </View>
             )}
           </View>
 
-          {records.length === 0 ? (
+          {isLoading ? (
+            <View style={styles.showroomBody}>
+              <View style={styles.showroomAvatarContainer}>
+                <Skeleton width={60} height={60} borderRadius={30} />
+              </View>
+              <View style={{ flex: 1, gap: 8 }}>
+                <Skeleton width={150} height={18} borderRadius={4} />
+                <Skeleton width={120} height={12} borderRadius={4} />
+                <Skeleton width={200} height={14} borderRadius={4} />
+              </View>
+              <View style={{ alignItems: "flex-end", gap: 8 }}>
+                <Skeleton width={50} height={24} borderRadius={4} />
+                <Skeleton width={60} height={14} borderRadius={4} />
+              </View>
+            </View>
+          ) : records.length === 0 ? (
             <View style={styles.showroomEmpty}>
               <Ionicons name="scan-outline" size={44} color="#9CA3AF" />
               <Text style={styles.showroomEmptyTitle}>Siap Melakukan Scan QR</Text>
@@ -434,7 +460,24 @@ export default function LiveMonitorScreen() {
             <Text style={styles.logCount}>({filteredRecords.length} Log)</Text>
           </View>
 
-          {filteredRecords.length === 0 ? (
+          {isLoading ? (
+            <View style={{ gap: 10 }}>
+              {[1, 2, 3].map((key) => (
+                <View key={key} style={styles.logCard}>
+                  <Skeleton width={38} height={38} borderRadius={19} />
+                  <View style={{ flex: 1, gap: 6 }}>
+                    <Skeleton width={140} height={14} borderRadius={4} />
+                    <Skeleton width={100} height={10} borderRadius={4} />
+                    <Skeleton width={80} height={10} borderRadius={4} />
+                  </View>
+                  <View style={{ alignItems: "flex-end", gap: 6 }}>
+                    <Skeleton width={80} height={12} borderRadius={4} />
+                    <Skeleton width={60} height={16} borderRadius={4} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : filteredRecords.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="wifi-outline" size={48} color="#9CA3AF" />
               <Text style={styles.emptyTitle}>Belum Ada Log Terkini</Text>

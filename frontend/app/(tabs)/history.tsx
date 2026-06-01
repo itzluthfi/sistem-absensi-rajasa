@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
 import { attendanceApi } from "../../services/api";
-import FuturisticLoader from "../../components/ui/FuturisticLoader";
+import Skeleton from "../../components/ui/Skeleton";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function HistoryScreen() {
@@ -81,29 +81,7 @@ export default function HistoryScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <Image
-        source={
-          isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: "100%", height: "100%" },
-        ]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: "rgba(243, 244, 246, 0.85)",
-            width: "100%",
-            height: "100%",
-          },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
       <View
         style={[
           styles.titleBar,
@@ -122,8 +100,26 @@ export default function HistoryScreen() {
       </View>
 
       {isLoading && attendanceHistory.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <FuturisticLoader text="Memuat Riwayat" color="#06B6D4" />
+        <View style={styles.listContent}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <View key={i} style={styles.historyCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.dateSection}>
+                  <Skeleton width={180} height={18} borderRadius={4} />
+                  <View style={{ flexDirection: "row", gap: 12, marginTop: 10 }}>
+                    <Skeleton width={80} height={14} borderRadius={4} />
+                    <Skeleton width={80} height={14} borderRadius={4} />
+                  </View>
+                </View>
+                <Skeleton width={70} height={24} borderRadius={10} />
+              </View>
+              {!isSiswa && (
+                <View style={[styles.studentSection, { borderTopWidth: 1, borderTopColor: "#F3F4F6", paddingTop: 12, marginTop: 12 }]}>
+                  <Skeleton width={120} height={14} borderRadius={4} />
+                </View>
+              )}
+            </View>
+          ))}
         </View>
       ) : (
         <FlatList

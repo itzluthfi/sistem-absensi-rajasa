@@ -15,12 +15,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { reportsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useToast } from "../../hooks/useToast";
 
 type ReportType = "daily" | "weekly" | "monthly" | "semester";
 type ExportFormat = "pdf" | "csv";
 type IconName = keyof typeof Ionicons.glyphMap;
 
 export default function ReportsScreen() {
+  const toast = useToast();
   const { hasRole } = useAuthStore();
   const [selectedType, setSelectedType] = useState<ReportType>("daily");
   const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("pdf");
@@ -86,10 +88,7 @@ export default function ReportsScreen() {
 
   const handleExport = async () => {
     if (!canExport) {
-      Alert.alert(
-        "Akses Ditolak",
-        "Akun ini tidak memiliki izin mengunduh laporan.",
-      );
+      toast.error("Akun ini tidak memiliki izin mengunduh laporan.");
       return;
     }
     setIsExporting(true);
@@ -116,19 +115,12 @@ export default function ReportsScreen() {
         link.click();
         link.parentNode?.removeChild(link);
         window.URL.revokeObjectURL(url);
-        Alert.alert(
-          "Sukses Unduh",
-          `Laporan ${selectedFormat.toUpperCase()} absensi Anda berhasil diunduh.`
-        );
+        toast.success(`Laporan ${selectedFormat.toUpperCase()} absensi Anda berhasil diunduh.`);
       } else {
-        Alert.alert(
-          "Sukses",
-          `Laporan ${selectedFormat.toUpperCase()} absensi berhasil dibuat di server.`
-        );
+        toast.success(`Laporan ${selectedFormat.toUpperCase()} absensi berhasil dibuat di server.`);
       }
     } catch (error: any) {
-      Alert.alert(
-        "Gagal",
+      toast.error(
         error.response?.data?.message || "Gagal mengunduh laporan dari server. Silakan coba lagi."
       );
     } finally {
@@ -137,29 +129,7 @@ export default function ReportsScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: "transparent" }]}>
-      <Image
-        source={
-          isMobile
-            ? require("../../assets/images/wallpaper-app-mobile.png")
-            : require("../../assets/images/wallpaper-app-desktop.png")
-        }
-        style={[
-          StyleSheet.absoluteFillObject,
-          { width: "100%", height: "100%" },
-        ]}
-        resizeMode="cover"
-      />
-      <View
-        style={[
-          StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: "rgba(243, 244, 246, 0.85)",
-            width: "100%",
-            height: "100%",
-          },
-        ]}
-      />
+    <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
       <ScrollView
         style={{ flex: 1, backgroundColor: "transparent" }}
         contentContainerStyle={[styles.content, { paddingBottom }]}

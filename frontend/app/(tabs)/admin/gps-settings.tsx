@@ -17,6 +17,7 @@ import { useRouter } from "expo-router";
 import { gpsLocationsApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
+import Skeleton from "../../../components/ui/Skeleton";
 
 // Platform-safe WebView
 let WebView: any = null;
@@ -491,10 +492,49 @@ export default function GpsSettingsScreen() {
       </View>
 
       {isLoading ? (
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.loadingText}>Memuat zona GPS...</Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={[styles.scrollContent, { paddingBottom }]}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Map Preview Skeleton */}
+          <View style={styles.mapCard}>
+            <View style={styles.mapHeader}>
+              <Ionicons name="map" size={16} color="#2563EB" />
+              <Text style={styles.mapHeaderTitle}>Peta Semua Zona Aktif</Text>
+            </View>
+            <View style={[styles.mapWrapper, { padding: 0 }]}>
+              <Skeleton width="100%" height="100%" borderRadius={0} />
+            </View>
+          </View>
+
+          {/* Location List Header */}
+          <View style={styles.sectionHeader}>
+            <Ionicons name="location" size={16} color="#2563EB" />
+            <Text style={styles.sectionTitle}>Daftar Titik Lokasi</Text>
+          </View>
+
+          {/* Skeleton Location Cards */}
+          {[1, 2, 3].map((i) => (
+            <View key={i} style={styles.locCard}>
+              <View style={styles.locCardTop}>
+                <Skeleton width={12} height={12} borderRadius={6} style={{ marginRight: 8 }} />
+                <Skeleton width={150} height={16} borderRadius={4} />
+                <View style={styles.locActions}>
+                  <Skeleton width={32} height={32} borderRadius={8} />
+                  <Skeleton width={32} height={32} borderRadius={8} />
+                  <Skeleton width={32} height={32} borderRadius={8} />
+                </View>
+              </View>
+              <View style={styles.locCardBody}>
+                <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                  <Skeleton width={12} height={12} borderRadius={6} />
+                  <Skeleton width={140} height={12} borderRadius={4} />
+                </View>
+                <Skeleton width={50} height={20} borderRadius={10} />
+              </View>
+            </View>
+          ))}
+        </ScrollView>
       ) : (
         <ScrollView
           contentContainerStyle={[styles.scrollContent, { paddingBottom }]}
