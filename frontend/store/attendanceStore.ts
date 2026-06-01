@@ -155,7 +155,15 @@ export const useAttendanceStore = create<AttendanceStore>((set, get) => ({
     try {
       const response = await attendanceSessionsApi.create({ schedule_id: scheduleId, require_qr: requireQr });
       const session = response.data;
-      set({ currentSession: session, isLoading: false });
+      set((state) => ({
+        currentSession: session,
+        todaySchedules: state.todaySchedules.map((s) =>
+          Number(s.id) === Number(scheduleId)
+            ? { ...s, active_session: session }
+            : s
+        ),
+        isLoading: false,
+      }));
       return { success: true, message: response.message || 'Sesi absensi berhasil dibuka', data: session };
     } catch (error: any) {
       set({ isLoading: false, error: error.response?.data?.message || 'Gagal membuka sesi absensi' });
@@ -167,7 +175,15 @@ export const useAttendanceStore = create<AttendanceStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await attendanceSessionsApi.close(sessionId);
-      set({ currentSession: null, isLoading: false });
+      set((state) => ({
+        currentSession: null,
+        todaySchedules: state.todaySchedules.map((s) =>
+          s.active_session && Number(s.active_session.id) === Number(sessionId)
+            ? { ...s, active_session: null }
+            : s
+        ),
+        isLoading: false,
+      }));
       return { success: true, message: response.message || 'Sesi absensi berhasil ditutup' };
     } catch (error: any) {
       set({ isLoading: false, error: error.response?.data?.message || 'Gagal menutup sesi absensi' });
