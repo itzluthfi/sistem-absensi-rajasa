@@ -218,10 +218,22 @@ export default function ProfileScreen() {
               <Text style={styles.infoLabel}>NIP</Text>
               <Text style={styles.infoValue}>{user.teacher_info.nip}</Text>
             </View>
+            {user.roles?.includes("wali_kelas") && (
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Kelas Perwalian</Text>
+                <Text style={styles.infoValue}>
+                  {user.teacher_info.class_names && user.teacher_info.class_names.length > 0
+                    ? user.teacher_info.class_names.join(", ")
+                    : "-"}
+                </Text>
+              </View>
+            )}
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Kelas</Text>
+              <Text style={styles.infoLabel}>Kelas Mengajar</Text>
               <Text style={styles.infoValue}>
-                {user.teacher_info.class_names?.join(", ")}
+                {user.teacher_info.teaching_class_names && user.teacher_info.teaching_class_names.length > 0
+                  ? user.teacher_info.teaching_class_names.join(", ")
+                  : "-"}
               </Text>
             </View>
           </View>

@@ -95,8 +95,16 @@ class AuthController extends BaseController
                 $userData['teacher_info'] = [
                     'id' => $user->teacher->id,
                     'nip' => $user->teacher->nip,
-                    'class_id' => $user->teacher->classes->first()?->id,
-                    'class_name' => $user->teacher->classes->first()?->class_name,
+                    'class_ids' => $user->teacher->classes->pluck('id')->toArray(),
+                    'class_names' => $user->teacher->classes->pluck('class_name')->toArray(),
+                    'teaching_class_names' => $user->teacher->schedules()
+                        ->with('class')
+                        ->get()
+                        ->pluck('class.class_name')
+                        ->filter()
+                        ->unique()
+                        ->values()
+                        ->toArray(),
                 ];
             }
 
@@ -221,8 +229,16 @@ class AuthController extends BaseController
             $userData['teacher_info'] = [
                 'id' => $user->teacher->id,
                 'nip' => $user->teacher->nip,
-                'class_ids' => $user->teacher->classes->pluck('id'),
-                'class_names' => $user->teacher->classes->pluck('class_name'),
+                'class_ids' => $user->teacher->classes->pluck('id')->toArray(),
+                'class_names' => $user->teacher->classes->pluck('class_name')->toArray(),
+                'teaching_class_names' => $user->teacher->schedules()
+                    ->with('class')
+                    ->get()
+                    ->pluck('class.class_name')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->toArray(),
             ];
         }
 

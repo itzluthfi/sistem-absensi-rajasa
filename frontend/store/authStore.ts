@@ -20,6 +20,7 @@ interface User {
     nip: string;
     class_ids: number[];
     class_names: string[];
+    teaching_class_names?: string[];
   };
 }
 

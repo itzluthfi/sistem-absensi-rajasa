@@ -13,7 +13,7 @@ class SchedulesSeeder extends Seeder
 {
     public function run(): void
     {
-        // Eager load major relation for correct school-package mappings!
+        // Eager load hubungan major
         $classes = SchoolClass::with('major')->get();
         $teachers = Teacher::all();
         $subjects = Subject::all();
@@ -23,14 +23,22 @@ class SchedulesSeeder extends Seeder
             return;
         }
 
-        // Days for a standard Indonesian 5-Day school system (Monday to Friday)
+        // Cari Pak Budi Santoso (NIP T001) untuk dibatasi
+        $budi = $teachers->first(function($t) {
+            return $t->nip === 'T001';
+        });
+
+        // 5 Hari Sekolah
         $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+
+        // Inisialisasi pelacak beban mengajar dan kesibukan guru per slot
+        $workload = [];
+        $busy = [];
 
         foreach ($classes as $class) {
             $majorCode = $class->major ? $class->major->major_code : 'TKJ';
 
-            // Filter subjects based on class major to keep the schedules highly authentic!
-            // AKP -> AKT, MP -> MP, TITL -> LIS, TKRO -> OTO, TKJ -> TKJ, TPM -> TPM
+            // Filter mata pelajaran berdasarkan jurusan
             $prefix = match($majorCode) {
                 'AKL' => 'AKT',
                 'MP' => 'MP',
@@ -41,9 +49,6 @@ class SchedulesSeeder extends Seeder
                 default => 'TKJ'
             };
 
-            // Selected subjects consist of:
-            // 6 general subjects (MAT, BIND, BING, PPKN, PJOK, PKK)
-            // + 4 major-specific subjects
             $classSubjects = $subjects->filter(function($subj) use ($prefix) {
                 $code = $subj->subject_code;
                 return in_array($code, ['MAT', 'BIND', 'BING', 'PPKN', 'PJOK', 'PKK']) 
@@ -51,73 +56,71 @@ class SchedulesSeeder extends Seeder
             })->values();
 
             if ($classSubjects->isEmpty()) {
-                $classSubjects = $subjects->values(); // Fallback to all subjects if filtered list is empty
+                $classSubjects = $subjects->values();
             }
 
             foreach ($days as $dayIndex => $day) {
-                // Lesson 1: 07:00:00 - 08:30:00
-                $subj1Index = ($dayIndex + $class->id * 2) % $classSubjects->count();
-                $teach1Index = ($dayIndex * 2 + $class->id) % $teachers->count();
+                // Tentukan slot jam pelajaran
+                $slots = [
+                    ['start' => '07:00:00', 'end' => '08:30:00'],
+                    ['start' => '08:30:00', 'end' => '10:00:00'],
+                    ['start' => '10:30:00', 'end' => ($day === 'Friday' ? '11:30:00' : '12:00:00')],
+                ];
                 
-                Schedule::updateOrCreate([
-                    'class_id' => $class->id,
-                    'day_name' => $day,
-                    'start_time' => '07:00:00',
-                ], [
-                    'subject_id' => $classSubjects->get($subj1Index)->id,
-                    'teacher_id' => $teachers->values()->get($teach1Index)->id,
-                    'academic_period_id' => $activePeriod ? $activePeriod->id : null,
-                    'end_time' => '08:30:00',
-                    'room' => 'R.' . ($class->major ? $class->major->major_code : 'X') . ' - ' . ($class->id + 10),
-                ]);
-
-                // Lesson 2: 08:30:00 - 10:00:00
-                $subj2Index = ($subj1Index + 1) % $classSubjects->count();
-                $teach2Index = ($teach1Index + 1) % $teachers->count();
-                
-                Schedule::updateOrCreate([
-                    'class_id' => $class->id,
-                    'day_name' => $day,
-                    'start_time' => '08:30:00',
-                ], [
-                    'subject_id' => $classSubjects->get($subj2Index)->id,
-                    'teacher_id' => $teachers->values()->get($teach2Index)->id,
-                    'academic_period_id' => $activePeriod ? $activePeriod->id : null,
-                    'end_time' => '10:00:00',
-                    'room' => 'R.' . ($class->major ? $class->major->major_code : 'X') . ' - ' . ($class->id + 10),
-                ]);
-
-                // Lesson 3: 10:30:00 - 12:00:00 (Mon-Thu) or 10:30:00 - 11:30:00 (Friday before prayers)
-                $subj3Index = ($subj2Index + 1) % $classSubjects->count();
-                $teach3Index = ($teach2Index + 1) % $teachers->count();
-                $endTime3 = ($day === 'Friday') ? '11:30:00' : '12:00:00';
-                
-                Schedule::updateOrCreate([
-                    'class_id' => $class->id,
-                    'day_name' => $day,
-                    'start_time' => '10:30:00',
-                ], [
-                    'subject_id' => $classSubjects->get($subj3Index)->id,
-                    'teacher_id' => $teachers->values()->get($teach3Index)->id,
-                    'academic_period_id' => $activePeriod ? $activePeriod->id : null,
-                    'end_time' => $endTime3,
-                    'room' => 'R.' . ($class->major ? $class->major->major_code : 'X') . ' - ' . ($class->id + 10),
-                ]);
-
-                // Lesson 4: 13:00:00 - 14:30:00 (Senin s.d. Kamis saja)
                 if ($day !== 'Friday') {
-                    $subj4Index = ($subj3Index + 1) % $classSubjects->count();
-                    $teach4Index = ($teach3Index + 1) % $teachers->count();
-                    
+                    $slots[] = ['start' => '13:00:00', 'end' => '14:30:00'];
+                }
+
+                foreach ($slots as $slotIndex => $slot) {
+                    $startTime = $slot['start'];
+                    $endTime = $slot['end'];
+
+                    // Index pelajaran bergulir secara dinamis
+                    $subjIndex = ($dayIndex * 4 + $slotIndex + $class->id) % $classSubjects->count();
+                    $subject = $classSubjects->get($subjIndex);
+
+                    // Pool guru yang berhak mengajar
+                    $eligible = $teachers;
+
+                    // Pak Budi Santoso (budi@example.com) hanya mengajar di kelas X TITL 1
+                    if ($class->class_name !== 'X TITL 1' && $budi) {
+                        $eligible = $eligible->filter(function($t) use ($budi) {
+                            return $t->id !== $budi->id;
+                        });
+                    }
+
+                    // Saring guru yang sedang bebas di jam & hari ini untuk menghindari tabrakan jadwal
+                    $available = $eligible->filter(function($t) use ($day, $startTime, $busy) {
+                        return !isset($busy[$day][$startTime][$t->id]);
+                    });
+
+                    if ($available->isEmpty()) {
+                        // Fallback jika tidak ada guru yang kosong (seharusnya tidak terjadi karena rasio guru 25 : 19 kelas)
+                        $selectedTeacher = $eligible->sortBy(function($t) use ($workload) {
+                            return $workload[$t->id] ?? 0;
+                        })->first();
+                    } else {
+                        // Pilih guru dengan beban mengajar paling sedikit untuk pembagian yang merata
+                        $selectedTeacher = $available->sortBy(function($t) use ($workload) {
+                            return $workload[$t->id] ?? 0;
+                        })->first();
+                    }
+
+                    // Tandai guru sebagai sibuk di slot ini dan tambah beban mengajarnya
+                    if ($selectedTeacher) {
+                        $busy[$day][$startTime][$selectedTeacher->id] = true;
+                        $workload[$selectedTeacher->id] = ($workload[$selectedTeacher->id] ?? 0) + 1;
+                    }
+
                     Schedule::updateOrCreate([
                         'class_id' => $class->id,
                         'day_name' => $day,
-                        'start_time' => '13:00:00',
+                        'start_time' => $startTime,
                     ], [
-                        'subject_id' => $classSubjects->get($subj4Index)->id,
-                        'teacher_id' => $teachers->values()->get($teach4Index)->id,
+                        'subject_id' => $subject->id,
+                        'teacher_id' => $selectedTeacher ? $selectedTeacher->id : null,
                         'academic_period_id' => $activePeriod ? $activePeriod->id : null,
-                        'end_time' => '14:30:00',
+                        'end_time' => $endTime,
                         'room' => 'R.' . ($class->major ? $class->major->major_code : 'X') . ' - ' . ($class->id + 10),
                     ]);
                 }
