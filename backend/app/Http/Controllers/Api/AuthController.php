@@ -342,6 +342,33 @@ class AuthController extends BaseController
     }
 
     /**
+     * Register device token for push notifications
+     */
+    public function registerDeviceToken(Request $request)
+    {
+        try {
+            $request->validate([
+                'token' => 'required|string',
+                'device_type' => 'nullable|string',
+            ]);
+
+            $user = $request->user();
+
+            // Simpan atau update token perangkat
+            $user->deviceTokens()->updateOrCreate(
+                ['token' => $request->token],
+                ['device_type' => $request->device_type]
+            );
+
+            return $this->sendResponse([], 'Device token registered successfully.');
+        } catch (ValidationException $e) {
+            return $this->sendValidationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal mendaftarkan token perangkat: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Log failed login attempt
      */
     private function logFailedLogin(Request $request)

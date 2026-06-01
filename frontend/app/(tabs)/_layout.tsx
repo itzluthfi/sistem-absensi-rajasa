@@ -4,9 +4,23 @@ import { Tabs, useRouter, usePathname } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { notificationsApi } from '../../services/api';
+import { notificationsApi, authApi } from '../../services/api';
 import { getEcho } from '../../services/echo';
 import { useToast } from '../../hooks/useToast';
+import * as Notifications from 'expo-notifications';
+
+// Configure push notifications behavior for foreground alerts
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
 
 export default function TabsLayout() {
   const router = useRouter();
@@ -80,6 +94,61 @@ export default function TabsLayout() {
       echo.leaveChannel(channelName);
     };
   }, [user, isInitialized, isAuthenticated]);
+
+  // Register device push token for Firebase FCM
+  useEffect(() => {
+    if (isAuthenticated && user && Platform.OS !== 'web') {
+      registerForPushNotificationsAsync();
+    }
+  }, [isAuthenticated, user]);
+
+  const registerForPushNotificationsAsync = async () => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('FCM: Notification permissions not granted.');
+        return;
+      }
+
+      // Ambil raw token perangkat (FCM Token)
+      const tokenData = await Notifications.getDevicePushTokenAsync();
+      const token = tokenData.data;
+
+      console.log('FCM: Device Token retrieved:', token);
+
+      // Kirim ke backend
+      await authApi.registerDeviceToken(token, Platform.OS);
+      console.log('FCM: Device Token registered successfully on backend.');
+    } catch (error) {
+      console.log('FCM Error registering device token:', error);
+    }
+  };
+
+  // Listen to foreground push notifications
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    const subscription = Notifications.addNotificationReceivedListener(notification => {
+      console.log('FCM Push Notification received in foreground:', notification);
+      
+      // Refresh badge count
+      loadNotificationCount();
+
+      // Dispatch global event for active Notifications screen
+      DeviceEventEmitter.emit('notification_received', notification);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   // Wait for auth to initialize
   if (!mounted || !isInitialized) {

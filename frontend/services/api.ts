@@ -240,6 +240,11 @@ export const authApi = {
     const response = await api.post('/auth/forgot-password', { email });
     return response.data;
   },
+
+  registerDeviceToken: async (token: string, deviceType: string) => {
+    const response = await api.post('/auth/device-token', { token, device_type: deviceType });
+    return response.data;
+  },
 };
 
 // Students API

@@ -20,6 +20,22 @@ class GenericNotification extends Notification
 
     public function via($notifiable)
     {
+        // Kirim Push Notification ke Firebase FCM jika ada token terdaftar
+        try {
+            if (method_exists($notifiable, 'deviceTokens')) {
+                $tokens = $notifiable->deviceTokens()->pluck('token')->toArray();
+                if (!empty($tokens)) {
+                    \App\Services\FcmService::sendNotification(
+                        $tokens,
+                        'Sistem Absensi Rajasa',
+                        $this->message
+                    );
+                }
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('FCM Send in via failed: ' . $e->getMessage());
+        }
+
         return ['database', 'broadcast', 'log'];
     }
 

@@ -41,6 +41,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/me', [AuthController::class, 'me']);
         Route::post('/refresh-token', [AuthController::class, 'refreshToken']);
         Route::post('/change-password', [AuthController::class, 'changePassword']);
+        Route::post('/device-token', [AuthController::class, 'registerDeviceToken']);
     });
 
     // ============================================
