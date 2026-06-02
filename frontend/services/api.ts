@@ -524,6 +524,11 @@ export const academicPeriodsApi = {
     const response = await api.delete(`/academic-periods/${id}`);
     return response.data;
   },
+
+  syncTransition: async (id: number, data: { source_period_id: number; transition_type: 'same_year' | 'new_year' }) => {
+    const response = await api.post(`/academic-periods/${id}/sync-transition`, data);
+    return response.data;
+  },
 };
 
 // Roles API

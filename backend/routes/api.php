@@ -242,6 +242,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('academic-periods', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'store']);
         Route::put('academic-periods/{id}', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'update']);
         Route::delete('academic-periods/{id}', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'destroy']);
+        Route::post('academic-periods/{id}/sync-transition', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'syncTransition']);
     });
 
     Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {

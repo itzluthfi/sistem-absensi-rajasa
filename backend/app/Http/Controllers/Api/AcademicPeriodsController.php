@@ -116,4 +116,165 @@ class AcademicPeriodsController extends BaseController
             return $this->sendError('Gagal menghapus periode akademik: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Sync transition/migration from source period to target period (Semester Shift / Kenaikan Kelas otomatis)
+     */
+    public function syncTransition(Request $request, $id)
+    {
+        try {
+            $targetPeriod = AcademicPeriod::findOrFail($id);
+
+            $validated = $request->validate([
+                'source_period_id' => 'required|exists:academic_periods,id',
+                'transition_type' => 'required|in:same_year,new_year',
+            ]);
+
+            $sourcePeriodId = $validated['source_period_id'];
+            $transitionType = $validated['transition_type'];
+
+            if ($sourcePeriodId == $id) {
+                return $this->sendError('Periode asal dan tujuan tidak boleh sama.', [], 400);
+            }
+
+            // 1. Dapatkan semua kelas dari periode asal
+            $sourceClasses = \App\Models\SchoolClass::where('academic_period_id', $sourcePeriodId)->get();
+            if ($sourceClasses->isEmpty()) {
+                return $this->sendError('Periode asal tidak memiliki data kelas.', [], 400);
+            }
+
+            \DB::beginTransaction();
+
+            $classMap = []; // Mapping dari source_class_id ke target_class_id
+            
+            if ($transitionType === 'same_year') {
+                // Skenario A: Ganjil -> Genap (Tahun ajaran sama, rombel sama, hanya ganti periode)
+                foreach ($sourceClasses as $sourceClass) {
+                    $targetClass = \App\Models\SchoolClass::updateOrCreate([
+                        'class_name' => $sourceClass->class_name,
+                        'academic_period_id' => $targetPeriod->id,
+                    ], [
+                        'major_id' => $sourceClass->major_id,
+                        'homeroom_teacher_id' => $sourceClass->homeroom_teacher_id,
+                        'academic_year' => $targetPeriod->academic_year,
+                    ]);
+                    $classMap[$sourceClass->id] = $targetClass->id;
+                }
+
+                // Update class_id siswa yang aktif dari kelas asal ke kelas tujuan
+                foreach ($classMap as $sourceClassId => $targetClassId) {
+                    \App\Models\Student::where('class_id', $sourceClassId)
+                        ->where('status', 'active')
+                        ->update(['class_id' => $targetClassId]);
+                }
+
+                // Copy jadwal (schedules) dari periode asal ke periode tujuan
+                $sourceSchedules = \App\Models\Schedule::where('academic_period_id', $sourcePeriodId)->get();
+                foreach ($sourceSchedules as $sch) {
+                    $targetClassId = $classMap[$sch->class_id] ?? null;
+                    if ($targetClassId) {
+                        \App\Models\Schedule::updateOrCreate([
+                            'class_id' => $targetClassId,
+                            'day_name' => $sch->day_name,
+                            'start_time' => $sch->start_time,
+                            'academic_period_id' => $targetPeriod->id,
+                        ], [
+                            'subject_id' => $sch->subject_id,
+                            'teacher_id' => $sch->teacher_id,
+                            'end_time' => $sch->end_time,
+                            'room' => $sch->room,
+                        ]);
+                    }
+                }
+
+            } else {
+                // Skenario B: Genap -> Ganjil (Kenaikan Kelas otomatis!)
+                // 1. Buat dulu kelas X, XI, XII di periode tujuan
+                foreach ($sourceClasses as $sourceClass) {
+                    $name = $sourceClass->class_name;
+                    $parts = explode(' ', $name, 2);
+                    $level = $parts[0] ?? '';
+                    $suffix = $parts[1] ?? '';
+
+                    // Kelas X Baru (salin kelas X lama untuk menampung angkatan baru)
+                    if ($level === 'X') {
+                        \App\Models\SchoolClass::updateOrCreate([
+                            'class_name' => "X {$suffix}",
+                            'academic_period_id' => $targetPeriod->id,
+                        ], [
+                            'major_id' => $sourceClass->major_id,
+                            'homeroom_teacher_id' => $sourceClass->homeroom_teacher_id,
+                            'academic_year' => $targetPeriod->academic_year,
+                        ]);
+                    }
+
+                    // Tentukan kelas lanjutan
+                    $targetClassName = null;
+                    if ($level === 'X') {
+                        $targetClassName = "XI {$suffix}";
+                    } elseif ($level === 'XI') {
+                        $targetClassName = "XII {$suffix}";
+                    }
+
+                    if ($targetClassName) {
+                        $targetClass = \App\Models\SchoolClass::updateOrCreate([
+                            'class_name' => $targetClassName,
+                            'academic_period_id' => $targetPeriod->id,
+                        ], [
+                            'major_id' => $sourceClass->major_id,
+                            'homeroom_teacher_id' => $sourceClass->homeroom_teacher_id,
+                            'academic_year' => $targetPeriod->academic_year,
+                        ]);
+                        $classMap[$sourceClass->id] = $targetClass->id;
+                    } else {
+                        // Level XII -> Lulus (Tidak ada kelas lanjutan)
+                        $classMap[$sourceClass->id] = 'graduated';
+                    }
+                }
+
+                // 2. Naikkan kelas siswa
+                foreach ($classMap as $sourceClassId => $targetClassId) {
+                    if ($targetClassId === 'graduated') {
+                        // Siswa kelas XII -> Set status jadi tidak aktif (lulus)
+                        \App\Models\Student::where('class_id', $sourceClassId)
+                            ->where('status', 'active')
+                            ->update(['status' => 'inactive', 'class_id' => null]);
+                    } else {
+                        // Siswa kelas X -> XI, XI -> XII
+                        \App\Models\Student::where('class_id', $sourceClassId)
+                            ->where('status', 'active')
+                            ->update(['class_id' => $targetClassId]);
+                    }
+                }
+
+                // 3. Salin jadwal sebagai draft ke kelas XI dan XII
+                $sourceSchedules = \App\Models\Schedule::where('academic_period_id', $sourcePeriodId)->get();
+                foreach ($sourceSchedules as $sch) {
+                    $targetClassId = $classMap[$sch->class_id] ?? null;
+                    if ($targetClassId && $targetClassId !== 'graduated') {
+                        \App\Models\Schedule::updateOrCreate([
+                            'class_id' => $targetClassId,
+                            'day_name' => $sch->day_name,
+                            'start_time' => $sch->start_time,
+                            'academic_period_id' => $targetPeriod->id,
+                        ], [
+                            'subject_id' => $sch->subject_id,
+                            'teacher_id' => $sch->teacher_id,
+                            'end_time' => $sch->end_time,
+                            'room' => $sch->room,
+                        ]);
+                    }
+                }
+            }
+
+            \DB::commit();
+
+            return $this->sendResponse(null, 'Sinkronisasi transisi semester baru berhasil diselesaikan.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendValidationError($e->errors());
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return $this->sendError('Gagal melakukan sinkronisasi transisi semester: ' . $e->getMessage());
+        }
+    }
 }
