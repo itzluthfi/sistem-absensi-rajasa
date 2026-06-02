@@ -12,11 +12,33 @@ class StudentsController extends BaseController
     public function index(Request $request)
     {
         try {
-            $query = \Illuminate\Support\Facades\DB::table('students')
+            // Validate class_id if provided - must be a valid integer
+            if ($request->has('class_id')) {
+                $classId = $request->query('class_id');
+                if (!is_numeric($classId) || intval($classId) <= 0) {
+                    return $this->sendError('Parameter class_id tidak valid.', [], 422);
+                }
+
+                // Check if class exists
+                $classExists = DB::table('classes')->where('id', intval($classId))->exists();
+                if (!$classExists) {
+                    // Return empty array instead of error - class might not have students
+                    return $this->sendResponse([], 'Tidak ada siswa di kelas ini.');
+                }
+            }
+
+            $query = DB::table('students')
                 ->leftJoin('users', 'students.user_id', '=', 'users.id')
                 ->leftJoin('classes', 'students.class_id', '=', 'classes.id')
                 ->select([
-                    'students.*',
+                    'students.id',
+                    'students.user_id',
+                    'students.class_id',
+                    'students.full_name',
+                    'students.nisn',
+                    'students.nis',
+                    'students.created_at',
+                    'students.updated_at',
                     'users.email as user_email',
                     'users.username as user_username',
                     'classes.class_name as class_class_name',
@@ -24,11 +46,14 @@ class StudentsController extends BaseController
                 ]);
 
             if ($request->has('academic_period_id')) {
-                $query->where('classes.academic_period_id', $request->query('academic_period_id'));
+                $academicPeriodId = $request->query('academic_period_id');
+                if (is_numeric($academicPeriodId)) {
+                    $query->where('classes.academic_period_id', $academicPeriodId);
+                }
             }
 
             if ($request->has('class_id')) {
-                $query->where('students.class_id', $request->query('class_id'));
+                $query->where('students.class_id', intval($request->query('class_id')));
             }
 
             if ($request->boolean('all')) {
@@ -87,7 +112,11 @@ class StudentsController extends BaseController
 
             return $this->sendResponse($students);
         } catch (\Exception $e) {
-            return $this->sendError('Gagal mengambil data siswa: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data siswa: ' . $e->getMessage(),
+                'errors' => [],
+            ], 500); // Return 500 for server errors, not 400
         }
     }
 

@@ -396,7 +396,49 @@ Jika Anda ingin menandatangani (*signing*) sertifikat digital secara visual atau
 
 ---
 
+### ☁️ Metode 3: Kompilasi via Expo Cloud (EAS Build - Sangat Direkomendasikan)
+Metode ini melakukan kompilasi di server cloud milik Expo. Metode ini sangat praktis karena Anda tidak memerlukan JDK atau Android SDK terinstal di komputer lokal Anda.
+
+#### 🔑 Langkah 1: Konfigurasi Firebase FCM (Push Notification)
+Agar fitur Push Notification dari Firebase bekerja pada hasil build, lakukan hal berikut terlebih dahulu:
+1. Unduh berkas **`google-services.json`** dari Firebase Console proyek Anda (`smk-rajasa` dengan package name `com.smksrajasa.absensi`).
+2. Letakkan file `google-services.json` tersebut di direktori **`frontend/`**.
+3. Pastikan file tersebut sudah didaftarkan pada [app.json](file:///c:/Users/luthf/OneDrive/Desktop/KULIAH/semester%206/KKN/sistem-absensi/frontend/app.json) di bawah blok `"android"`:
+   ```json
+   "android": {
+     "googleServicesFile": "./google-services.json",
+     "package": "com.smksrajasa.absensi",
+     ...
+   }
+   ```
+
+#### 📦 Langkah 2: Menjalankan EAS Build
+1. Buka terminal pada folder `frontend` dan pastikan Anda sudah masuk ke akun Expo Anda:
+   ```bash
+   npm install -g eas-cli
+   eas login
+   ```
+2. Jalankan perintah kompilasi sesuai kebutuhan Anda:
+   * **Build APK Pratinjau (Siap Install di HP):**
+     ```bash
+     eas build --platform android --profile preview
+     ```
+     *(Perintah ini akan menghasilkan file `.apk` langsung di cloud Expo yang dapat Anda unduh dan pasang di ponsel).*
+   
+   * **Build Development Client (Untuk Debugging):**
+     ```bash
+     eas build --platform android --profile development
+     ```
+     *(Gunakan profile ini jika Anda masih ingin menghubungkan aplikasi di HP dengan Metro Bundler lokal Anda).*
+   
+   * **Build Latar Belakang (Tanpa Menunggu Terminal):**
+     ```bash
+     eas build --platform android --profile preview --no-wait
+     ```
+     *(Perintah akan langsung selesai di terminal lokal Anda, dan Anda dapat memantau progres build-nya melalui tautan dashboard Expo Web atau perintah `eas build:list`).*
+
+---
+
 ## 👨‍💻 credit
 
-Dibuat dengan ❤️ untuk **SMKS Rajasa Surabaya**
 

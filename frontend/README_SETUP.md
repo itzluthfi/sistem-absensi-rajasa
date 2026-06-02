@@ -238,11 +238,36 @@ export const useAuthStore = create((set) => ({
 1. Install Xcode
 2. Run `npm run ios`
 
-### Physical Device
-
 1. Install Expo Go app
 2. Run `npm start`
 3. Scan QR code
+
+## 📦 Build APK & Firebase FCM Setup (EAS Build / Cloud)
+
+Untuk membangun aplikasi siap pakai (file APK) di cloud Expo dan mengaktifkan fitur Push Notification Firebase FCM:
+
+### 1. Konfigurasi Firebase FCM
+1. Unduh file **`google-services.json`** dari Firebase Console proyek Anda (`smk-rajasa` dengan package name `com.smksrajasa.absensi`).
+2. Taruh file `google-services.json` tersebut di dalam folder **`frontend/`**.
+3. File ini sudah otomatis didaftarkan di dalam [app.json](file:///c:/Users/luthf/OneDrive/Desktop/KULIAH/semester%206/KKN/sistem-absensi/frontend/app.json) di bawah properti `"android": { "googleServicesFile": "./google-services.json" }`.
+
+### 2. Kompilasi Cloud via EAS Build
+Jalankan perintah ini di dalam folder `frontend/` untuk memicu build:
+
+* **Build APK Uji Coba (Siap Pasang/Install):**
+  ```bash
+  eas build --platform android --profile preview
+  ```
+* **Build Development Client (Untuk Debugging):**
+  ```bash
+  eas build --platform android --profile development
+  ```
+* **Build Latar Belakang (Tanpa Terminal Menunggu):**
+  ```bash
+  eas build --platform android --profile preview --no-wait
+  ```
+
+---
 
 ## 🐛 Troubleshooting
 

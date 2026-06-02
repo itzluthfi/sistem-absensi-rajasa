@@ -252,7 +252,7 @@ export default function AttendanceScreen() {
 
     setActiveSchedule(active || null);
 
-    if (active && active.active_session) {
+    if (active && active.active_session && active.class_id) {
       fetchSessionDetail(active.active_session.id);
       fetchClassStudents(active.class_id);
     } else {
@@ -264,38 +264,47 @@ export default function AttendanceScreen() {
   const fetchClassStudents = async (classId: number) => {
     try {
       const response = await studentsApi.getAll({ class_id: classId, all: true });
-      const studentsData = response.data ?? response ?? [];
+      // Handle both paginated and non-paginated responses
+      const studentsData = response.data?.data ?? response.data ?? response ?? [];
       setClassStudents(Array.isArray(studentsData) ? studentsData : []);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Gagal mengambil daftar siswa kelas", e);
+      toast.error("Gagal memuat daftar siswa. Silakan coba lagi.");
+      setClassStudents([]);
     }
   };
 
   // Combine class roster with actual attendance records for the active session
   const mappedAttendances = useMemo(() => {
     if (!classStudents.length) return [];
-    
+
+    // Filter out any malformed student entries (null id)
+    const validStudents = classStudents.filter((s) => s && typeof s.id !== 'undefined' && s.id !== null);
+
     const attendances = sessionDetail?.attendances ?? [];
-    const attMap: Record<number, any> = {};
+    const attMap: Record<string | number, any> = {};
     attendances.forEach((att: any) => {
-      attMap[att.student_id] = att;
+      if (att && att.student_id) {
+        attMap[att.student_id] = att;
+      }
     });
 
-    return classStudents.map((student) => {
-      const record = attMap[student.id];
+    return validStudents.map((student) => {
+      const record = attMap[student.id] ?? attMap[String(student.id)];
       return {
         id: record ? String(record.id) : `temp-${student.id}`,
         student_id: student.id,
         student: {
           id: student.id,
-          full_name: student.full_name,
+          full_name: student.full_name || 'Unknown Student',
           nis: student.nis || "-",
         },
         time: record?.time ?? null,
         status: record?.status ?? "belum_absen",
         late_minutes: record?.late_minutes ?? 0,
       };
-    }).sort((a, b) => a.student.full_name.localeCompare(b.student.full_name));
+    }).filter((item) => item.student.full_name !== 'Unknown Student')
+      .sort((a, b) => (a.student?.full_name || '').localeCompare(b.student?.full_name || ''));
   }, [classStudents, sessionDetail]);
 
   const fetchSessionDetail = async (sessionId: number) => {

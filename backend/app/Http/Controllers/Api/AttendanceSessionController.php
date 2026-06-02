@@ -270,7 +270,7 @@ class AttendanceSessionController extends BaseController
                 $teacherName = DB::table('teachers')->where('id', $schedule->teacher_id)->value('full_name') ?? 'Guru';
                 $requireQrMode = $request->input('require_qr', true);
                 $modeText = $requireQrMode ? 'Scan QR Code' : 'Klik Absen Mandiri';
-                $message = "\ud83d\udcda Presensi {$subjectName} telah dibuka oleh {$teacherName}. Mode: {$modeText}. Silakan absen sekarang!";
+                $message = "Presensi {$subjectName} telah dibuka oleh {$teacherName}. Mode: {$modeText}. Silakan absen sekarang!";
 
                 // Get all students in the class
                 $studentUserIds = DB::table('students')

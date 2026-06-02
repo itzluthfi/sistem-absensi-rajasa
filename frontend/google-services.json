@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "858166624692",
+    "project_id": "smk-rajasa",
+    "storage_bucket": "smk-rajasa.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:858166624692:android:f2f3ceb87537f9e9ca72e1",
+        "android_client_info": {
+          "package_name": "com.smksrajasa.absensi"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAlUUWVnmXEcdECcjgH2djKipYrbGIKpiM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
