@@ -15,6 +15,22 @@ class ValidateApiSignature
      */
     public function handle(Request $request, Closure $next): Response
     {
+        // Skip validation for public QR code endpoints (no auth required)
+        // Handle both /qr/* and /api/qr/* paths (depends on Laravel version)
+        $path = $request->path();
+        $normalizedPath = ltrim($path, '/');
+        if (
+            str_starts_with($normalizedPath, 'qr/') ||
+            str_starts_with($normalizedPath, 'api/qr') ||
+            $normalizedPath === 'qr' ||
+            $request->is('api/qr/*') ||
+            $request->is('qr/*') ||
+            $request->is('api/qr') ||
+            $request->is('qr')
+        ) {
+            return $next($request);
+        }
+
         // Allowed API client credentials mapping from .env with secure fallbacks
         $clientIdEnv = env('API_CLIENT_ID', 'smks-rajasa-app');
         $clientSecretEnv = env('API_CLIENT_SECRET', 'rajasa_secure_secret_key_2026');

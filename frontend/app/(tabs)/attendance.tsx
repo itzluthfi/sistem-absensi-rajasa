@@ -943,36 +943,96 @@ export default function AttendanceScreen() {
                       />
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.downloadQrButton}
-                      onPress={async () => {
-                        const url = `${API_BASE_URL}/qr/session?session_id=${activeSchedule.active_session!.id}&qr_token=${activeSchedule.active_session!.qr_token}`;
-                        
-                        if (Platform.OS === 'web') {
-                          try {
-                            const response = await fetch(url);
-                            const blob = await response.blob();
-                            const blobUrl = URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = blobUrl;
-                            link.download = `QR_Sesi_${activeSchedule?.subject?.subject_name ?? 'Absensi'}.png`;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(blobUrl);
-                            toast.success("QR Code berhasil diunduh.");
-                          } catch (err) {
-                            console.error("Failed to download QR code directly:", err);
+                    {/* Tombol Unduh & Perbesar QR Code */}
+                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                      {/* Tombol Unduh QR */}
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          paddingVertical: 10,
+                          paddingHorizontal: 14,
+                          borderRadius: 8,
+                          borderWidth: 1.5,
+                          borderColor: '#0284C7',
+                          backgroundColor: '#F0F9FF',
+                        }}
+                        onPress={async () => {
+                          const url = `${API_BASE_URL}/qr/session?session_id=${activeSchedule.active_session!.id}&qr_token=${activeSchedule.active_session!.qr_token}`;
+                          const fileName = `QR_${activeSchedule?.subject?.subject_name?.replace(/\s+/g, '_') ?? 'Absensi'}_${activeSchedule.active_session!.id}.png`;
+
+                          if (Platform.OS === 'web') {
+                            try {
+                              const response = await fetch(url);
+                              if (!response.ok) throw new Error('Gagal mengambil QR');
+                              const blob = await response.blob();
+                              const blobUrl = URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              link.download = fileName;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                              URL.revokeObjectURL(blobUrl);
+                              toast.success("QR Code berhasil diunduh!");
+                            } catch (err) {
+                              console.error("Download error:", err);
+                              toast.error("Gagal mengunduh QR. Coba lagi.");
+                            }
+                          } else {
+                            // Mobile: save to downloads
+                            try {
+                              const response = await fetch(url);
+                              const blob = await response.blob();
+                              const blobUrl = URL.createObjectURL(blob);
+                              const link = document.createElement('a');
+                              link.href = blobUrl;
+                              link.download = fileName;
+                              link.click();
+                              toast.success("QR Code berhasil diunduh!");
+                            } catch (err) {
+                              Linking.openURL(url);
+                            }
+                          }
+                        }}
+                      >
+                        <Ionicons name="download-outline" size={16} color="#0284C7" />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#0284C7' }}>Unduh QR</Text>
+                      </TouchableOpacity>
+
+                      {/* Tombol Perbesar QR */}
+                      <TouchableOpacity
+                        style={{
+                          flex: 1,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          paddingVertical: 10,
+                          paddingHorizontal: 14,
+                          borderRadius: 8,
+                          borderWidth: 1.5,
+                          borderColor: '#6B7280',
+                          backgroundColor: '#F9FAFB',
+                        }}
+                        onPress={() => {
+                          const url = `${API_BASE_URL}/qr/session?session_id=${activeSchedule.active_session!.id}&qr_token=${activeSchedule.active_session!.qr_token}`;
+                          // Open in new tab (web) or view in full screen
+                          if (Platform.OS === 'web') {
+                            window.open(url, '_blank');
+                          } else {
+                            // Mobile: open in full screen modal or share
                             Linking.openURL(url);
                           }
-                        } else {
-                          Linking.openURL(url);
-                        }
-                      }}
-                    >
-                      <Ionicons name="download-outline" size={16} color="#0284C7" />
-                      <Text style={styles.downloadQrText}>Unduh / Perbesar QR Code</Text>
-                    </TouchableOpacity>
+                        }}
+                      >
+                        <Ionicons name="expand-outline" size={16} color="#6B7280" />
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#6B7280' }}>Perbesar</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 )}
 
