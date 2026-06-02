@@ -41,7 +41,6 @@ class StudentsController extends BaseController
                     'students.created_at',
                     'students.updated_at',
                     'users.email as user_email',
-                    'users.username as user_username',
                     'classes.class_name as class_class_name',
                     'classes.academic_period_id as class_academic_period_id'
                 ]);
@@ -72,7 +71,6 @@ class StudentsController extends BaseController
                         'user' => $item->user_id ? [
                             'id' => $item->user_id,
                             'email' => $item->user_email,
-                            'username' => $item->user_username,
                         ] : null,
                         'class' => $item->class_id ? [
                             'id' => $item->class_id,
