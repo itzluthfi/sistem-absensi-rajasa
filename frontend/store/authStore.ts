@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
+import { Platform } from 'react-native';
 import { authApi, setAuthToken, setUserData, removeAuthToken, removeUserData } from '../services/api';
 import { initEcho, disconnectEcho } from '../services/echo';
 
@@ -78,10 +79,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await setAuthToken(token);
       await setUserData(userData);
 
-      try {
-        initEcho(token);
-      } catch (echoError) {
-        console.error('Failed to initialize Laravel Echo on login:', echoError);
+      if (Platform.OS === 'web') {
+        try {
+          initEcho(token);
+        } catch (echoError) {
+          console.error('Failed to initialize Laravel Echo on login:', echoError);
+        }
       }
 
       set({ user: userData, token, isLoading: false, isAuthenticated: true });
@@ -108,10 +111,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await setAuthToken(token);
       await setUserData(userData);
 
-      try {
-        initEcho(token);
-      } catch (echoError) {
-        console.error('Failed to initialize Laravel Echo on register:', echoError);
+      if (Platform.OS === 'web') {
+        try {
+          initEcho(token);
+        } catch (echoError) {
+          console.error('Failed to initialize Laravel Echo on register:', echoError);
+        }
       }
 
       set({ user: userData, token, isLoading: false, isAuthenticated: true });
@@ -133,10 +138,12 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     await removeAuthToken();
     await removeUserData();
 
-    try {
-      disconnectEcho();
-    } catch (echoError) {
-      console.error('Failed to disconnect Laravel Echo on logout:', echoError);
+    if (Platform.OS === 'web') {
+      try {
+        disconnectEcho();
+      } catch (echoError) {
+        console.error('Failed to disconnect Laravel Echo on logout:', echoError);
+      }
     }
 
     set({ user: null, token: null, isLoading: false, isAuthenticated: false });
@@ -162,20 +169,24 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             teacher_info: response.data.teacher_info,
           };
           await setUserData(user);
-          try {
-            initEcho(token);
-          } catch (echoError) {
-            console.error('Failed to initialize Laravel Echo on checkAuth (fresh):', echoError);
+          if (Platform.OS === 'web') {
+            try {
+              initEcho(token);
+            } catch (echoError) {
+              console.error('Failed to initialize Laravel Echo on checkAuth (fresh):', echoError);
+            }
           }
           set({ user, token, isLoading: false, isAuthenticated: true, isInitialized: true });
         } catch (apiError) {
           // If API fails, use stored user data
           if (storedUser) {
             const user = JSON.parse(storedUser);
-            try {
-              initEcho(token);
-            } catch (echoError) {
-              console.error('Failed to initialize Laravel Echo on checkAuth (stored):', echoError);
+            if (Platform.OS === 'web') {
+              try {
+                initEcho(token);
+              } catch (echoError) {
+                console.error('Failed to initialize Laravel Echo on checkAuth (stored):', echoError);
+              }
             }
             set({ user, token, isLoading: false, isAuthenticated: true, isInitialized: true });
           } else {

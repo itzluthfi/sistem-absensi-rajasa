@@ -63,6 +63,7 @@ export default function TabsLayout() {
 
   // Listen to Laravel Echo real-time notification events
   useEffect(() => {
+    if (Platform.OS !== 'web') return; // Only use Laravel Echo WebSockets on Web
     if (!user || !user.id) return;
 
     const echo = getEcho();
