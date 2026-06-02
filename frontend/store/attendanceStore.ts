@@ -54,6 +54,7 @@ export interface ScheduleRecord {
   day_name: string;
   start_time: string;
   end_time: string;
+  room?: string | null;
   active_session?: AttendanceSession | null;
   attendance_status?: AttendanceStatus | 'belum_absen';
   attendance_time?: string | null;

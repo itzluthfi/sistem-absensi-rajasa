@@ -34,6 +34,10 @@ Status: In progress
 - **State management**: Updated authStore and attendanceStore with full functionality
 
 ## Backend remaining work
+- [ ] 13. Verifikasi: Jalankan build ulang di EAS (eas build)
+- [x] 14. Backend: Tambah parameter class_id & all di StudentsController index
+- [x] 15. Frontend: Rancang modal detail analitik mapel responsif (tengah di web) & muat daftar lengkap siswa kelas
+- [x] 16. Frontend: Tampilkan badge status kehadiran real-time tiap siswa (Hadir/Telat/Belum Absen) di modal
 - [ ] Verify all API endpoints with Postman/tests
 - [ ] Test realtime broadcasting end-to-end (Redis + Echo server + queue)
 - [ ] Add more unit tests

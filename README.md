@@ -16,6 +16,7 @@ Sistem Absensi Digital berbasis mobile untuk **SMKS Rajasa Surabaya** - Aplikasi
 - [Struktur Database](#-struktur-database)
 - [Relasi Tabel](#-relasi-tabel)
 - [User & Role Uji Coba](#-user--role-uji-coba)
+- [Data Simulasi Seeder](#-data-simulasi-seeder)
 - [API Endpoints Baru](#-api-endpoints-baru)
 - [Instalasi](#-instalasi)
 
@@ -146,6 +147,56 @@ Gunakan kredensial berikut untuk melakukan pengujian lokal. Password untuk selur
 | `lilis@example.com` | **Ibu Lilis Suryani, S.Pd.** | `wali_kelas`, `guru` | Wali Kelas **X MP 1**. Mengajar banyak kelas & mengelola izin siswa kelas X MP 1. |
 | `siswa@example.com` | **Siswa Test Rajasa** | `siswa` | Siswa utama. Terdaftar di kelas **X TKJ 1** di bawah bimbingan Wali Kelas Ibu Rina. |
 | `siswa1@example.com` s.d. `siswa20@example.com` | **Siswa Rombel Mockup** | `siswa` | Siswa simulasi yang terdistribusi merata di berbagai kelas jurusan lainnya. |
+
+---
+
+## 📊 Data Simulasi Seeder
+
+Penyemaian database (*database seeding*) diatur agar menghasilkan data yang realistis dan komprehensif yang menirukan operasional riil sekolah **SMKS Rajasa Surabaya**. Berikut adalah struktur data hasil seeding (`php artisan db:seed`):
+
+### 1. Periode Akademik & Tahun Ajaran
+* **Tahun Ajaran 2025/2026 - Ganjil** (Aktif): Rentang tanggal `2025-07-01` s.d. `2025-12-31`.
+* **Tahun Ajaran 2025/2026 - Genap** (Tidak Aktif): Rentang tanggal `2026-01-01` s.d. `2026-06-30`.
+
+### 2. Rombel Kelas & Wali Kelas (19 Rombel)
+Setiap rombel kelas dipasangkan dengan 1 Wali Kelas unik secara sekuensial:
+* **AKL** (Akuntansi): `X AKL 1`, `XI AKL 1`, `XII AKL 1`
+* **MP** (Manajemen Perkantoran): `X MP 1`, `XI MP 1`, `XII MP 1`
+* **TITL** (Kelistrikan): `X TITL 1`, `XI TITL 1`, `XII TITL 1`
+* **TKRO** (Otomotif): `X TKRO 1`, `XI TKRO 1`, `XII TKRO 1`
+* **TKJ** (Jaringan): `X TKJ 1`, `X TKJ 2`, `XI TKJ 1`, `XII TKJ 1`
+* **TPM** (Pemesinan): `X TPM 1`, `XI TPM 1`, `XII TPM 1`
+
+### 3. Guru & Wali Kelas (25 Guru)
+* **6 Guru Pengajar Umum** (Role: `guru`): Mengajar lintas mata pelajaran.
+* **19 Guru Wali Kelas** (Role: `wali_kelas` & `guru`): Masing-masing ditugaskan mengelola satu kelas perwalian secara penuh.
+
+### 4. Distribusi Siswa (71 Siswa)
+* **1 Siswa Test Utama**: `siswa@example.com` (Siswa Test Rajasa) ditempatkan di kelas **X TKJ 1**.
+* **9 Siswa Mockup Pertama**: Sengaja dimasukkan ke kelas **X TKJ 1** untuk menjadikannya kelas uji coba padat (total 10 siswa aktif di kelas ini).
+* **61 Siswa Lainnya**: Didistribusikan secara merata menggunakan algoritma *round-robin* ke seluruh 19 rombel kelas kejuruan. Hal ini menjamin **setiap rombel kelas memiliki minimal 3 siswa terdaftar** untuk keperluan simulasi.
+
+### 5. Paket Mata Pelajaran (30 Pelajaran)
+Mata pelajaran dibagi menjadi materi umum (core) dan materi khusus kompetensi jurusan:
+* **6 Mata Pelajaran Umum (Core)**: Matematika Terapan, Bahasa Indonesia, Bahasa Inggris Komunikasi, Pendidikan Pancasila, Pendidikan Jasmani Olahraga & Kesehatan, Produk Kreatif dan Kewirausahaan.
+* **24 Mata Pelajaran Kejuruan (Disesuaikan Per Jurusan)**:
+  * *AKL*: Akuntansi Keuangan, Administrasi Perpajakan, Komputer Akuntansi (MYOB), Praktikum Akuntansi Jasa & Dagang.
+  * *MP*: Kearsipan Perkantoran, Otomatisasi Humas dan Keprotokolan, Otomatisasi Tata Kelola Keuangan, Otomatisasi Tata Kelola Kepegawaian.
+  * *TITL*: Instalasi Penerangan Listrik, Instalasi Tenaga Listrik, Instalasi Motor Listrik, Perbaikan Peralatan Listrik.
+  * *TKRO*: PMKR, Pemeliharaan Sasis & Drivetrain, Pemeliharaan Kelistrikan Otomotif, Teknologi Sasis Kendaraan Ringan.
+  * *TKJ*: Administrasi Infrastruktur Jaringan (AIJ), Administrasi Sistem Jaringan (ASJ), Teknologi Layanan Jaringan (TLJ), Keamanan Jaringan Komputer.
+  * *TPM*: Teknik Gambar Manufaktur, Teknik Pemesinan Bubut, Teknik Pemesinan Frais, Teknik Pemesinan CNC.
+
+### 6. Jadwal Pelajaran Mingguan (361 Jadwal / Bebas Bentrok)
+* **Hari Sekolah**: Senin s.d. Jumat.
+* **Slot Jam Pelajaran Harian**:
+  * Slot 1: `07:00:00 - 08:30:00`
+  * Slot 2: `08:30:00 - 10:00:00`
+  * Slot 3: `10:30:00 - 12:00:00` (Jumat selesai pukul `11:30:00`)
+  * Slot 4 (Senin - Kamis): `13:00:00 - 14:30:00`
+* **Penjagaan Bebas Bentrok (Anti-Collision)**:
+  * *Kelas Siswa*: Hanya dapat menerima maksimal 1 mata pelajaran per slot waktu.
+  * *Guru Pengajar*: Algoritma penyusun jadwal secara dinamis menyaring guru yang berstatus bebas (*free*) pada slot terkait. Guru dengan beban kerja tersedikit diprioritaskan. Di dalam database hasil seeder, dijamin **100% tidak ada guru yang mengajar 2 kelas berbeda di hari dan jam yang sama**.
 
 ---
 

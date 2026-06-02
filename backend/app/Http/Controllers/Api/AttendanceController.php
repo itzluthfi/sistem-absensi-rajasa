@@ -83,6 +83,7 @@ class AttendanceController extends BaseController
                     'device_info' => $item->device_info,
                     'notes' => $item->notes,
                     'location' => $item->location ? json_decode($item->location, true) : null,
+                    'checkout_time' => $item->checkout_time,
                     'created_at' => $item->created_at,
                     'updated_at' => $item->updated_at,
                     'student' => $item->student_id ? [
@@ -152,6 +153,7 @@ class AttendanceController extends BaseController
                 'device_info' => $item->device_info,
                 'notes' => $item->notes,
                 'location' => $item->location ? json_decode($item->location, true) : null,
+                'checkout_time' => $item->checkout_time,
                 'created_at' => $item->created_at,
                 'updated_at' => $item->updated_at,
                 'student' => $item->student_id ? [

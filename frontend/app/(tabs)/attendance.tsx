@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "expo-router";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import {
   ActivityIndicator,
   Alert,
@@ -23,7 +23,7 @@ import {
   type ScheduleRecord,
   type AttendanceRecord,
 } from "../../store/attendanceStore";
-import { attendanceApi, attendanceSessionsApi } from "../../services/api";
+import { attendanceApi, attendanceSessionsApi, studentsApi, API_BASE_URL } from "../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FuturisticLoader from "../../components/ui/FuturisticLoader";
 import ShimmerButton from "../../components/ui/ShimmerButton";
@@ -34,6 +34,8 @@ import { Platform } from "react-native";
 export default function AttendanceScreen() {
   const { user } = useAuthStore();
   const router = useRouter();
+  const { schedule_id } = useLocalSearchParams();
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
   const toast = useToast();
   const {
     todaySchedules,
@@ -156,6 +158,7 @@ export default function AttendanceScreen() {
     null,
   );
   const [sessionDetail, setSessionDetail] = useState<any>(null);
+  const [classStudents, setClassStudents] = useState<any[]>([]);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
 
   // Scan Mode
@@ -226,20 +229,74 @@ export default function AttendanceScreen() {
       setScanMode("none");
       setScanned(false);
       setStudentOpsi("menu");
+      setSelectedScheduleId(null);
     }, [])
   );
 
 
   // Sync the active schedule from todaySchedules
   useEffect(() => {
-    const active = todaySchedules.find((s) => !!s.active_session);
+    let active: ScheduleRecord | undefined;
+
+    if (selectedScheduleId !== null) {
+      active = todaySchedules.find((s) => s.id === selectedScheduleId);
+    } else if (schedule_id) {
+      const targetId = Number(schedule_id);
+      active = todaySchedules.find((s) => s.id === targetId);
+    } else {
+      const activeSchedules = todaySchedules.filter((s) => !!s.active_session);
+      if (activeSchedules.length === 1) {
+        active = activeSchedules[0];
+      }
+    }
+
     setActiveSchedule(active || null);
+
     if (active && active.active_session) {
       fetchSessionDetail(active.active_session.id);
+      fetchClassStudents(active.class_id);
     } else {
       setSessionDetail(null);
+      setClassStudents([]);
     }
-  }, [todaySchedules]);
+  }, [todaySchedules, schedule_id, selectedScheduleId]);
+
+  const fetchClassStudents = async (classId: number) => {
+    try {
+      const response = await studentsApi.getAll({ class_id: classId, all: true });
+      const studentsData = response.data ?? response ?? [];
+      setClassStudents(Array.isArray(studentsData) ? studentsData : []);
+    } catch (e) {
+      console.error("Gagal mengambil daftar siswa kelas", e);
+    }
+  };
+
+  // Combine class roster with actual attendance records for the active session
+  const mappedAttendances = useMemo(() => {
+    if (!classStudents.length) return [];
+    
+    const attendances = sessionDetail?.attendances ?? [];
+    const attMap: Record<number, any> = {};
+    attendances.forEach((att: any) => {
+      attMap[att.student_id] = att;
+    });
+
+    return classStudents.map((student) => {
+      const record = attMap[student.id];
+      return {
+        id: record ? String(record.id) : `temp-${student.id}`,
+        student_id: student.id,
+        student: {
+          id: student.id,
+          full_name: student.full_name,
+          nis: student.nis || "-",
+        },
+        time: record?.time ?? null,
+        status: record?.status ?? "belum_absen",
+        late_minutes: record?.late_minutes ?? 0,
+      };
+    }).sort((a, b) => a.student.full_name.localeCompare(b.student.full_name));
+  }, [classStudents, sessionDetail]);
 
   const fetchSessionDetail = async (sessionId: number) => {
     try {
@@ -427,7 +484,7 @@ export default function AttendanceScreen() {
     const subjectName = activeSchedule?.subject?.subject_name || "Kelas";
     const res = await closeAttendanceSession(activeSchedule!.active_session!.id);
     if (res.success) {
-      toast.success(`🔒 Sesi presensi ${subjectName} berhasil ditutup.`);
+      toast.success(` Sesi presensi ${subjectName} berhasil ditutup.`);
       if (autoCloseTimer) { clearTimeout(autoCloseTimer); setAutoCloseTimer(null); }
       setAutoCloseAt(null);
       loadActiveSession();
@@ -459,7 +516,7 @@ export default function AttendanceScreen() {
     const timer = setTimeout(async () => {
       const res = await closeAttendanceSession(sessionId);
       if (res.success) {
-        toast.success(`🔒 Sesi presensi ${subjectName} otomatis ditutup pada ${schedHour}:${schedMinute}.`);
+        toast.success(`Sesi presensi ${subjectName} otomatis ditutup pada ${schedHour}:${schedMinute}.`);
         setAutoCloseAt(null);
         setAutoCloseTimer(null);
         loadActiveSession();
@@ -571,6 +628,32 @@ export default function AttendanceScreen() {
           <ScrollView
             contentContainerStyle={[styles.scrollContent, { paddingBottom }]}
           >
+            {todaySchedules.filter((s) => !!s.active_session).length > 1 && (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: '#fff',
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  marginBottom: 12,
+                  alignSelf: 'flex-start',
+                }}
+                onPress={() => {
+                  setSelectedScheduleId(null);
+                  setActiveSchedule(null);
+                }}
+              >
+                <Ionicons name="arrow-back" size={16} color="#475569" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>
+                  Kembali ke Daftar Sesi
+                </Text>
+              </TouchableOpacity>
+            )}
             <View style={styles.sessionStatusCard}>
               <View style={styles.pulseIndicator}>
                 <View style={styles.pulseCircle} />
@@ -729,6 +812,32 @@ export default function AttendanceScreen() {
           <ScrollView
             contentContainerStyle={[styles.scrollContent, { paddingBottom }]}
           >
+            {todaySchedules.filter((s) => !!s.active_session).length > 1 && (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: '#fff',
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                  paddingHorizontal: 12,
+                  paddingVertical: 8,
+                  borderRadius: 10,
+                  marginBottom: 12,
+                  alignSelf: 'flex-start',
+                }}
+                onPress={() => {
+                  setSelectedScheduleId(null);
+                  setActiveSchedule(null);
+                }}
+              >
+                <Ionicons name="arrow-back" size={16} color="#475569" />
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569' }}>
+                  Kembali ke Daftar Sesi
+                </Text>
+              </TouchableOpacity>
+            )}
             <View style={styles.teacherHeaderContainer}>
               {/* Session Summary Card */}
               <View style={styles.sessionStatusCard}>
@@ -819,12 +928,7 @@ export default function AttendanceScreen() {
                     <View style={styles.teacherQrWrapper}>
                       <Image
                         source={{
-                          uri: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
-                            JSON.stringify({
-                              session_id: activeSchedule.active_session!.id,
-                              qr_token: activeSchedule.active_session!.qr_token,
-                            }),
-                          )}`,
+                          uri: `${API_BASE_URL}/qr/session?session_id=${activeSchedule.active_session!.id}&qr_token=${activeSchedule.active_session!.qr_token}`,
                         }}
                         style={styles.qrImage}
                       />
@@ -832,14 +936,29 @@ export default function AttendanceScreen() {
 
                     <TouchableOpacity
                       style={styles.downloadQrButton}
-                      onPress={() => {
-                        const qrData = encodeURIComponent(
-                          JSON.stringify({
-                            session_id: activeSchedule.active_session!.id,
-                            qr_token: activeSchedule.active_session!.qr_token,
-                          }),
-                        );
-                        Linking.openURL(`https://api.qrserver.com/v1/create-qr-code/?size=500x500&data=${qrData}`);
+                      onPress={async () => {
+                        const url = `${API_BASE_URL}/qr/session?session_id=${activeSchedule.active_session!.id}&qr_token=${activeSchedule.active_session!.qr_token}`;
+                        
+                        if (Platform.OS === 'web') {
+                          try {
+                            const response = await fetch(url);
+                            const blob = await response.blob();
+                            const blobUrl = URL.createObjectURL(blob);
+                            const link = document.createElement('a');
+                            link.href = blobUrl;
+                            link.download = `QR_Sesi_${activeSchedule?.subject?.subject_name ?? 'Absensi'}.png`;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(blobUrl);
+                            toast.success("QR Code berhasil diunduh.");
+                          } catch (err) {
+                            console.error("Failed to download QR code directly:", err);
+                            Linking.openURL(url);
+                          }
+                        } else {
+                          Linking.openURL(url);
+                        }
                       }}
                     >
                       <Ionicons name="download-outline" size={16} color="#0284C7" />
@@ -907,7 +1026,7 @@ export default function AttendanceScreen() {
               {/* Present Students List Header */}
               <View style={styles.studentsListHeader}>
                 <Text style={styles.listTitle}>
-                  Siswa Hadir ({sessionDetail?.attendances?.length ?? 0} Orang)
+                  Siswa ({mappedAttendances.filter((a: any) => a.status !== 'belum_absen' && a.status !== 'ditolak').length} Hadir / {classStudents.length} Total)
                 </Text>
                 <TouchableOpacity
                   style={styles.refreshListBtn}
@@ -919,18 +1038,17 @@ export default function AttendanceScreen() {
               </View>
 
               {/* Students list */}
-              {(sessionDetail?.attendances ?? []).length === 0 ? (
+              {mappedAttendances.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Ionicons name="people-outline" size={48} color="#1E3A8A" />
-                  <Text style={styles.emptyTitle}>Belum ada siswa yang hadir</Text>
+                  <Text style={styles.emptyTitle}>Belum ada siswa</Text>
                   <Text style={styles.emptyText}>
-                    Siswa dapat melakukan scan QR Sesi Anda atau menunjukkan QR
-                    personal mereka untuk Anda scan.
+                    Tidak ada siswa terdaftar di kelas untuk mata pelajaran ini.
                   </Text>
                 </View>
               ) : (
-                (sessionDetail?.attendances ?? []).map((item: AttendanceRecord) => (
-                  <View key={String(item.id)} style={styles.attendanceListItem}>
+                mappedAttendances.map((item: any) => (
+                  <View key={item.id} style={styles.attendanceListItem}>
                     <View style={styles.studentProfileCircle}>
                       <Text style={styles.profileInitials}>
                         {item.student?.full_name?.charAt(0).toUpperCase() || "S"}
@@ -941,7 +1059,7 @@ export default function AttendanceScreen() {
                         {item.student?.full_name || "Siswa"}
                       </Text>
                       <Text style={styles.studentListNis}>
-                        NIS: {item.student?.nis || ""} • Jam: {item.time?.substring(0, 5)}
+                        NIS: {item.student?.nis || ""} {item.time ? `• Jam: ${item.time.substring(0, 5)}` : ""}
                       </Text>
                     </View>
                     <View
@@ -951,6 +1069,7 @@ export default function AttendanceScreen() {
                           backgroundColor:
                             item.status === "hadir" ? "#E6F4EA"
                             : item.status === "ditolak" ? "#FEE2E2"
+                            : item.status === "belum_absen" ? "#F3F4F6"
                             : "#FEF3C7",
                         },
                       ]}
@@ -962,16 +1081,18 @@ export default function AttendanceScreen() {
                             color:
                               item.status === "hadir" ? "#10B981"
                               : item.status === "ditolak" ? "#EF4444"
+                              : item.status === "belum_absen" ? "#6B7280"
                               : "#F59E0B",
                           },
                         ]}
                       >
                         {item.status === "hadir" ? "Hadir"
                           : item.status === "ditolak" ? "Ditolak"
+                          : item.status === "belum_absen" ? "Belum Absen"
                           : `Telat (${item.late_minutes}m)`}
                       </Text>
                     </View>
-                    {item.status !== "ditolak" && (
+                    {item.status !== "ditolak" && item.status !== "belum_absen" && (
                       <TouchableOpacity
                         style={{
                           marginLeft: 8,
@@ -980,7 +1101,7 @@ export default function AttendanceScreen() {
                           borderRadius: 8,
                           alignSelf: "center",
                         }}
-                        onPress={() => handleRejectAttendance(item.id, item.student?.full_name)}
+                        onPress={() => handleRejectAttendance(Number(item.id), item.student?.full_name)}
                       >
                         <Ionicons name="trash-outline" size={14} color="#EF4444" />
                       </TouchableOpacity>
@@ -991,6 +1112,71 @@ export default function AttendanceScreen() {
             </View>
           </ScrollView>
         )
+      ) : todaySchedules.filter((s) => !!s.active_session).length > 1 ? (
+        // MULTIPLE ACTIVE SESSIONS SELECTION SCREEN
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom }]}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+            <View style={{ backgroundColor: '#EFF6FF', borderRadius: 12, padding: 12, marginBottom: 16, flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <Ionicons name="information-circle" size={20} color="#2563EB" />
+              <Text style={{ flex: 1, color: '#1E40AF', fontSize: 13, lineHeight: 18 }}>
+                Ada beberapa sesi presensi kelas Anda yang sedang aktif hari ini. Silakan pilih salah satu untuk masuk:
+              </Text>
+            </View>
+
+            {todaySchedules.filter((s) => !!s.active_session).map((schedule) => (
+              <TouchableOpacity
+                key={schedule.id}
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: 16,
+                  padding: 16,
+                  marginBottom: 12,
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0',
+                  shadowColor: '#0F172A',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.05,
+                  shadowRadius: 8,
+                  elevation: 2,
+                }}
+                onPress={() => setSelectedScheduleId(schedule.id)}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <View style={{ backgroundColor: '#DBEAFE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
+                    <Text style={{ color: '#2563EB', fontSize: 11, fontWeight: '700' }}>
+                      {schedule.class?.class_name || 'Kelas'}
+                    </Text>
+                  </View>
+                  <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '500' }}>
+                    Room: {schedule.room}
+                  </Text>
+                </View>
+
+                <Text style={{ fontSize: 16, fontWeight: '800', color: '#0F172A', marginBottom: 4 }}>
+                  {schedule.subject?.subject_name}
+                </Text>
+                
+                <Text style={{ fontSize: 13, color: '#475569', marginBottom: 12 }}>
+                  Guru: {schedule.teacher?.full_name}
+                </Text>
+
+                <View style={{ borderTopWidth: 1, borderTopColor: '#F1F5F9', paddingTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="time-outline" size={14} color="#64748B" />
+                    <Text style={{ fontSize: 12, color: '#64748B' }}>
+                      {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                    </Text>
+                  </View>
+                  
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Text style={{ fontSize: 12, color: '#2563EB', fontWeight: '700' }}>Pilih Sesi</Text>
+                    <Ionicons name="arrow-forward" size={14} color="#2563EB" />
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       ) : (
         // NO ACTIVE SESSIONS FOUND FOR TODAY
         <View style={[styles.emptyState, { paddingBottom }]}>

@@ -22,7 +22,7 @@ import {
   useAttendanceStore,
   type ScheduleRecord,
 } from "../../store/attendanceStore";
-import { attendanceApi, schedulesApi, leaveRequestsApi } from "../../services/api";
+import { attendanceApi, schedulesApi, leaveRequestsApi, studentsApi } from "../../services/api";
 import { formatRoleLabel } from "../../src/hooks/use-role-access";
 import { getDashboardConfig } from "../../src/constants/dashboard-config";
 import { useWindowDimensions } from "react-native";
@@ -178,6 +178,7 @@ export default function HomeScreen() {
   // Subject card attendance detail states
   const [selectedSubjectSchedule, setSelectedSubjectSchedule] = useState<ScheduleRecord | null>(null);
   const [subjectAttendanceHistory, setSubjectAttendanceHistory] = useState<any[]>([]);
+  const [classStudents, setClassStudents] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [modalTab, setModalTab] = useState<"sessions" | "students">("sessions");
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
@@ -194,11 +195,20 @@ export default function HomeScreen() {
   const handleSubjectCardClick = async (schedule: ScheduleRecord) => {
     setSelectedSubjectSchedule(schedule);
     setLoadingHistory(true);
+    setClassStudents([]);
     try {
       const response = await attendanceApi.getAll({ schedule_id: schedule.id });
       const records = response.data?.data ?? response.data ?? [];
       const historyList = Array.isArray(records) ? records : [];
       setSubjectAttendanceHistory(historyList);
+
+      try {
+        const studentsResp = await studentsApi.getAll({ class_id: schedule.class_id, all: true });
+        const studentsData = studentsResp.data ?? studentsResp ?? [];
+        setClassStudents(Array.isArray(studentsData) ? studentsData : []);
+      } catch (studentsErr) {
+        console.error("Failed to load class students:", studentsErr);
+      }
 
       // Calculate stats
       let hadir = 0, telat = 0, izin = 0, sakit = 0, alpha = 0;
@@ -605,10 +615,10 @@ export default function HomeScreen() {
       
       const result = await openAttendanceSession(scheduleId, requireQr);
       if (result.success) {
-        toast.success(`✅ Presensi ${subjectName} berhasil dibuka! Siswa sudah bisa absen.`);
+        toast.success(`Presensi ${subjectName} berhasil dibuka! Siswa sudah bisa absen.`);
         await fetchTodaySchedulesWithParams();
         // Selalu navigate ke halaman presensi (baik mode QR maupun klik mandiri)
-        router.push("/(tabs)/attendance" as never);
+        router.push({ pathname: "/(tabs)/attendance", params: { schedule_id: scheduleId } } as any);
       } else {
         toast.error(result.message || "Gagal membuka presensi.");
       }
@@ -733,7 +743,7 @@ export default function HomeScreen() {
   const handleClosePresensi = async (sessionId: number, subjectName?: string) => {
     const result = await closeAttendanceSession(sessionId);
     if (result.success) {
-      toast.success(`🔒 Sesi presensi ${subjectName || ""} berhasil ditutup.`);
+      toast.success(`Sesi presensi ${subjectName || ""} berhasil ditutup.`);
       fetchTodaySchedulesWithParams();
     } else {
       toast.error(result.message || "Gagal menutup sesi.");
@@ -797,16 +807,28 @@ export default function HomeScreen() {
         .sort((a, b) => b.date.localeCompare(a.date));
     })();
 
-    // 2. Grouped by Student
+    // 2. Grouped by Student (Based on class roster)
     const studentSummaries = (() => {
       if (isSiswa) return [];
-      const groups: Record<number, { studentId: number; name: string; nis: string; attendances: any[]; stats: { total: number; hadir: number; telat: number; izin: number; sakit: number; alpha: number; percentage: number } }> = {};
+      
+      const studentMap: Record<number, { studentId: number; name: string; nis: string; attendances: any[]; stats: { total: number; hadir: number; telat: number; izin: number; sakit: number; alpha: number; percentage: number } }> = {};
+      
+      classStudents.forEach((student) => {
+        studentMap[student.id] = {
+          studentId: student.id,
+          name: student.full_name,
+          nis: student.nis || "-",
+          attendances: [],
+          stats: { total: 0, hadir: 0, telat: 0, izin: 0, sakit: 0, alpha: 0, percentage: 0 }
+        };
+      });
 
       subjectAttendanceHistory.forEach((att) => {
         if (!att.student) return;
         const sId = att.student.id;
-        if (!groups[sId]) {
-          groups[sId] = {
+        
+        if (!studentMap[sId]) {
+          studentMap[sId] = {
             studentId: sId,
             name: att.student.full_name,
             nis: att.student.nis || "-",
@@ -814,17 +836,18 @@ export default function HomeScreen() {
             stats: { total: 0, hadir: 0, telat: 0, izin: 0, sakit: 0, alpha: 0, percentage: 0 }
           };
         }
-        groups[sId].attendances.push(att);
+        
+        studentMap[sId].attendances.push(att);
         const s = String(att.status).toLowerCase();
-        groups[sId].stats.total++;
-        if (s === "hadir") groups[sId].stats.hadir++;
-        else if (s === "telat") groups[sId].stats.telat++;
-        else if (s === "izin") groups[sId].stats.izin++;
-        else if (s === "sakit") groups[sId].stats.sakit++;
-        else if (s === "alpha") groups[sId].stats.alpha++;
+        studentMap[sId].stats.total++;
+        if (s === "hadir") studentMap[sId].stats.hadir++;
+        else if (s === "telat") studentMap[sId].stats.telat++;
+        else if (s === "izin") studentMap[sId].stats.izin++;
+        else if (s === "sakit") studentMap[sId].stats.sakit++;
+        else if (s === "alpha") studentMap[sId].stats.alpha++;
       });
 
-      return Object.values(groups)
+      return Object.values(studentMap)
         .map((g) => {
           const presentCount = g.stats.hadir + g.stats.telat;
           g.stats.percentage = g.stats.total > 0 ? Math.round((presentCount / g.stats.total) * 100) : 0;
@@ -1011,10 +1034,20 @@ export default function HomeScreen() {
 
               {loadingHistory ? (
                 <ActivityIndicator color="#3B82F6" style={{ marginVertical: 32 }} />
-              ) : subjectAttendanceHistory.length === 0 ? (
+              ) : isSiswa && subjectAttendanceHistory.length === 0 ? (
                 <View style={styles.emptyHistoryState}>
                   <Ionicons name="calendar-outline" size={36} color="#9CA3AF" />
                   <Text style={styles.emptyHistoryText}>Belum ada riwayat absensi kelas untuk mapel ini.</Text>
+                </View>
+              ) : !isSiswa && modalTab === "sessions" && sessions.length === 0 ? (
+                <View style={styles.emptyHistoryState}>
+                  <Ionicons name="calendar-outline" size={36} color="#9CA3AF" />
+                  <Text style={styles.emptyHistoryText}>Belum ada riwayat pertemuan sesi untuk kelas ini.</Text>
+                </View>
+              ) : !isSiswa && modalTab === "students" && studentSummaries.length === 0 ? (
+                <View style={styles.emptyHistoryState}>
+                  <Ionicons name="people-outline" size={36} color="#9CA3AF" />
+                  <Text style={styles.emptyHistoryText}>Tidak ada data siswa terdaftar di kelas ini.</Text>
                 </View>
               ) : isSiswa ? (
                 /* Siswa Individual List */
@@ -1130,6 +1163,30 @@ export default function HomeScreen() {
                     const presentCount = stud.stats.hadir + stud.stats.telat;
                     const ringColor = stud.stats.percentage >= 85 ? "#10B981" : stud.stats.percentage >= 60 ? "#F59E0B" : "#EF4444";
 
+                    // Determine latest or active session status
+                    const latestAtt = stud.attendances && stud.attendances.length > 0 
+                      ? [...stud.attendances].sort((a: any, b: any) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time))[0] 
+                      : null;
+
+                    let statusBadgeText = "";
+                    let statusBadgeColor = "#9CA3AF";
+                    
+                    if (latestAtt) {
+                      const dateStr = latestAtt.date;
+                      const isTodayRecord = dateStr === todayDateStr;
+                      
+                      statusBadgeText = isTodayRecord 
+                        ? getStatusLabel(latestAtt.status) 
+                        : `${getStatusLabel(latestAtt.status)} (${new Date(dateStr).toLocaleDateString("id-ID", { day: 'numeric', month: 'short' })})`;
+                      statusBadgeColor = getStatusColor(latestAtt.status);
+                    } else if (selectedSubjectSchedule?.active_session) {
+                      statusBadgeText = "Belum Absen";
+                      statusBadgeColor = "#EF4444";
+                    } else {
+                      statusBadgeText = "Belum Absen";
+                      statusBadgeColor = "#9CA3AF";
+                    }
+
                     return (
                       <View key={stud.studentId} style={styles.studentSummaryRow}>
                         <View style={styles.sessionStudentAvatar}>
@@ -1137,9 +1194,16 @@ export default function HomeScreen() {
                         </View>
                         <View style={{ flex: 1, gap: 4 }}>
                           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                            <Text style={styles.sessionStudentName} numberOfLines={1}>
-                              {stud.name}
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, marginRight: 8 }}>
+                              <Text style={[styles.sessionStudentName, { flexShrink: 1 }]} numberOfLines={1}>
+                                {stud.name}
+                              </Text>
+                              <View style={{ backgroundColor: `${statusBadgeColor}14`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                <Text style={{ color: statusBadgeColor, fontSize: 9, fontWeight: "800" }}>
+                                  {statusBadgeText.toUpperCase()}
+                                </Text>
+                              </View>
+                            </View>
                             <Text style={{ fontSize: 12, fontWeight: "800", color: ringColor }}>
                               {stud.stats.percentage}%
                             </Text>
@@ -1285,7 +1349,7 @@ export default function HomeScreen() {
                       : { flex: 2 }
                   ]}
                   onPress={() =>
-                    router.push("/(tabs)/attendance" as never)
+                    router.push({ pathname: "/(tabs)/attendance", params: { schedule_id: schedule.id } } as any)
                   }
                 >
                   <Ionicons
@@ -1341,7 +1405,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               style={styles.studentAbsenButton}
               onPress={() =>
-                router.push("/(tabs)/attendance" as never)
+                router.push({ pathname: "/(tabs)/attendance", params: { schedule_id: schedule.id } } as any)
               }
             >
               <Ionicons
@@ -2516,13 +2580,27 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
+    justifyContent: Platform.OS === "web" ? "center" : "flex-end",
+    alignItems: Platform.OS === "web" ? "center" : "stretch",
   },
   modalContent: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: "88%",
+    maxHeight: "90%",
+    ...(Platform.OS === "web"
+      ? {
+          borderRadius: 16,
+          width: "90%",
+          maxWidth: 900,
+          maxHeight: "85%",
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.25,
+          shadowRadius: 15,
+          elevation: 10,
+        }
+      : {}),
   },
   modalHeader: {
     padding: 16,

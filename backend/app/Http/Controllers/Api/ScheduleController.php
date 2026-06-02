@@ -316,6 +316,43 @@ class ScheduleController extends BaseController
                 'room' => 'nullable|string|max:100',
             ]);
 
+            $classId = $validated['class_id'];
+            $teacherId = $validated['teacher_id'];
+            $dayName = $validated['day_name'];
+            $startTime = $validated['start_time'];
+            $endTime = $validated['end_time'];
+
+            // Check class overlap
+            $classConflict = DB::table('schedules')
+                ->where('day_name', $dayName)
+                ->where('class_id', $classId)
+                ->where(function ($q) use ($startTime, $endTime) {
+                    $q->where('start_time', '<', $endTime)
+                      ->where('end_time', '>', $startTime);
+                })
+                ->exists();
+
+            if ($classConflict) {
+                return $this->sendError('Jadwal bentrok: Kelas ini sudah memiliki jadwal lain pada jam tersebut.', [], 422);
+            }
+
+            // Check teacher overlap
+            $teacherConflict = DB::table('schedules')
+                ->where('day_name', $dayName)
+                ->where('teacher_id', $teacherId)
+                ->where(function ($q) use ($startTime, $endTime) {
+                    $q->where('start_time', '<', $endTime)
+                      ->where('end_time', '>', $startTime);
+                })
+                ->exists();
+
+            if ($teacherConflict) {
+                return $this->sendError('Jadwal bentrok: Guru ini sudah memiliki jadwal mengajar lain pada jam tersebut.', [], 422);
+            }
+
+            $activePeriod = DB::table('academic_periods')->where('is_active', true)->first();
+            $validated['academic_period_id'] = $activePeriod ? $activePeriod->id : null;
+
             $now = now()->toDateTimeString();
             $validated['created_at'] = $now;
             $validated['updated_at'] = $now;
@@ -397,6 +434,11 @@ class ScheduleController extends BaseController
     public function update(Request $request, $id)
     {
         try {
+            $current = DB::table('schedules')->where('id', $id)->first();
+            if (!$current) {
+                return $this->sendError('Jadwal tidak ditemukan.', [], 404);
+            }
+
             $validated = $request->validate([
                 'subject_id' => 'sometimes|required|exists:subjects,id',
                 'class_id' => 'sometimes|required|exists:classes,id',
@@ -406,6 +448,42 @@ class ScheduleController extends BaseController
                 'end_time' => 'sometimes|required|date_format:H:i|after:start_time',
                 'room' => 'nullable|string|max:100',
             ]);
+
+            $classId = $validated['class_id'] ?? $current->class_id;
+            $teacherId = $validated['teacher_id'] ?? $current->teacher_id;
+            $dayName = $validated['day_name'] ?? $current->day_name;
+            $startTime = $validated['start_time'] ?? $current->start_time;
+            $endTime = $validated['end_time'] ?? $current->end_time;
+
+            // Check class overlap
+            $classConflict = DB::table('schedules')
+                ->where('day_name', $dayName)
+                ->where('class_id', $classId)
+                ->where('id', '!=', $id)
+                ->where(function ($q) use ($startTime, $endTime) {
+                    $q->where('start_time', '<', $endTime)
+                      ->where('end_time', '>', $startTime);
+                })
+                ->exists();
+
+            if ($classConflict) {
+                return $this->sendError('Jadwal bentrok: Kelas ini sudah memiliki jadwal lain pada jam tersebut.', [], 422);
+            }
+
+            // Check teacher overlap
+            $teacherConflict = DB::table('schedules')
+                ->where('day_name', $dayName)
+                ->where('teacher_id', $teacherId)
+                ->where('id', '!=', $id)
+                ->where(function ($q) use ($startTime, $endTime) {
+                    $q->where('start_time', '<', $endTime)
+                      ->where('end_time', '>', $startTime);
+                })
+                ->exists();
+
+            if ($teacherConflict) {
+                return $this->sendError('Jadwal bentrok: Guru ini sudah memiliki jadwal mengajar lain pada jam tersebut.', [], 422);
+            }
 
             $validated['updated_at'] = now()->toDateTimeString();
 

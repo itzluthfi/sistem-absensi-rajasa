@@ -27,7 +27,39 @@ class StudentsController extends BaseController
                 $query->where('classes.academic_period_id', $request->query('academic_period_id'));
             }
 
-            $students = $query->paginate(15);
+            if ($request->has('class_id')) {
+                $query->where('students.class_id', $request->query('class_id'));
+            }
+
+            if ($request->boolean('all')) {
+                $students = $query->orderBy('students.full_name', 'asc')->get();
+                $formatted = $students->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'user_id' => $item->user_id,
+                        'class_id' => $item->class_id,
+                        'full_name' => $item->full_name,
+                        'nisn' => $item->nisn,
+                        'nis' => $item->nis,
+                        'created_at' => $item->created_at,
+                        'updated_at' => $item->updated_at,
+                        'user' => $item->user_id ? [
+                            'id' => $item->user_id,
+                            'email' => $item->user_email,
+                            'username' => $item->user_username,
+                        ] : null,
+                        'class' => $item->class_id ? [
+                            'id' => $item->class_id,
+                            'class_name' => $item->class_class_name,
+                            'academic_period_id' => $item->class_academic_period_id,
+                        ] : null
+                    ];
+                });
+                return $this->sendResponse($formatted);
+            }
+
+            $perPage = $request->input('per_page', 15);
+            $students = $query->paginate($perPage);
 
             // Restructure standard flat results to nested JSON arrays for Expo compatibility
             $students->getCollection()->transform(function ($item) {
