@@ -683,7 +683,25 @@ export default function AttendanceScreen() {
               </Text>
             </View>
 
-            {activeSchedule.active_session?.require_qr === false ? (
+            {activeSchedule.attendance_status && activeSchedule.attendance_status !== "belum_absen" ? (
+              <View style={[styles.selfClickCard, { borderColor: "#10B981", backgroundColor: "#ECFDF5", borderWidth: 1.5 }]}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={54}
+                  color="#10B981"
+                  style={{ marginBottom: 12 }}
+                />
+                <Text style={[styles.selfClickTitle, { color: "#065F46" }]}>Presensi Terverifikasi</Text>
+                <Text style={{ fontSize: 13, color: "#047857", textAlign: "center", lineHeight: 18, marginBottom: 16 }}>
+                  Anda sudah berhasil melakukan absensi untuk sesi pelajaran ini.
+                </Text>
+                <View style={{ backgroundColor: "#D1FAE5", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8 }}>
+                  <Text style={{ color: "#065F46", fontWeight: "800", fontSize: 14 }}>
+                    STATUS: {activeSchedule.attendance_status.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+            ) : activeSchedule.active_session?.require_qr === false ? (
               <View style={styles.selfClickCard}>
                 <Ionicons
                   name="finger-print"

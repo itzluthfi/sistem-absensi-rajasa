@@ -20,10 +20,10 @@ class AttendanceSessionController extends BaseController
     private function getSessionWithRelations($sessionId)
     {
         $sess = DB::table('attendance_sessions as ats')
-            ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
-            ->join('subjects as sub', 'sc.subject_id', '=', 'sub.id')
-            ->join('classes as cl', 'sc.class_id', '=', 'cl.id')
-            ->join('teachers as tc', 'sc.teacher_id', '=', 'tc.id')
+            ->leftJoin('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
+            ->leftJoin('subjects as sub', 'sc.subject_id', '=', 'sub.id')
+            ->leftJoin('classes as cl', 'sc.class_id', '=', 'cl.id')
+            ->leftJoin('teachers as tc', 'sc.teacher_id', '=', 'tc.id')
             ->select(
                 'ats.*',
                 'sc.class_id',
@@ -109,10 +109,10 @@ class AttendanceSessionController extends BaseController
             }
  
             $query = DB::table('attendance_sessions as ats')
-                ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
-                ->join('subjects as sub', 'sc.subject_id', '=', 'sub.id')
-                ->join('classes as cl', 'sc.class_id', '=', 'cl.id')
-                ->join('teachers as tc', 'sc.teacher_id', '=', 'tc.id')
+                ->leftJoin('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
+                ->leftJoin('subjects as sub', 'sc.subject_id', '=', 'sub.id')
+                ->leftJoin('classes as cl', 'sc.class_id', '=', 'cl.id')
+                ->leftJoin('teachers as tc', 'sc.teacher_id', '=', 'tc.id')
                 ->select(
                     'ats.*',
                     'sc.class_id',
@@ -373,10 +373,10 @@ class AttendanceSessionController extends BaseController
     {
         try {
             $session = DB::table('attendance_sessions as ats')
-                ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
-                ->join('subjects as sub', 'sc.subject_id', '=', 'sub.id')
-                ->join('classes as cl', 'sc.class_id', '=', 'cl.id')
-                ->join('teachers as tc', 'sc.teacher_id', '=', 'tc.id')
+                ->leftJoin('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
+                ->leftJoin('subjects as sub', 'sc.subject_id', '=', 'sub.id')
+                ->leftJoin('classes as cl', 'sc.class_id', '=', 'cl.id')
+                ->leftJoin('teachers as tc', 'sc.teacher_id', '=', 'tc.id')
                 ->select(
                     'ats.*',
                     'sc.class_id',
@@ -474,7 +474,8 @@ class AttendanceSessionController extends BaseController
  
             return $this->sendResponse($mappedSession);
         } catch (\Exception $e) {
-            return $this->sendError('Sesi absensi tidak ditemukan.', [], 404);
+            \Illuminate\Support\Facades\Log::error('FCM/Session retrieve error in show: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            return $this->sendError('Gagal memuat detail sesi: ' . $e->getMessage(), [], 500);
         }
     }
 }

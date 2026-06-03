@@ -1296,13 +1296,19 @@ export default function HomeScreen() {
                   time={schedule.attendance_time}
                 />
               ) : (
-                <TeacherSessionBadge isActive={isActive} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <RoleScheduleBadge isPerwalianMode={isPerwalianMode} />
+                  <TeacherSessionBadge isActive={isActive} />
+                </View>
               )
             ) : (
-              <View style={styles.cardDayBadge}>
-                <Text style={styles.cardDayBadgeText}>
-                  {DAY_MAP_ENG_TO_IND[schedule.day_name] || schedule.day_name}
-                </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                {!isSiswaMode && <RoleScheduleBadge isPerwalianMode={isPerwalianMode} />}
+                <View style={styles.cardDayBadge}>
+                  <Text style={styles.cardDayBadgeText}>
+                    {DAY_MAP_ENG_TO_IND[schedule.day_name] || schedule.day_name}
+                  </Text>
+                </View>
               </View>
             )}
           </View>
@@ -1804,67 +1810,109 @@ export default function HomeScreen() {
                         {/* Day Schedules List */}
                         {daySchedules.length > 0 ? (
                           <View style={{ gap: 10 }}>
-                            {daySchedules.map((schedule) => {
-                              // If it is today, render the full-featured interactive schedule card
-                              if (isDayToday) {
-                                const isPerwalian = isGuru && schedule.teacher_id !== user?.teacher_info?.id && (user?.teacher_info?.class_ids || []).includes(schedule.class_id);
-                                return renderScheduleCard(schedule, !!isSiswa, isPerwalian);
+                            {(() => {
+                              if (isDayToday && isGuru) {
+                                const teacherId = user?.teacher_info?.id;
+                                const classIds = user?.teacher_info?.class_ids || [];
+                                const teachingToday = daySchedules.filter(s => s.teacher_id === teacherId);
+                                const perwalianToday = daySchedules.filter(s => s.teacher_id !== teacherId && classIds.includes(s.class_id));
+
+                                return (
+                                  <View style={{ gap: 14 }}>
+                                    {teachingToday.length > 0 && (
+                                      <View style={{ gap: 8 }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#10B981', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Mengajar</Text>
+                                        {teachingToday.map((schedule) => renderScheduleCard(schedule, false, false))}
+                                      </View>
+                                    )}
+                                    {perwalianToday.length > 0 && (
+                                      <View style={{ gap: 8 }}>
+                                        <Text style={{ fontSize: 10, fontWeight: '800', color: '#8B5CF6', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2, marginTop: teachingToday.length > 0 ? 6 : 0 }}>Perwalian</Text>
+                                        {perwalianToday.map((schedule) => renderScheduleCard(schedule, false, true))}
+                                      </View>
+                                    )}
+                                  </View>
+                                );
                               }
 
-                              // Otherwise render the compact view
-                              const isActive = false;
-                              return (
-                                <TouchableOpacity
-                                  key={schedule.id}
-                                  style={[
-                                    styles.calendarScheduleCard,
-                                    isActive && styles.activeScheduleCard,
-                                    isDayToday && styles.calendarScheduleCardToday,
-                                  ]}
-                                  onPress={() => handleSubjectCardClick(schedule)}
-                                  activeOpacity={0.85}
-                                >
-                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <View style={styles.timeContainer}>
+                              return daySchedules.map((schedule) => {
+                                // If it is today, render the full-featured interactive schedule card
+                                if (isDayToday) {
+                                  return renderScheduleCard(schedule, !!isSiswa, false);
+                                }
+
+                                // Otherwise render the compact view
+                                const isActive = false;
+                                const isPerwalian = isGuru && schedule.teacher_id !== user?.teacher_info?.id && (user?.teacher_info?.class_ids || []).includes(schedule.class_id);
+                                return (
+                                  <TouchableOpacity
+                                    key={schedule.id}
+                                    style={[
+                                      styles.calendarScheduleCard,
+                                      isActive && styles.activeScheduleCard,
+                                      isDayToday && styles.calendarScheduleCardToday,
+                                    ]}
+                                    onPress={() => handleSubjectCardClick(schedule)}
+                                    activeOpacity={0.85}
+                                  >
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                      <View style={styles.timeContainer}>
+                                        <Ionicons
+                                          name="time-outline"
+                                          size={12}
+                                          color="#6B7280"
+                                        />
+                                        <Text style={styles.timeText}>
+                                          {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                                        </Text>
+                                      </View>
+                                      {!isSiswa && (
+                                        <View style={{
+                                          backgroundColor: isPerwalian ? "#F5F3FF" : "#ECFDF5",
+                                          paddingHorizontal: 6,
+                                          paddingVertical: 1,
+                                          borderRadius: 4,
+                                        }}>
+                                          <Text style={{
+                                            color: isPerwalian ? "#8B5CF6" : "#10B981",
+                                            fontSize: 9,
+                                            fontWeight: "800"
+                                          }}>
+                                            {isPerwalian ? "Perwalian" : "Ajar"}
+                                          </Text>
+                                        </View>
+                                      )}
+                                    </View>
+
+                                    <Text style={[styles.subjectName, { fontSize: 14, marginTop: 6, fontWeight: '700' }]}>
+                                      {schedule.subject?.subject_name || "Mata Pelajaran"}
+                                    </Text>
+
+                                    <View style={[styles.classInfo, { borderBottomWidth: 0, marginTop: 4 }]}>
                                       <Ionicons
-                                        name="time-outline"
+                                        name="business-outline"
                                         size={12}
                                         color="#6B7280"
                                       />
-                                      <Text style={styles.timeText}>
-                                        {schedule.start_time.substring(0, 5)} - {schedule.end_time.substring(0, 5)}
+                                      <Text style={[styles.classNameText, { fontSize: 11 }]}>
+                                        {schedule.class?.class_name || "Rombel"}
+                                      </Text>
+                                      <View style={styles.bulletSeparator} />
+                                      <Ionicons
+                                        name="person-outline"
+                                        size={12}
+                                        color="#6B7280"
+                                      />
+                                      <Text style={[styles.teacherNameText, { fontSize: 11 }]} numberOfLines={1}>
+                                        {isSiswa || isPerwalian
+                                          ? schedule.teacher?.full_name || "Guru"
+                                          : "Mengajar"}
                                       </Text>
                                     </View>
-                                  </View>
-
-                                  <Text style={[styles.subjectName, { fontSize: 14, marginTop: 6, fontWeight: '700' }]}>
-                                    {schedule.subject?.subject_name || "Mata Pelajaran"}
-                                  </Text>
-
-                                  <View style={[styles.classInfo, { borderBottomWidth: 0, marginTop: 4 }]}>
-                                    <Ionicons
-                                      name="business-outline"
-                                      size={12}
-                                      color="#6B7280"
-                                    />
-                                    <Text style={[styles.classNameText, { fontSize: 11 }]}>
-                                      {schedule.class?.class_name || "Rombel"}
-                                    </Text>
-                                    <View style={styles.bulletSeparator} />
-                                    <Ionicons
-                                      name="person-outline"
-                                      size={12}
-                                      color="#6B7280"
-                                    />
-                                    <Text style={[styles.teacherNameText, { fontSize: 11 }]} numberOfLines={1}>
-                                      {isSiswa
-                                        ? schedule.teacher?.full_name || "Guru"
-                                        : "Mengajar"}
-                                    </Text>
-                                  </View>
-                                </TouchableOpacity>
-                              );
-                            })}
+                                  </TouchableOpacity>
+                               );
+                              });
+                            })()}
                           </View>
                         ) : (
                           <View style={styles.emptyDayContainer}>
@@ -1893,22 +1941,79 @@ export default function HomeScreen() {
                     </Text>
                   </View>
 
-                  {listSchedulesData.todayList.length > 0 ? (
-                    <View style={scheduleListStyle}>
-                      {listSchedulesData.todayList.map((schedule) => {
-                        const isPerwalian = isGuru && schedule.teacher_id !== user?.teacher_info?.id && (user?.teacher_info?.class_ids || []).includes(schedule.class_id);
-                        return renderScheduleCard(schedule, !!isSiswa, isPerwalian);
-                      })}
-                    </View>
-                  ) : (
-                    <View style={[styles.emptyState, { paddingVertical: 24, backgroundColor: '#F9FAFB', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed' }]}>
-                      <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
-                      <Text style={[styles.emptyTitle, { fontSize: 14, color: '#6B7280' }]}>Tidak Ada Jadwal Hari Ini</Text>
-                      <Text style={[styles.emptyText, { fontSize: 12, color: '#9CA3AF', marginTop: -4 }]}>
-                        Nikmati hari libur Anda! Tidak ada jadwal pelajaran terdaftar hari ini.
-                      </Text>
-                    </View>
-                  )}
+                  {(() => {
+                    if (isGuru) {
+                      const teacherId = user?.teacher_info?.id;
+                      const classIds = user?.teacher_info?.class_ids || [];
+                      const homeroomLabel = user?.teacher_info?.class_names?.join(', ') || 'Kelas Binaan';
+                      
+                      const teachingToday = listSchedulesData.todayList.filter(s => s.teacher_id === teacherId);
+                      const perwalianToday = listSchedulesData.todayList.filter(s => s.teacher_id !== teacherId && classIds.includes(s.class_id));
+
+                      if (listSchedulesData.todayList.length === 0) {
+                        return (
+                          <View style={[styles.emptyState, { paddingVertical: 24, backgroundColor: '#F9FAFB', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed' }]}>
+                            <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
+                            <Text style={[styles.emptyTitle, { fontSize: 14, color: '#6B7280' }]}>Tidak Ada Jadwal Hari Ini</Text>
+                            <Text style={[styles.emptyText, { fontSize: 12, color: '#9CA3AF', marginTop: -4 }]}>
+                              Nikmati hari libur Anda! Tidak ada jadwal pelajaran terdaftar hari ini.
+                            </Text>
+                          </View>
+                        );
+                      }
+
+                      return (
+                        <View style={{ gap: 24 }}>
+                          {/* Section Jadwal Mengajar */}
+                          {teachingToday.length > 0 && (
+                            <View style={{ gap: 12 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                <Ionicons name="school-outline" size={16} color="#10B981" />
+                                <Text style={{ fontSize: 13, fontWeight: '800', color: '#10B981', textTransform: 'uppercase', letterSpacing: 0.5 }}>Jadwal Mengajar Anda</Text>
+                              </View>
+                              <View style={scheduleListStyle}>
+                                {teachingToday.map((schedule) => (
+                                  renderScheduleCard(schedule, false, false)
+                                ))}
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Section Jadwal Perwalian */}
+                          {perwalianToday.length > 0 && (
+                            <View style={{ gap: 12 }}>
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                                <Ionicons name="people-outline" size={16} color="#8B5CF6" />
+                                <Text style={{ fontSize: 13, fontWeight: '800', color: '#8B5CF6', textTransform: 'uppercase', letterSpacing: 0.5 }}>Jadwal Kelas Perwalian ({homeroomLabel})</Text>
+                              </View>
+                              <View style={scheduleListStyle}>
+                                {perwalianToday.map((schedule) => (
+                                  renderScheduleCard(schedule, false, true)
+                                ))}
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    } else {
+                      // Siswa flow
+                      return listSchedulesData.todayList.length > 0 ? (
+                        <View style={scheduleListStyle}>
+                          {listSchedulesData.todayList.map((schedule) => (
+                            renderScheduleCard(schedule, true, false)
+                          ))}
+                        </View>
+                      ) : (
+                        <View style={[styles.emptyState, { paddingVertical: 24, backgroundColor: '#F9FAFB', borderRadius: 16, borderWidth: 1, borderColor: '#E5E7EB', borderStyle: 'dashed' }]}>
+                          <Ionicons name="calendar-outline" size={32} color="#9CA3AF" />
+                          <Text style={[styles.emptyTitle, { fontSize: 14, color: '#6B7280' }]}>Tidak Ada Jadwal Hari Ini</Text>
+                          <Text style={[styles.emptyText, { fontSize: 12, color: '#9CA3AF', marginTop: -4 }]}>
+                            Nikmati hari libur Anda! Tidak ada jadwal pelajaran terdaftar hari ini.
+                          </Text>
+                        </View>
+                      );
+                    }
+                  })()}
 
                   {/* Sub-seksi Hari Lainnya */}
                   <View style={[styles.listSectionHeader, { marginTop: 8 }]}>
@@ -2006,6 +2111,21 @@ function TeacherSessionBadge({ isActive }: { isActive: boolean }) {
         color={badgeColor}
         style={isActive ? styles.pulseIcon : null}
       />
+      <Text style={[styles.badgeText, { color: badgeColor }]}>{label}</Text>
+    </View>
+  );
+}
+
+// Teacher Role Schedule Badge
+function RoleScheduleBadge({ isPerwalianMode }: { isPerwalianMode: boolean }) {
+  const badgeColor = isPerwalianMode ? "#8B5CF6" : "#10B981"; // Purple for perwalian, green for teaching
+  const badgeBg = isPerwalianMode ? "#F5F3FF" : "#ECFDF5";
+  const label = isPerwalianMode ? "Perwalian" : "Mengajar";
+  const icon = isPerwalianMode ? "people-outline" : "school-outline";
+
+  return (
+    <View style={[styles.badge, { backgroundColor: badgeBg }]}>
+      <Ionicons name={icon as any} size={12} color={badgeColor} />
       <Text style={[styles.badgeText, { color: badgeColor }]}>{label}</Text>
     </View>
   );
