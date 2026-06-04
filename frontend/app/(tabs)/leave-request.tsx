@@ -12,6 +12,7 @@ import {
   View,
   Image,
   useWindowDimensions,
+  Platform,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
@@ -113,11 +114,17 @@ export default function LeaveRequestScreen() {
       formData.append("end_date", endDate);
       formData.append("reason", reason.trim());
       if (attachment) {
-        formData.append("attachment", {
-          uri: attachment.uri,
-          type: attachment.mimeType || "image/jpeg",
-          name: attachment.fileName || "surat.jpg",
-        } as any);
+        if (Platform.OS === "web") {
+          const res = await fetch(attachment.uri);
+          const blob = await res.blob();
+          formData.append("attachment", blob, attachment.fileName || "surat.jpg");
+        } else {
+          formData.append("attachment", {
+            uri: attachment.uri,
+            type: attachment.mimeType || "image/jpeg",
+            name: attachment.fileName || "surat.jpg",
+          } as any);
+        }
       }
       await leaveRequestsApi.create(formData);
       toast.success("Pengajuan izin berhasil dikirim.");

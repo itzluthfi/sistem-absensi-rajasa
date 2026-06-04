@@ -46,7 +46,7 @@ class AttendanceSessionController extends BaseController
         $mapped = new \stdClass();
         $mapped->id = $sess->id;
         $mapped->schedule_id = $sess->schedule_id;
-        $mapped->academic_period_id = $sess->academic_period_id;
+        $mapped->academic_period_id = isset($sess->academic_period_id) ? $sess->academic_period_id : null;
         $mapped->qr_token = $sess->qr_token;
         $mapped->attendance_date = $sess->attendance_date;
         $mapped->open_time = $sess->open_time;
@@ -147,7 +147,7 @@ class AttendanceSessionController extends BaseController
                 $mapped = new \stdClass();
                 $mapped->id = $item->id;
                 $mapped->schedule_id = $item->schedule_id;
-                $mapped->academic_period_id = $item->academic_period_id;
+                $mapped->academic_period_id = isset($item->academic_period_id) ? $item->academic_period_id : null;
                 $mapped->qr_token = $item->qr_token;
                 $mapped->attendance_date = $item->attendance_date;
                 $mapped->open_time = $item->open_time;
@@ -425,7 +425,7 @@ class AttendanceSessionController extends BaseController
                 $mapped->attendance_session_id = $item->attendance_session_id;
                 $mapped->student_id = $item->student_id;
                 $mapped->class_id = $item->class_id;
-                $mapped->academic_period_id = $item->academic_period_id;
+                $mapped->academic_period_id = isset($item->academic_period_id) ? $item->academic_period_id : null;
                 $mapped->date = $item->date;
                 $mapped->time = $item->time;
                 $mapped->status = $item->status;
@@ -447,7 +447,7 @@ class AttendanceSessionController extends BaseController
             $mappedSession = new \stdClass();
             $mappedSession->id = $session->id;
             $mappedSession->schedule_id = $session->schedule_id;
-            $mappedSession->academic_period_id = $session->academic_period_id;
+            $mappedSession->academic_period_id = isset($session->academic_period_id) ? $session->academic_period_id : null;
             $mappedSession->qr_token = $session->qr_token;
             $mappedSession->attendance_date = $session->attendance_date;
             $mappedSession->open_time = $session->open_time;
