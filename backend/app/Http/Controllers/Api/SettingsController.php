@@ -108,21 +108,23 @@ class SettingsController extends BaseController
         }
     }
 
-    /**
-     * Get the global daily entry attendance mode setting (scan vs click)
-     */
     public function getEntryMode(Request $request)
     {
         try {
             $mode = DB::table('settings')->where('key', 'school_entry_attendance_mode')->value('value') ?? 'scan';
-            return $this->sendResponse(['mode' => $mode], 'Mode absensi masuk berhasil diambil.');
+            $enableCheckout = DB::table('settings')->where('key', 'enable_daily_checkout')->value('value') ?? 'false';
+            
+            return $this->sendResponse([
+                'mode' => $mode,
+                'enable_daily_checkout' => $enableCheckout === 'true' || $enableCheckout === '1' ? true : false,
+            ], 'Pengaturan sistem berhasil diambil.');
         } catch (\Exception $e) {
-            return $this->sendError('Gagal mengambil mode absensi masuk: ' . $e->getMessage());
+            return $this->sendError('Gagal mengambil pengaturan sistem: ' . $e->getMessage());
         }
     }
 
     /**
-     * Update the global daily entry attendance mode setting (scan vs click)
+     * Update the global daily entry attendance settings
      */
     public function updateEntryMode(Request $request)
     {
@@ -131,25 +133,41 @@ class SettingsController extends BaseController
             
             // Strictly check for write permission (only Admin and Super Admin)
             if (!$user->hasRole(['super_admin', 'admin'])) {
-                return $this->sendError('Anda tidak memiliki izin untuk mengubah mode absensi masuk.', [], 403);
+                return $this->sendError('Anda tidak memiliki izin untuk mengubah pengaturan sistem.', [], 403);
             }
 
             $data = $request->validate([
-                'mode' => 'required|in:scan,click',
+                'mode' => 'nullable|in:scan,click',
+                'enable_daily_checkout' => 'nullable|boolean',
             ]);
 
-            DB::table('settings')
-                ->where('key', 'school_entry_attendance_mode')
-                ->update([
-                    'value' => $data['mode'],
-                    'updated_at' => now(),
-                ]);
+            DB::beginTransaction();
+
+            if (isset($data['mode'])) {
+                DB::table('settings')
+                    ->where('key', 'school_entry_attendance_mode')
+                    ->update([
+                        'value' => $data['mode'],
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (isset($data['enable_daily_checkout'])) {
+                DB::table('settings')
+                    ->where('key', 'enable_daily_checkout')
+                    ->update([
+                        'value' => $data['enable_daily_checkout'] ? 'true' : 'false',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            DB::commit();
 
             // Audit Log the change
             DB::table('audit_logs')->insert([
                 'user_id' => $user->id,
                 'action' => AuditLog::ACTION_UPDATE,
-                'description' => "Updated school entry attendance mode to: " . $data['mode'],
+                'description' => "Updated system settings: " . json_encode($data),
                 'model_type' => 'App\\Models\\Setting',
                 'model_id' => 0,
                 'ip_address' => $request->ip(),
@@ -159,11 +177,13 @@ class SettingsController extends BaseController
                 'updated_at' => now(),
             ]);
 
-            return $this->sendResponse($data, 'Mode absensi masuk berhasil diperbarui.');
+            return $this->sendResponse($data, 'Pengaturan sistem berhasil diperbarui.');
         } catch (ValidationException $e) {
+            DB::rollBack();
             return $this->sendValidationError($e->errors());
         } catch (\Exception $e) {
-            return $this->sendError('Gagal memperbarui mode absensi masuk: ' . $e->getMessage());
+            DB::rollBack();
+            return $this->sendError('Gagal memperbarui pengaturan sistem: ' . $e->getMessage());
         }
     }
 }

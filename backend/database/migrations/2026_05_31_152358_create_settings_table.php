@@ -49,6 +49,13 @@ return new class extends Migration
                 'description' => 'Mode absensi masuk sekolah: scan (oleh petugas piket) atau click (klik mandiri siswa dengan GPS)',
                 'created_at' => now(),
                 'updated_at' => now(),
+            ],
+            [
+                'key' => 'enable_daily_checkout',
+                'value' => 'false',
+                'description' => 'Mengaktifkan absensi pulang harian: true (wajib) atau false (tidak wajib)',
+                'created_at' => now(),
+                'updated_at' => now(),
             ]
         ]);
     }

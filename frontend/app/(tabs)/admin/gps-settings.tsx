@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { gpsLocationsApi } from "../../../services/api";
+import { gpsLocationsApi, settingsApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
 import Skeleton from "../../../components/ui/Skeleton";
@@ -250,6 +250,11 @@ export default function GpsSettingsScreen() {
   const [newRadius, setNewRadius] = useState(100);
   const [isSaving, setIsSaving] = useState(false);
 
+  // System configuration states
+  const [entryMode, setEntryMode] = useState<"scan" | "click">("scan");
+  const [enableDailyCheckoutState, setEnableDailyCheckoutState] = useState(false);
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -266,10 +271,50 @@ export default function GpsSettingsScreen() {
       if (res.success && Array.isArray(res.data)) {
         setLocations(res.data);
       }
+      
+      const settingsRes = await settingsApi.getSystemSettings();
+      if (settingsRes?.data) {
+        setEntryMode(settingsRes.data.mode ?? "scan");
+        setEnableDailyCheckoutState(settingsRes.data.enable_daily_checkout ?? false);
+      }
     } catch (e) {
-      toast.error("Tidak dapat memuat data lokasi GPS.");
+      toast.error("Tidak dapat memuat data lokasi GPS / konfigurasi sistem.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleToggleEntryMode = async (newMode: "scan" | "click") => {
+    setIsUpdatingSettings(true);
+    try {
+      const res = await settingsApi.updateSystemSettings({ mode: newMode });
+      if (res.success) {
+        setEntryMode(newMode);
+        toast.success(`Mode absensi masuk diubah ke: ${newMode === 'scan' ? 'Scan Gerbang' : 'Klik Mandiri'}`);
+      } else {
+        toast.error(res.message || "Gagal mengubah mode absensi masuk.");
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || "Gagal memperbarui mode absensi.");
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const handleToggleCheckout = async (newVal: boolean) => {
+    setIsUpdatingSettings(true);
+    try {
+      const res = await settingsApi.updateSystemSettings({ enable_daily_checkout: newVal });
+      if (res.success) {
+        setEnableDailyCheckoutState(newVal);
+        toast.success(`Absensi pulang ${newVal ? 'diaktifkan' : 'dinonaktifkan'}.`);
+      } else {
+        toast.error(res.message || "Gagal mengubah konfigurasi absen pulang.");
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || "Gagal memperbarui konfigurasi absen pulang.");
+    } finally {
+      setIsUpdatingSettings(false);
     }
   };
 
@@ -587,6 +632,68 @@ export default function GpsSettingsScreen() {
               />
             ))
           )}
+
+          {/* Pengaturan Konfigurasi Umum Sistem */}
+          <View style={styles.sectionHeader}>
+            <Ionicons name="settings" size={16} color="#2563EB" />
+            <Text style={styles.sectionTitle}>Pengaturan Sistem</Text>
+          </View>
+          
+          <View style={styles.settingsCard}>
+            <View style={styles.settingsRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.settingsLabel}>Mode Absensi Masuk</Text>
+                <Text style={styles.settingsDesc}>
+                  {entryMode === 'scan'
+                    ? 'Diabsenkan oleh Petugas piket menggunakan scan kartu QR gerbang masuk.'
+                    : 'Siswa dapat mengklik absen mandiri dengan verifikasi GPS radius geofence.'}
+                </Text>
+              </View>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, entryMode === 'scan' && styles.toggleBtnActive]}
+                  onPress={() => handleToggleEntryMode('scan')}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text style={[styles.toggleBtnText, entryMode === 'scan' && styles.toggleBtnTextActive]}>Scan</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, entryMode === 'click' && styles.toggleBtnActive]}
+                  onPress={() => handleToggleEntryMode('click')}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text style={[styles.toggleBtnText, entryMode === 'click' && styles.toggleBtnTextActive]}>Click</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={[styles.settingsRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, marginTop: 16 }]}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={styles.settingsLabel}>Absensi Pulang Harian</Text>
+                <Text style={styles.settingsDesc}>
+                  {enableDailyCheckoutState
+                    ? 'Siswa wajib melakukan absen pulang di akhir jam sekolah.'
+                    : 'Absen pulang harian dinonaktifkan (tidak perlu absen pulang).'}
+                </Text>
+              </View>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, !enableDailyCheckoutState && styles.toggleBtnActiveDanger]}
+                  onPress={() => handleToggleCheckout(false)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text style={[styles.toggleBtnText, !enableDailyCheckoutState && styles.toggleBtnTextActive]}>Off</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleBtn, enableDailyCheckoutState && styles.toggleBtnActive]}
+                  onPress={() => handleToggleCheckout(true)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text style={[styles.toggleBtnText, enableDailyCheckoutState && styles.toggleBtnTextActive]}>On</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
 
           {/* Info Box */}
           <View style={styles.infoBox}>
@@ -1244,4 +1351,62 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   confirmDestructiveText: { fontSize: 14, fontWeight: "800", color: "#fff" },
+  settingsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  settingsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  settingsLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1F2937",
+    marginBottom: 4,
+  },
+  settingsDesc: {
+    fontSize: 11,
+    color: "#6B7280",
+    lineHeight: 15,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
+    borderRadius: 8,
+    padding: 2,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  toggleBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  toggleBtnActive: {
+    backgroundColor: "#2563EB",
+  },
+  toggleBtnActiveDanger: {
+    backgroundColor: "#EF4444",
+  },
+  toggleBtnText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#4B5563",
+  },
+  toggleBtnTextActive: {
+    color: "#fff",
+  },
 });

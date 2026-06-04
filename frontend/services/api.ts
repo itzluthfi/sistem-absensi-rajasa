@@ -632,6 +632,16 @@ export const settingsApi = {
     const response = await api.put('/settings/gps', data);
     return response.data;
   },
+
+  getSystemSettings: async () => {
+    const response = await api.get('/settings/entry-mode');
+    return response.data;
+  },
+
+  updateSystemSettings: async (data: { mode?: 'scan' | 'click'; enable_daily_checkout?: boolean }) => {
+    const response = await api.put('/settings/entry-mode', data);
+    return response.data;
+  },
 };
 
 export const gpsLocationsApi = {

@@ -22,7 +22,7 @@ import {
   useAttendanceStore,
   type ScheduleRecord,
 } from "../../store/attendanceStore";
-import { attendanceApi, schedulesApi, leaveRequestsApi, studentsApi } from "../../services/api";
+import { attendanceApi, schedulesApi, leaveRequestsApi, studentsApi, settingsApi } from "../../services/api";
 import { formatRoleLabel } from "../../src/hooks/use-role-access";
 import { getDashboardConfig } from "../../src/constants/dashboard-config";
 import { useWindowDimensions } from "react-native";
@@ -76,14 +76,14 @@ export default function HomeScreen() {
   } = useAttendanceStore();
 
   const isSiswa = user?.roles?.includes("siswa");
-  const isGuru =
-    user?.roles?.includes("guru") || user?.roles?.includes("wali_kelas");
+  const isGuru = user?.roles?.includes("guru");
   const isAdminOrSuper =
     user?.roles?.includes("super_admin") || user?.roles?.includes("admin");
   const isKepalaSekolah = user?.roles?.includes("kepala_sekolah");
 
   const [allSchedules, setAllSchedules] = useState<ScheduleRecord[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
+  const [enableDailyCheckout, setEnableDailyCheckout] = useState(false);
   const [dailyCheckOutLoading, setDailyCheckOutLoading] = useState(false);
   const [scheduleViewMode, setScheduleViewMode] = useState<"calendar" | "list">("list");
   const [openPresensiModalVisible, setOpenPresensiModalVisible] = useState(false);
@@ -297,6 +297,15 @@ export default function HomeScreen() {
       } catch (err) {
         console.error("Failed to load leave requests:", err);
       }
+
+      try {
+        const settingsRes = await settingsApi.getSystemSettings();
+        if (settingsRes?.data) {
+          setEnableDailyCheckout(settingsRes.data.enable_daily_checkout ?? false);
+        }
+      } catch (err) {
+        console.error("Failed to load system settings on dashboard:", err);
+      }
     }
   };
 
@@ -313,6 +322,11 @@ export default function HomeScreen() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      if (loc.mocked) {
+        toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
+        setDailyCheckInLoading(false);
+        return;
+      }
       const coords = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -357,6 +371,11 @@ export default function HomeScreen() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      if (loc.mocked) {
+        toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
+        setDailyCheckOutLoading(false);
+        return;
+      }
       const coords = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -1703,7 +1722,7 @@ export default function HomeScreen() {
                         <Text style={dailyCheckInRecord.status === "telat" ? styles.dailyCheckInTimeTextWarning : styles.dailyCheckInTimeText}>
                           Jam Masuk: {dailyCheckInRecord.time ? dailyCheckInRecord.time.substring(0, 5) : "-"} WIB • Status: {dailyCheckInRecord.status === "hadir" ? "Hadir" : `Terlambat (${dailyCheckInRecord.late_minutes}m)`}
                         </Text>
-                        {dailyCheckInRecord.checkout_time && (
+                        {enableDailyCheckout && dailyCheckInRecord.checkout_time && (
                           <Text style={dailyCheckInRecord.status === "telat" ? styles.dailyCheckInTimeTextWarning : styles.dailyCheckInTimeText}>
                             Jam Pulang: {dailyCheckInRecord.checkout_time.substring(0, 5)} WIB
                           </Text>
@@ -1711,7 +1730,7 @@ export default function HomeScreen() {
                       </View>
                     </View>
 
-                    {!dailyCheckInRecord.checkout_time && (
+                    {enableDailyCheckout && !dailyCheckInRecord.checkout_time && (
                       <View style={{ borderTopWidth: 1, borderTopColor: dailyCheckInRecord.status === "telat" ? "rgba(217, 119, 6, 0.15)" : "rgba(16, 185, 129, 0.15)", marginTop: 12, paddingTop: 12 }}>
                         <TouchableOpacity
                           style={[

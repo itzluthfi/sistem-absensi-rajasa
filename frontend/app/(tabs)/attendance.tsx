@@ -330,6 +330,11 @@ export default function AttendanceScreen() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      if (loc.mocked) {
+        toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
+        setLocationLoading(false);
+        return false;
+      }
       const coords = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
