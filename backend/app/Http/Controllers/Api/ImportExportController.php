@@ -270,64 +270,136 @@ class ImportExportController extends BaseController
                     // Map gender
                     $gender = ($genderRaw === 'P' || $genderRaw === 'FEMALE') ? 'female' : 'male';
 
-                    // Validate student fields
-                    $validator = Validator::make([
-                        'class_id' => $class_id,
-                        'nis' => $nis,
-                        'nisn' => $nisn,
-                        'full_name' => $full_name,
-                        'email' => $email,
-                        'birth_date' => $birth_date
-                    ], [
-                        'class_id' => 'nullable|exists:classes,id',
-                        'nis' => 'required|string|unique:students,nis',
-                        'nisn' => 'nullable|string|unique:students,nisn',
-                        'full_name' => 'required|string|max:255',
-                        'email' => 'required|email',
-                        'birth_date' => 'nullable|date_format:Y-m-d'
-                    ]);
+                    // Check if student already exists by NIS to support Upsert
+                    $existingStudent = Student::where('nis', $nis)->first();
 
-                    if ($validator->fails()) {
-                        $errors[] = "Baris {$line} (Nama: " . ($full_name ?: 'Tanpa Nama') . "): " . implode(', ', $validator->errors()->all());
-                        $line++;
-                        continue;
-                    }
-
-                    // Check if user already exists
-                    $user = User::where('email', $email)->first();
-                    if (!$user) {
-                        $password = $nis ? $nis : '12345678';
-                        $user = User::create([
-                            'name' => $full_name,
+                    if ($existingStudent) {
+                        // Validate student fields ignoring the existing student's unique checks
+                        $validator = Validator::make([
+                            'class_id' => $class_id,
+                            'nis' => $nis,
+                            'nisn' => $nisn,
+                            'full_name' => $full_name,
                             'email' => $email,
-                            'password' => Hash::make($password),
-                            'is_active' => true
+                            'birth_date' => $birth_date
+                        ], [
+                            'class_id' => 'nullable|exists:classes,id',
+                            'nis' => 'required|string|unique:students,nis,' . $existingStudent->id,
+                            'nisn' => 'nullable|string|unique:students,nisn,' . $existingStudent->id,
+                            'full_name' => 'required|string|max:255',
+                            'email' => 'required|email',
+                            'birth_date' => 'nullable|date_format:Y-m-d'
                         ]);
-                        $user->assignRole('siswa');
-                    } else {
-                        // Check if student user is already tied
-                        if (Student::where('user_id', $user->id)->exists()) {
+
+                        if ($validator->fails()) {
+                            $errors[] = "Baris {$line} (Nama: " . ($full_name ?: 'Tanpa Nama') . "): " . implode(', ', $validator->errors()->all());
+                            $line++;
+                            continue;
+                        }
+
+                        // Check if email is used by a different user
+                        $user = User::where('email', $email)->first();
+                        if ($user && $user->id !== $existingStudent->user_id) {
                             $errors[] = "Baris {$line}: User email '{$email}' sudah dikaitkan dengan siswa lain.";
                             $line++;
                             continue;
                         }
-                    }
 
-                    Student::create([
-                        'user_id' => $user->id,
-                        'class_id' => $class_id,
-                        'nis' => $nis,
-                        'nisn' => $nisn,
-                        'full_name' => $full_name,
-                        'gender' => $gender,
-                        'birth_place' => $birth_place,
-                        'birth_date' => $birth_date,
-                        'address' => $address,
-                        'parent_name' => $parent_name,
-                        'parent_phone' => $parent_phone,
-                        'status' => 'active'
-                    ]);
-                    $importCount++;
+                        if ($user) {
+                            $user->update([
+                                'name' => $full_name,
+                            ]);
+                        } else {
+                            $user = User::find($existingStudent->user_id);
+                            if ($user) {
+                                $user->update([
+                                    'name' => $full_name,
+                                    'email' => $email,
+                                ]);
+                            } else {
+                                $password = $nis ? $nis : '12345678';
+                                $user = User::create([
+                                    'name' => $full_name,
+                                    'email' => $email,
+                                    'password' => Hash::make($password),
+                                    'is_active' => true
+                                ]);
+                                $user->assignRole('siswa');
+                            }
+                        }
+
+                        $existingStudent->update([
+                            'user_id' => $user->id,
+                            'class_id' => $class_id,
+                            'nisn' => $nisn,
+                            'full_name' => $full_name,
+                            'gender' => $gender,
+                            'birth_place' => $birth_place,
+                            'birth_date' => $birth_date,
+                            'address' => $address,
+                            'parent_name' => $parent_name,
+                            'parent_phone' => $parent_phone,
+                        ]);
+                        $importCount++;
+
+                    } else {
+                        // Standard Insert flow for new student
+                        $validator = Validator::make([
+                            'class_id' => $class_id,
+                            'nis' => $nis,
+                            'nisn' => $nisn,
+                            'full_name' => $full_name,
+                            'email' => $email,
+                            'birth_date' => $birth_date
+                        ], [
+                            'class_id' => 'nullable|exists:classes,id',
+                            'nis' => 'required|string|unique:students,nis',
+                            'nisn' => 'nullable|string|unique:students,nisn',
+                            'full_name' => 'required|string|max:255',
+                            'email' => 'required|email',
+                            'birth_date' => 'nullable|date_format:Y-m-d'
+                        ]);
+
+                        if ($validator->fails()) {
+                            $errors[] = "Baris {$line} (Nama: " . ($full_name ?: 'Tanpa Nama') . "): " . implode(', ', $validator->errors()->all());
+                            $line++;
+                            continue;
+                        }
+
+                        $user = User::where('email', $email)->first();
+                        if (!$user) {
+                            $password = $nis ? $nis : '12345678';
+                            $user = User::create([
+                                'name' => $full_name,
+                                'email' => $email,
+                                'password' => Hash::make($password),
+                                'is_active' => true
+                            ]);
+                            $user->assignRole('siswa');
+                        } else {
+                            if (Student::where('user_id', $user->id)->exists()) {
+                                $errors[] = "Baris {$line}: User email '{$email}' sudah dikaitkan dengan siswa lain.";
+                                $line++;
+                                continue;
+                            }
+                        }
+
+                        Student::create([
+                            'user_id' => $user->id,
+                            'class_id' => $class_id,
+                            'nis' => $nis,
+                            'nisn' => $nisn,
+                            'full_name' => $full_name,
+                            'gender' => $gender,
+                            'birth_place' => $birth_place,
+                            'birth_date' => $birth_date,
+                            'address' => $address,
+                            'parent_name' => $parent_name,
+                            'parent_phone' => $parent_phone,
+                            'status' => 'active'
+                        ]);
+                        $importCount++;
+                    }
 
                 } else if ($type === 'teachers') {
                     if (count($row) < 2) {

@@ -69,7 +69,7 @@ class DatabaseSeeder extends Seeder
             StudentsSeeder::class,
             SubjectsSeeder::class,
             SchedulesSeeder::class,
-            AttendancesSeeder::class,
+            // AttendancesSeeder::class,
         ]);
 
         // ============================================

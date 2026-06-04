@@ -278,6 +278,11 @@ export const studentsApi = {
     const response = await api.get(`/qr/student/${id}`, { responseType: 'arraybuffer' });
     return response.data;
   },
+
+  promoteBulk: async (data: { student_ids: number[]; target_class_id: number }) => {
+    const response = await api.post('/students/promote-bulk', data);
+    return response.data;
+  },
 };
 
 // Teachers API

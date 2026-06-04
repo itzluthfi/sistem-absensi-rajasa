@@ -84,6 +84,7 @@ export default function HomeScreen() {
   const [allSchedules, setAllSchedules] = useState<ScheduleRecord[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [enableDailyCheckout, setEnableDailyCheckout] = useState(false);
+  const [entryMode, setEntryMode] = useState<"scan" | "click">("scan");
   const [dailyCheckOutLoading, setDailyCheckOutLoading] = useState(false);
   const [scheduleViewMode, setScheduleViewMode] = useState<"calendar" | "list">("list");
   const [openPresensiModalVisible, setOpenPresensiModalVisible] = useState(false);
@@ -302,6 +303,7 @@ export default function HomeScreen() {
         const settingsRes = await settingsApi.getSystemSettings();
         if (settingsRes?.data) {
           setEnableDailyCheckout(settingsRes.data.enable_daily_checkout ?? false);
+          setEntryMode(settingsRes.data.mode ?? "scan");
         }
       } catch (err) {
         console.error("Failed to load system settings on dashboard:", err);
@@ -1767,7 +1769,7 @@ export default function HomeScreen() {
                   >
                     <View style={styles.dailyCheckInIconPending}>
                       <Ionicons
-                        name="location-outline"
+                        name={entryMode === "scan" ? "qr-code-outline" : "location-outline"}
                         size={22}
                         color="#3B82F6"
                       />
@@ -1777,30 +1779,33 @@ export default function HomeScreen() {
                         Belum Absen Masuk Sekolah Hari Ini
                       </Text>
                       <Text style={styles.dailyCheckInDesc}>
-                        Batas toleransi masuk 07:00 pagi. Wajib klik tombol
-                        untuk melapor kehadiran harian Anda.
+                        {entryMode === "scan"
+                          ? "Absen masuk wajib melalui pemindaian QR Code oleh petugas piket di gerbang sekolah."
+                          : "Batas toleransi masuk 07:00 pagi. Wajib klik tombol untuk melapor kehadiran harian Anda."}
                       </Text>
                     </View>
-                    <TouchableOpacity
-                      style={styles.dailyCheckInButton}
-                      onPress={handleDailyCheckIn}
-                      disabled={dailyCheckInLoading}
-                    >
-                      {dailyCheckInLoading ? (
-                        <ActivityIndicator color="#fff" size="small" />
-                      ) : (
-                        <>
-                          <Ionicons
-                            name="finger-print-outline"
-                            size={14}
-                            color="#fff"
-                          />
-                          <Text style={styles.dailyCheckInButtonText}>
-                            Absen Masuk
-                          </Text>
-                        </>
-                      )}
-                    </TouchableOpacity>
+                    {entryMode === "click" && (
+                      <TouchableOpacity
+                        style={styles.dailyCheckInButton}
+                        onPress={handleDailyCheckIn}
+                        disabled={dailyCheckInLoading}
+                      >
+                        {dailyCheckInLoading ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="finger-print-outline"
+                              size={14}
+                              color="#fff"
+                            />
+                            <Text style={styles.dailyCheckInButtonText}>
+                              Absen Masuk
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
                   </View>
                 )}
               </View>

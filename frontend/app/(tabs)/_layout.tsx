@@ -226,6 +226,7 @@ export default function TabsLayout() {
         { name: 'teachers', label: 'Data Guru', icon: 'person-outline', activeIcon: 'person', href: '/admin/teachers', show: true },
         { name: 'classes', label: 'Data Kelas', icon: 'business-outline', activeIcon: 'business', href: '/admin/classes', show: true },
         { name: 'schedules', label: 'Data Jadwal', icon: 'calendar-outline', activeIcon: 'calendar', href: '/admin/schedules', show: true },
+        { name: 'class-promotion', label: 'Kenaikan Kelas', icon: 'trending-up-outline', activeIcon: 'trending-up', href: '/admin/class-promotion', show: true },
         { name: 'gps-settings', label: 'Pengaturan GPS', icon: 'locate-outline', activeIcon: 'locate', href: '/admin/gps-settings', show: true },
       ]
     },
@@ -408,6 +409,13 @@ export default function TabsLayout() {
         name="admin/gps-settings"
         options={{
           title: 'Pengaturan GPS',
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="admin/class-promotion"
+        options={{
+          title: 'Kenaikan Kelas',
           href: null,
         }}
       />

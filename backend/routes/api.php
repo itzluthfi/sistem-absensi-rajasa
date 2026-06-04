@@ -57,6 +57,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('students', [StudentsController::class, 'store']);
         Route::put('students/{id}', [StudentsController::class, 'update']);
         Route::delete('students/{id}', [StudentsController::class, 'destroy']);
+        Route::post('students/promote-bulk', [StudentsController::class, 'promoteBulk']);
     });
 
     Route::middleware('role:super_admin,admin,guru,kepala_sekolah,siswa')->group(function () {

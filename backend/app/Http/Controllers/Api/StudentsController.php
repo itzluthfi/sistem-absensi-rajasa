@@ -227,4 +227,50 @@ class StudentsController extends BaseController
             return $this->sendError('Gagal menghapus siswa. Silakan coba lagi.');
         }
     }
+
+    public function promoteBulk(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user->hasRole(['super_admin', 'admin'])) {
+                return $this->sendError('Anda tidak memiliki izin untuk memindahkan kelas siswa.', [], 403);
+            }
+
+            $validated = $request->validate([
+                'student_ids' => 'required|array',
+                'student_ids.*' => 'exists:students,id',
+                'target_class_id' => 'required|exists:classes,id',
+            ]);
+
+            $studentIds = $validated['student_ids'];
+            $targetClassId = $validated['target_class_id'];
+
+            DB::beginTransaction();
+
+            Student::whereIn('id', $studentIds)->update([
+                'class_id' => $targetClassId,
+                'updated_at' => now()
+            ]);
+
+            // Add Audit Log
+            $className = DB::table('classes')->where('id', $targetClassId)->value('class_name') ?? 'ID: ' . $targetClassId;
+            \App\Models\AuditLog::create([
+                'user_id' => $user->id,
+                'action' => \App\Models\AuditLog::ACTION_UPDATE,
+                'description' => "Memindahkan massal " . count($studentIds) . " siswa ke kelas " . $className,
+                'model_type' => Student::class,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
+
+            DB::commit();
+
+            return $this->sendResponse(null, 'Berhasil memindahkan ' . count($studentIds) . ' siswa ke kelas ' . $className . '.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->sendValidationError($e->errors());
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return $this->sendError('Gagal memproses pemindahan kelas siswa: ' . $e->getMessage());
+        }
+    }
 }
