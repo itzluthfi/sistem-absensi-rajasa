@@ -248,7 +248,17 @@ class AttendanceSessionController extends BaseController
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
- 
+
+            // Link any pre-existing attendances (e.g. from approved leave requests) for today's schedule to the new session
+            DB::table('attendances')
+                ->where('schedule_id', $schedule->id)
+                ->where('date', $today)
+                ->whereNull('attendance_session_id')
+                ->update([
+                    'attendance_session_id' => $sessionId,
+                    'updated_at' => now()
+                ]);
+
             // Audit Log
             DB::table('audit_logs')->insert([
                 'user_id' => $user->id,
@@ -261,7 +271,7 @@ class AttendanceSessionController extends BaseController
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
- 
+
             DB::commit();
 
             // Send notifications to all students in this class

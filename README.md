@@ -138,13 +138,14 @@ Gunakan kredensial berikut untuk melakukan pengujian lokal. Password untuk selur
 | Email | Nama Akun / Pengguna | Role Utama | Hak Akses & Cakupan Kelas |
 |---|---|---|---|
 | `admin@example.com` | **Administrator** | `super_admin` | Akses penuh seluruh sistem, pengaturan data master, periode akademik, dan GPS sekolah. |
-| `kepala@example.com` | **Kepala Sekolah** | `kepala_sekolah` | Pengawasan absensi, melihat seluruh laporan kehadiran kelas, dan mengunduh berkas laporan PDF. |
+| `kepsek@example.com` | **Kepala Sekolah** | `kepala_sekolah` | Pengawasan absensi, melihat seluruh laporan kehadiran kelas, dan mengunduh berkas laporan PDF. |
 | `budi@example.com` | **Pak Budi Santoso, S.T.** | `guru` | Guru biasa. Mengajar **hanya 1 kelas** (`X TITL 1`) untuk menguji skenario beban kerja guru terfokus. |
 | `siti@example.com` | **Ibu Siti Aminah, S.Pd.** | `guru` | Guru biasa. Mengajar **banyak kelas** secara dinamis (non-overlapping). |
 | `rina@example.com` | **Ibu Dra. Rina Marlina** | `wali_kelas`, `guru` | Wali Kelas **X TKJ 1**. Mengajar banyak kelas & mengelola izin siswa kelas X TKJ 1. |
 | `ahmad@example.com` | **Pak H. Ahmad Wijaya, S.E.** | `wali_kelas`, `guru` | Wali Kelas **X AKL 1**. Mengajar banyak kelas & mengelola izin siswa kelas X AKL 1. |
 | `eko@example.com` | **Pak Eko Prasetyo, S.T.** | `wali_kelas`, `guru` | Wali Kelas **X TPM 1**. Mengajar banyak kelas & mengelola izin siswa kelas X TPM 1. |
 | `lilis@example.com` | **Ibu Lilis Suryani, S.Pd.** | `wali_kelas`, `guru` | Wali Kelas **X MP 1**. Mengajar banyak kelas & mengelola izin siswa kelas X MP 1. |
+| `petugas@example.com` | **Pak Budi Jatmiko** | `petugas` | Petugas piket gerbang. Memiliki izin melakukan scan kedatangan harian siswa di gerbang sekolah. |
 | `siswa@example.com` | **Siswa Test Rajasa** | `siswa` | Siswa utama. Terdaftar di kelas **X TKJ 1** di bawah bimbingan Wali Kelas Ibu Rina. |
 | `siswa1@example.com` s.d. `siswa20@example.com` | **Siswa Rombel Mockup** | `siswa` | Siswa simulasi yang terdistribusi merata di berbagai kelas jurusan lainnya. |
 
@@ -291,6 +292,32 @@ Berikut adalah endpoint baru yang dikonstruksikan untuk alur hibrida sesi kelas:
 ### 🎯 Pemindaian Presensi (`attendance`)
 * `POST /api/attendance/qr-scan` -> Siswa memindai QR Guru (Validasi GPS Sekolah, Token Sesi, Kelas, & Status Terlambat).
 * `POST /api/attendance/qr-student-scan` -> Guru memindai QR Siswa (Validasi Sesi Aktif & Identitas Siswa).
+
+---
+
+## 📄 Format Laporan PDF Resmi (Official PDF Reports)
+
+Sistem ini memiliki fitur pembuatan dokumen laporan kehadiran resmi berformat PDF (menggunakan `barryvdh/laravel-dompdf`) yang telah disesuaikan dengan standar administrasi sekolah menengah:
+
+1. **Format Dokumen**:
+   - **Ukuran & Orientasi**: Menggunakan kertas **A4 dengan orientasi Portrait** agar lebih mudah diarsipkan secara vertikal.
+   - **Tata Letak Header**: Menggunakan kotak tajuk berbingkai tebal (*boxed header*) di bagian tengah halaman, menampilkan nama instansi "SMKS RAJASA SURABAYA", alamat resmi ("JL. Genteng Kali No. 27, Surabaya"), judul laporan, dan **Tahun Ajaran Dinamis** berdasarkan tanggal pembuatan laporan.
+   - **Pembatas Halaman**: Menggunakan garis putus-putus (*dotted line dividers*) sebagai estetika visual formal pemisah informasi dokumen.
+
+2. **Metadata & Lokalisasi**:
+   - **Bahasa**: Bulan dalam tanggal secara otomatis dikonversi ke penamaan bahasa Indonesia (misal: `Juli`, `Juni`, `Desember`).
+   - **Waktu Cetak**: Dilengkapi label cetak lengkap dengan penanda zona waktu lokal (`WIB`).
+   - **Guru Pengampu**: Dilengkapi kolom garis bawah untuk tanda tangan manual guru pengampu.
+
+3. **Struktur Tabel Detail Presensi**:
+   - Menyajikan kolom data terstruktur: `NO` | `NISN` | `NAMA SISWA` | `KELAS` | `STATUS KEHADIRAN` | `KETERANGAN`.
+   - **Status Kehadiran**: Dipisahkan menjadi 4 sub-kolom kehadiran utama (**H** = Hadir/Telat, **S** = Sakit, **I** = Izin, **A** = Alfa/Tanpa Keterangan) dengan tanda centang (**✓**) yang dicetak otomatis pada kolom yang sesuai.
+   - **Keterangan**: Menampilkan detail durasi keterlambatan siswa (misal: *Terlambat 15 menit*) atau menampilkan alasan surat izin yang diinputkan dari data `notes`.
+
+4. **Tanda Tangan & Halaman Ganda**:
+   - **Legenda**: Menampilkan keterangan singkat simbol status kehadiran di bagian bawah tabel.
+   - **Kolom Tanda Tangan**: Layout horizontal dua blok tanda tangan di bagian paling bawah halaman untuk **Kepala Sekolah** (kiri) dan **Guru Pengampu / Wali Kelas** (kanan) beserta kolom NIP.
+   - **Nomor Halaman Dinamis**: Mencetak otomatis nomor halaman secara presisi di bagian footer dengan pola **"Halaman X dari Y"** (misal: *Halaman 1 dari 3*) menggunakan CSS counters.
 
 ---
 

@@ -378,6 +378,11 @@ export const attendanceApi = {
     return response.data;
   },
 
+  getSummary: async (params?: any) => {
+    const response = await api.get('/attendance/summary', { params });
+    return response.data;
+  },
+
   delete: async (id: number) => {
     const response = await api.delete(`/attendance/${id}`);
     return response.data;

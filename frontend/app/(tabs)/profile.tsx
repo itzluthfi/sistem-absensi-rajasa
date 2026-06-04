@@ -61,6 +61,12 @@ export default function ProfileScreen() {
       subtitle: "Cari & atur lokasi & radius sekolah",
       onPress: () => router.push("/admin/gps-settings"),
     }] : []),
+    ...(user?.roles?.includes("wali_kelas") ? [{
+      icon: "ribbon-outline" as IconName,
+      label: "Kelas Perwalian Saya",
+      subtitle: "Kelola siswa, jadwal & izin perwalian",
+      onPress: () => router.push("/teacher/perwalian"),
+    }] : []),
     {
       icon: "lock-closed-outline",
       label: "Ubah Kata Sandi",

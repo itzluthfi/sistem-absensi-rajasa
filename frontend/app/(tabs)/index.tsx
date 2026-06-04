@@ -85,7 +85,7 @@ export default function HomeScreen() {
   const [allSchedules, setAllSchedules] = useState<ScheduleRecord[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<any[]>([]);
   const [dailyCheckOutLoading, setDailyCheckOutLoading] = useState(false);
-  const [scheduleViewMode, setScheduleViewMode] = useState<"calendar" | "list">("calendar");
+  const [scheduleViewMode, setScheduleViewMode] = useState<"calendar" | "list">("list");
   const [openPresensiModalVisible, setOpenPresensiModalVisible] = useState(false);
   const [selectedScheduleForSession, setSelectedScheduleForSession] = useState<number | null>(null);
 

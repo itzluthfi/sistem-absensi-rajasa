@@ -218,6 +218,7 @@ export default function TabsLayout() {
         { name: 'history', label: 'Riwayat', icon: 'time-outline', activeIcon: 'time', href: '/(tabs)/history', show: true },
         { name: 'leave-request', label: 'Izin', icon: 'document-text-outline', activeIcon: 'document-text', href: '/(tabs)/leave-request', show: canSeeLeaveRequest },
         { name: 'reports', label: 'Laporan', icon: 'bar-chart-outline', activeIcon: 'bar-chart', href: '/(tabs)/reports', show: canSeeReports },
+        { name: 'perwalian', label: 'Kelas Perwalian', icon: 'ribbon-outline', activeIcon: 'ribbon', href: '/teacher/perwalian', show: isWaliKelas },
       ]
     },
     {

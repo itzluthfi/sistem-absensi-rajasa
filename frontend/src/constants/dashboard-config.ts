@@ -79,8 +79,8 @@ export const DASHBOARD_CONFIGS: Record<RoleType, DashboardConfig> = {
     primaryColor: '#8B5CF6',
     features: [
       { label: 'Live Monitor Gerbang', icon: 'pulse-outline', route: '/monitor', description: 'Pantau kedatangan gerbang real-time' },
+      { label: 'Kelas Perwalian', icon: 'ribbon-outline', route: '/teacher/perwalian', description: 'Kelola roster, jadwal, & izin kelas perwalian' },
       { label: 'Absensi Siswa', icon: 'qr-code-outline', route: '/(tabs)/attendance', description: 'Scan dan input absensi' },
-      { label: 'Kelola Izin', icon: 'document-text-outline', route: '/(tabs)/leave-request', description: 'Approve izin siswa' },
       { label: 'Laporan Kelas', icon: 'bar-chart-outline', route: '/(tabs)/reports', description: 'Statistik kelas' },
       { label: 'Lihat Siswa', icon: 'people-outline', route: '/admin/students', description: 'Data siswa kelas' },
       { label: 'Jadwal Kelas', icon: 'calendar-outline', route: '/admin/schedules', description: 'Jadwal pelajaran kelas bimbingan' },

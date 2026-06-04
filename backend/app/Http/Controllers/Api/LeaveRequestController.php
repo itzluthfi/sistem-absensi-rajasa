@@ -37,6 +37,22 @@ class LeaveRequestController extends Controller
                     $empty = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20);
                     return (new BaseController)->sendResponse($empty, 'Daftar izin');
                 }
+            } elseif ($user->hasRole('wali_kelas') && !$user->hasRole(['super_admin', 'admin', 'kepala_sekolah'])) {
+                $teacher = $user->teacher;
+                if ($teacher) {
+                    $classIds = \Illuminate\Support\Facades\DB::table('classes')
+                        ->where('homeroom_teacher_id', $teacher->id)
+                        ->pluck('id')
+                        ->toArray();
+                    
+                    $query->whereIn('students.class_id', $classIds);
+                } else {
+                    $empty = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20);
+                    return (new BaseController)->sendResponse($empty, 'Daftar izin');
+                }
+            } elseif ($user->hasRole('guru') && !$user->hasRole(['super_admin', 'admin', 'kepala_sekolah', 'wali_kelas'])) {
+                $empty = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20);
+                return (new BaseController)->sendResponse($empty, 'Daftar izin');
             }
 
             // Filter by status
@@ -212,6 +228,26 @@ class LeaveRequestController extends Controller
 
             $leave = LeaveRequest::findOrFail($id);
 
+            // Homeroom teacher validation
+            if ($user->hasRole('wali_kelas') && !$user->hasRole(['super_admin', 'admin'])) {
+                $teacher = $user->teacher;
+                if (!$teacher) {
+                    return (new BaseController)->sendError('Data guru Anda tidak ditemukan.', [], 403);
+                }
+                
+                $studentClassId = \Illuminate\Support\Facades\DB::table('students')
+                    ->where('id', $leave->student_id)
+                    ->value('class_id');
+                
+                $homeroomTeacherId = $studentClassId 
+                    ? \Illuminate\Support\Facades\DB::table('classes')->where('id', $studentClassId)->value('homeroom_teacher_id')
+                    : null;
+                
+                if ($homeroomTeacherId !== $teacher->id) {
+                    return (new BaseController)->sendError('Anda hanya dapat menyetujui izin siswa perwalian Anda sendiri.', [], 403);
+                }
+            }
+
             if ($leave->approval_status !== 'pending') {
                 return (new BaseController)->sendError('Izin sudah diproses sebelumnya.', [], 422);
             }
@@ -221,6 +257,94 @@ class LeaveRequestController extends Controller
             $leave->approved_by = $user->id;
             $leave->approved_at = now();
             $leave->save();
+
+            // Sync attendance records
+            $student = $leave->student;
+            if ($student && $student->class_id) {
+                $startDate = \Carbon\Carbon::parse($leave->start_date);
+                $endDate = \Carbon\Carbon::parse($leave->end_date);
+                
+                $activePeriod = \Illuminate\Support\Facades\DB::table('academic_periods')->where('is_active', true)->first();
+                $academicPeriodId = $activePeriod ? $activePeriod->id : null;
+
+                for ($date = clone $startDate; $date->lte($endDate); $date->addDay()) {
+                    $currentDateStr = $date->toDateString();
+                    $dayNameEng = $date->format('l'); // e.g. Monday, Tuesday, etc.
+                    
+                    // Handle school-level daily check-in attendance
+                    $existingDaily = \App\Models\Attendance::where('student_id', $student->id)
+                        ->whereNull('schedule_id')
+                        ->where('date', $currentDateStr)
+                        ->first();
+                        
+                    if ($existingDaily) {
+                        $existingDaily->update([
+                            'status' => $leave->permission_type,
+                            'notes' => $leave->reason,
+                            'recorded_by' => $user->id,
+                            'academic_period_id' => $academicPeriodId,
+                        ]);
+                    } else {
+                        \App\Models\Attendance::create([
+                            'student_id' => $student->id,
+                            'class_id' => $student->class_id,
+                            'schedule_id' => null,
+                            'attendance_session_id' => null,
+                            'academic_period_id' => $academicPeriodId,
+                            'date' => $currentDateStr,
+                            'time' => now()->format('H:i:s'),
+                            'status' => $leave->permission_type,
+                            'notes' => $leave->reason,
+                            'recorded_by' => $user->id,
+                        ]);
+                    }
+
+                    // Find all schedules for the student's class on this day name
+                    $schedules = \Illuminate\Support\Facades\DB::table('schedules')
+                        ->where('class_id', $student->class_id)
+                        ->where('day_name', $dayNameEng)
+                        ->get();
+                        
+                    foreach ($schedules as $schedule) {
+                        // Check if an attendance record already exists for this student, schedule, and date
+                        $existingAttendance = \App\Models\Attendance::where('student_id', $student->id)
+                            ->where('schedule_id', $schedule->id)
+                            ->where('date', $currentDateStr)
+                            ->first();
+                            
+                        // Find if there is an active/existing session for this schedule on this date
+                        $session = \Illuminate\Support\Facades\DB::table('attendance_sessions')
+                            ->where('schedule_id', $schedule->id)
+                            ->where('attendance_date', $currentDateStr)
+                            ->first();
+                            
+                        $sessionId = $session ? $session->id : null;
+                        
+                        if ($existingAttendance) {
+                            $existingAttendance->update([
+                                'status' => $leave->permission_type,
+                                'notes' => $leave->reason,
+                                'recorded_by' => $user->id,
+                                'attendance_session_id' => $sessionId,
+                                'academic_period_id' => $academicPeriodId,
+                            ]);
+                        } else {
+                            \App\Models\Attendance::create([
+                                'student_id' => $student->id,
+                                'class_id' => $student->class_id,
+                                'schedule_id' => $schedule->id,
+                                'attendance_session_id' => $sessionId,
+                                'academic_period_id' => $academicPeriodId,
+                                'date' => $currentDateStr,
+                                'time' => now()->format('H:i:s'),
+                                'status' => $leave->permission_type,
+                                'notes' => $leave->reason,
+                                'recorded_by' => $user->id,
+                            ]);
+                        }
+                    }
+                }
+            }
 
             // Audit log
             AuditLog::create([
@@ -237,7 +361,7 @@ class LeaveRequestController extends Controller
 
             return (new BaseController)->sendResponse($leave->load('student', 'approver'), 'Izin disetujui');
         } catch (\Exception $e) {
-            return (new BaseController)->sendError('Gagal menyetujui izin.');
+            return (new BaseController)->sendError('Gagal menyetujui izin: ' . $e->getMessage());
         }
     }
 
@@ -252,6 +376,26 @@ class LeaveRequestController extends Controller
             }
 
             $leave = LeaveRequest::findOrFail($id);
+
+            // Homeroom teacher validation
+            if ($user->hasRole('wali_kelas') && !$user->hasRole(['super_admin', 'admin'])) {
+                $teacher = $user->teacher;
+                if (!$teacher) {
+                    return (new BaseController)->sendError('Data guru Anda tidak ditemukan.', [], 403);
+                }
+                
+                $studentClassId = \Illuminate\Support\Facades\DB::table('students')
+                    ->where('id', $leave->student_id)
+                    ->value('class_id');
+                
+                $homeroomTeacherId = $studentClassId 
+                    ? \Illuminate\Support\Facades\DB::table('classes')->where('id', $studentClassId)->value('homeroom_teacher_id')
+                    : null;
+                
+                if ($homeroomTeacherId !== $teacher->id) {
+                    return (new BaseController)->sendError('Anda hanya dapat menolak izin siswa perwalian Anda sendiri.', [], 403);
+                }
+            }
 
             if ($leave->approval_status !== 'pending') {
                 return (new BaseController)->sendError('Izin sudah diproses sebelumnya.', [], 422);
