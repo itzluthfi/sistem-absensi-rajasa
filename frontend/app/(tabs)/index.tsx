@@ -254,7 +254,11 @@ export default function HomeScreen() {
 
       // Calculate stats
       let hadir = 0, telat = 0, izin = 0, sakit = 0, alpha = 0;
-      historyList.forEach((att: any) => {
+      const myHistoryList = (user?.roles?.includes("siswa") && user?.student_info?.id)
+        ? historyList.filter((att: any) => user?.student_info && att.student_id === user.student_info.id)
+        : historyList;
+
+      myHistoryList.forEach((att: any) => {
         const s = String(att.status).toLowerCase();
         if (s === "hadir") hadir++;
         else if (s === "telat") telat++;
@@ -262,7 +266,7 @@ export default function HomeScreen() {
         else if (s === "sakit") sakit++;
         else if (s === "alpha") alpha++;
       });
-      const total = historyList.length;
+      const total = myHistoryList.length;
       const presence = hadir + telat;
       const percentage = total > 0 ? Math.round((presence / total) * 100) : 100;
 
@@ -1136,7 +1140,7 @@ export default function HomeScreen() {
 
     // 2. Grouped by Student (Based on class roster)
     const studentSummaries = (() => {
-      if (isSiswa) return [];
+      // Both teachers and students can see classmate summaries
       
       const studentMap: Record<number, { studentId: number; name: string; nis: string; attendances: any[]; stats: { total: number; hadir: number; telat: number; izin: number; sakit: number; alpha: number; percentage: number } }> = {};
       
@@ -1184,6 +1188,20 @@ export default function HomeScreen() {
     })();
 
     // Helpers
+    const formatAttendanceTime = (timeStr: any) => {
+      if (!timeStr) return "-";
+      const str = String(timeStr);
+      if (str.includes(" ")) {
+        const timePart = str.split(" ")[1];
+        return timePart ? timePart.substring(0, 5) : "-";
+      }
+      if (str.includes("T")) {
+        const timePart = str.split("T")[1];
+        return timePart ? timePart.substring(0, 5) : "-";
+      }
+      return str.substring(0, 5);
+    };
+
     const getStatusColor = (status: string) => {
       const s = String(status).toLowerCase();
       if (s === "hadir") return "#10B981";
@@ -1316,258 +1334,264 @@ export default function HomeScreen() {
                 </View>
               )}
 
-              {/* Segmented control for Teachers / Admins */}
-              {!isSiswa && (
-                <View style={styles.tabBar}>
-                  <TouchableOpacity
-                    style={[styles.tabButton, modalTab === "sessions" && styles.tabButtonActive]}
-                    onPress={() => setModalTab("sessions")}
-                  >
-                    <Ionicons
-                      name="calendar"
-                      size={15}
-                      color={modalTab === "sessions" ? "#2563EB" : "#6B7280"}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text style={[styles.tabButtonText, modalTab === "sessions" && styles.tabButtonTextActive]}>
-                      Pertemuan Kelas
-                    </Text>
-                  </TouchableOpacity>
+              {/* Segmented control for All (Teachers/Admins see class sessions, Students see Kehadiran Saya vs Rekan Sekelas) */}
+              <View style={styles.tabBar}>
+                <TouchableOpacity
+                  style={[styles.tabButton, modalTab === "sessions" && styles.tabButtonActive]}
+                  onPress={() => setModalTab("sessions")}
+                >
+                  <Ionicons
+                    name="calendar"
+                    size={15}
+                    color={modalTab === "sessions" ? "#2563EB" : "#6B7280"}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.tabButtonText, modalTab === "sessions" && styles.tabButtonTextActive]}>
+                    {isSiswa ? "Kehadiran Saya" : "Pertemuan Kelas"}
+                  </Text>
+                </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.tabButton, modalTab === "students" && styles.tabButtonActive]}
-                    onPress={() => setModalTab("students")}
-                  >
-                    <Ionicons
-                      name="people"
-                      size={15}
-                      color={modalTab === "students" ? "#2563EB" : "#6B7280"}
-                      style={{ marginRight: 6 }}
-                    />
-                    <Text style={[styles.tabButtonText, modalTab === "students" && styles.tabButtonTextActive]}>
-                      Kehadiran Siswa
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
+                <TouchableOpacity
+                  style={[styles.tabButton, modalTab === "students" && styles.tabButtonActive]}
+                  onPress={() => setModalTab("students")}
+                >
+                  <Ionicons
+                    name="people"
+                    size={15}
+                    color={modalTab === "students" ? "#2563EB" : "#6B7280"}
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={[styles.tabButtonText, modalTab === "students" && styles.tabButtonTextActive]}>
+                    {isSiswa ? "Rekan Sekelas" : "Kehadiran Siswa"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
               <Text style={styles.historyListTitle}>
                 {isSiswa
-                  ? "Riwayat Pertemuan & Status Kehadiran"
-                  : modalTab === "sessions"
-                  ? "Daftar Pertemuan Sesi Kelas"
-                  : "Persentase Kehadiran Tiap Siswa"}
+                  ? (modalTab === "sessions" ? "Riwayat Pertemuan & Status Kehadiran" : "Kehadiran Rekan Sekelas")
+                  : (modalTab === "sessions" ? "Daftar Pertemuan Sesi Kelas" : "Persentase Kehadiran Tiap Siswa")}
               </Text>
 
               {loadingHistory ? (
                 <ActivityIndicator color="#3B82F6" style={{ marginVertical: 32 }} />
-              ) : isSiswa && subjectAttendanceHistory.length === 0 ? (
-                <View style={styles.emptyHistoryState}>
-                  <Ionicons name="calendar-outline" size={36} color="#9CA3AF" />
-                  <Text style={styles.emptyHistoryText}>Belum ada riwayat absensi kelas untuk mapel ini.</Text>
-                </View>
-              ) : !isSiswa && modalTab === "sessions" && sessions.length === 0 ? (
-                <View style={styles.emptyHistoryState}>
-                  <Ionicons name="calendar-outline" size={36} color="#9CA3AF" />
-                  <Text style={styles.emptyHistoryText}>Belum ada riwayat pertemuan sesi untuk kelas ini.</Text>
-                </View>
-              ) : !isSiswa && modalTab === "students" && studentSummaries.length === 0 ? (
-                <View style={styles.emptyHistoryState}>
-                  <Ionicons name="people-outline" size={36} color="#9CA3AF" />
-                  <Text style={styles.emptyHistoryText}>Tidak ada data siswa terdaftar di kelas ini.</Text>
-                </View>
-              ) : isSiswa ? (
-                /* Siswa Individual List */
-                <View style={{ gap: 10, paddingBottom: 24 }}>
-                  {subjectAttendanceHistory.map((att: any) => {
-                    const d = new Date(att.date);
-                    const formattedDate = d.toLocaleDateString("id-ID", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric"
-                    });
-                    const statusColor = getStatusColor(att.status);
-
-                    return (
-                      <View key={att.id} style={styles.historyItem}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.historyItemDate}>{formattedDate}</Text>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-                            <Ionicons name="time-outline" size={11} color="#9CA3AF" />
-                            <Text style={styles.historyItemMeta}>
-                              Jam Absen: {att.time ? String(att.time).substring(11, 16) : "-"}
-                            </Text>
-                          </View>
-                        </View>
-                        <View style={[styles.historyItemBadge, { backgroundColor: `${statusColor}14` }]}>
-                          <Text style={[styles.historyItemBadgeText, { color: statusColor }]}>
-                            {getStatusLabel(att.status).toUpperCase()}
-                          </Text>
-                        </View>
-                      </View>
-                    );
-                  })}
-                </View>
               ) : modalTab === "sessions" ? (
-                /* Teacher Tab 1: Grouped Sessions Accordion */
-                <View style={{ gap: 10, paddingBottom: 24 }}>
-                  {sessions.map((sess) => {
-                    const d = new Date(sess.date);
-                    const formattedDate = d.toLocaleDateString("id-ID", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric"
-                    });
-                    const isExpanded = expandedDate === sess.date;
-                    const presentCount = sess.stats.hadir + sess.stats.telat;
-                    const ringColor = sess.stats.percentage >= 85 ? "#10B981" : sess.stats.percentage >= 60 ? "#F59E0B" : "#EF4444";
-
-                    return (
-                      <View key={sess.date} style={styles.sessionCard}>
-                        <TouchableOpacity
-                          style={styles.sessionCardHeader}
-                          onPress={() => setExpandedDate(isExpanded ? null : sess.date)}
-                        >
-                          <View style={{ flex: 1, gap: 2 }}>
-                            <Text style={styles.sessionCardTitle}>{formattedDate}</Text>
-                            <Text style={styles.sessionCardSubtitle}>
-                              Kehadiran: {presentCount} dari {sess.stats.total} Siswa
-                            </Text>
-                          </View>
-                          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                            <View style={[styles.sessionProgressPill, { backgroundColor: `${ringColor}14` }]}>
-                              <Text style={[styles.sessionProgressPillText, { color: ringColor }]}>
-                                {sess.stats.percentage}%
-                              </Text>
-                            </View>
-                            <Ionicons
-                              name={isExpanded ? "chevron-up" : "chevron-down"}
-                              size={18}
-                              color="#6B7280"
-                            />
-                          </View>
-                        </TouchableOpacity>
-
-                        {isExpanded && (
-                          <View style={styles.sessionDetailsContainer}>
-                            {sess.attendances.map((att) => {
-                              const initials = att.student?.full_name?.charAt(0).toUpperCase() || "S";
-                              const statusColor = getStatusColor(att.status);
-                              return (
-                                <View key={att.id} style={styles.sessionStudentRow}>
-                                  <View style={styles.sessionStudentAvatar}>
-                                    <Text style={styles.sessionStudentAvatarText}>{initials}</Text>
-                                  </View>
-                                  <View style={{ flex: 1 }}>
-                                    <Text style={styles.sessionStudentName} numberOfLines={1}>
-                                      {att.student?.full_name || "Siswa"}
-                                    </Text>
-                                    <Text style={styles.sessionStudentMeta}>
-                                      NIS: {att.student?.nis || "-"} | Waktu: {att.time ? String(att.time).substring(11, 16) : "-"}
-                                    </Text>
-                                  </View>
-                                  <View style={[styles.historyItemBadge, { backgroundColor: `${statusColor}14` }]}>
-                                    <Text style={[styles.historyItemBadgeText, { color: statusColor, fontSize: 8 }]}>
-                                      {getStatusLabel(att.status).toUpperCase()}
-                                    </Text>
-                                  </View>
-                                </View>
-                              );
-                            })}
-                          </View>
-                        )}
+                /* Tab 1: Pertemuan / Kehadiran Saya */
+                isSiswa ? (
+                  (() => {
+                    const myHistory = subjectAttendanceHistory.filter((att: any) => att.student_id === user?.student_info?.id);
+                    return myHistory.length === 0 ? (
+                      <View style={styles.emptyHistoryState}>
+                        <Ionicons name="calendar-outline" size={36} color="#9CA3AF" />
+                        <Text style={styles.emptyHistoryText}>Belum ada riwayat absensi kelas untuk mapel ini.</Text>
                       </View>
-                    );
-                  })}
-                </View>
-              ) : (
-                /* Teacher Tab 2: Grouped Students Summary Rates */
-                <View style={{ gap: 10, paddingBottom: 24 }}>
-                  {studentSummaries.map((stud) => {
-                    const initials = stud.name.charAt(0).toUpperCase();
-                    const presentCount = stud.stats.hadir + stud.stats.telat;
-                    const ringColor = stud.stats.percentage >= 85 ? "#10B981" : stud.stats.percentage >= 60 ? "#F59E0B" : "#EF4444";
+                    ) : (
+                      <View style={{ gap: 10, paddingBottom: 24 }}>
+                        {myHistory.map((att: any) => {
+                          const d = new Date(att.date);
+                          const formattedDate = d.toLocaleDateString("id-ID", {
+                            weekday: "long",
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric"
+                          });
+                          const statusColor = getStatusColor(att.status);
 
-                    // Determine latest or active session status
-                    const latestAtt = stud.attendances && stud.attendances.length > 0 
-                      ? [...stud.attendances].sort((a: any, b: any) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time))[0] 
-                      : null;
-
-                    let statusBadgeText = "";
-                    let statusBadgeColor = "#9CA3AF";
-                    
-                    if (latestAtt) {
-                      let dateStr = "";
-                      if (typeof latestAtt.date === "string") {
-                        dateStr = latestAtt.date.split(" ")[0].split("T")[0];
-                      } else {
-                        const d = new Date(latestAtt.date);
-                        const y = d.getFullYear();
-                        const m = String(d.getMonth() + 1).padStart(2, "0");
-                        const dayVal = String(d.getDate()).padStart(2, "0");
-                        dateStr = `${y}-${m}-${dayVal}`;
-                      }
-                      const isTodayRecord = dateStr === todayDateStr;
-                      
-                      statusBadgeText = isTodayRecord 
-                        ? getStatusLabel(latestAtt.status) 
-                        : `${getStatusLabel(latestAtt.status)} (${new Date(dateStr).toLocaleDateString("id-ID", { day: 'numeric', month: 'short' })})`;
-                      statusBadgeColor = getStatusColor(latestAtt.status);
-                    } else if (selectedSubjectSchedule?.active_session) {
-                      statusBadgeText = "Belum Absen";
-                      statusBadgeColor = "#EF4444";
-                    } else {
-                      statusBadgeText = "Belum Absen";
-                      statusBadgeColor = "#9CA3AF";
-                    }
-
-                    return (
-                      <View key={stud.studentId} style={styles.studentSummaryRow}>
-                        <View style={styles.sessionStudentAvatar}>
-                          <Text style={styles.sessionStudentAvatarText}>{initials}</Text>
-                        </View>
-                        <View style={{ flex: 1, gap: 4 }}>
-                          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, marginRight: 8 }}>
-                              <Text style={[styles.sessionStudentName, { flexShrink: 1 }]} numberOfLines={1}>
-                                {stud.name}
-                              </Text>
-                              <View style={{ backgroundColor: `${statusBadgeColor}14`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
-                                <Text style={{ color: statusBadgeColor, fontSize: 9, fontWeight: "800" }}>
-                                  {statusBadgeText.toUpperCase()}
+                          return (
+                            <View key={att.id} style={styles.historyItem}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={styles.historyItemDate}>{formattedDate}</Text>
+                                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                                  <Ionicons name="time-outline" size={11} color="#9CA3AF" />
+                                  <Text style={styles.historyItemMeta}>
+                                    Jam Absen: {formatAttendanceTime(att.time)}
+                                  </Text>
+                                </View>
+                              </View>
+                              <View style={[styles.historyItemBadge, { backgroundColor: `${statusColor}14` }]}>
+                                <Text style={[styles.historyItemBadgeText, { color: statusColor }]}>
+                                  {getStatusLabel(att.status).toUpperCase()}
                                 </Text>
                               </View>
                             </View>
-                            <Text style={{ fontSize: 12, fontWeight: "800", color: ringColor }}>
-                              {stud.stats.percentage}%
-                            </Text>
-                          </View>
-
-                          {/* Linear progress bar */}
-                          <View style={styles.studentProgressBg}>
-                            <View
-                              style={[
-                                styles.studentProgressFill,
-                                { width: `${stud.stats.percentage}%`, backgroundColor: ringColor }
-                              ]}
-                            />
-                          </View>
-
-                          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                            <Text style={styles.sessionStudentMeta}>
-                              NIS: {stud.nis}
-                            </Text>
-                            <Text style={[styles.sessionStudentMeta, { fontWeight: "700" }]}>
-                              {presentCount}/{stud.stats.total} Sesi | {stud.stats.alpha} Alpha
-                            </Text>
-                          </View>
-                        </View>
+                          );
+                        })}
                       </View>
                     );
-                  })}
-                </View>
+                  })()
+                ) : (
+                  sessions.length === 0 ? (
+                    <View style={styles.emptyHistoryState}>
+                      <Ionicons name="calendar-outline" size={36} color="#9CA3AF" />
+                      <Text style={styles.emptyHistoryText}>Belum ada riwayat pertemuan sesi untuk kelas ini.</Text>
+                    </View>
+                  ) : (
+                    <View style={{ gap: 10, paddingBottom: 24 }}>
+                      {sessions.map((sess) => {
+                        const d = new Date(sess.date);
+                        const formattedDate = d.toLocaleDateString("id-ID", {
+                          weekday: "long",
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric"
+                        });
+                        const isExpanded = expandedDate === sess.date;
+                        const presentCount = sess.stats.hadir + sess.stats.telat;
+                        const ringColor = sess.stats.percentage >= 85 ? "#10B981" : sess.stats.percentage >= 60 ? "#F59E0B" : "#EF4444";
+
+                        return (
+                          <View key={sess.date} style={styles.sessionCard}>
+                            <TouchableOpacity
+                              style={styles.sessionCardHeader}
+                              onPress={() => setExpandedDate(isExpanded ? null : sess.date)}
+                            >
+                              <View style={{ flex: 1, gap: 2 }}>
+                                <Text style={styles.sessionCardTitle}>{formattedDate}</Text>
+                                <Text style={styles.sessionCardSubtitle}>
+                                  Kehadiran: {presentCount} dari {sess.stats.total} Siswa
+                                </Text>
+                              </View>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                <View style={[styles.sessionProgressPill, { backgroundColor: `${ringColor}14` }]}>
+                                  <Text style={[styles.sessionProgressPillText, { color: ringColor }]}>
+                                    {sess.stats.percentage}%
+                                  </Text>
+                                </View>
+                                <Ionicons
+                                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                                  size={18}
+                                  color="#6B7280"
+                                />
+                              </View>
+                            </TouchableOpacity>
+
+                            {isExpanded && (
+                              <View style={styles.sessionDetailsContainer}>
+                                {sess.attendances.map((att) => {
+                                  const initials = att.student?.full_name?.charAt(0).toUpperCase() || "S";
+                                  const statusColor = getStatusColor(att.status);
+                                  return (
+                                    <View key={att.id} style={styles.sessionStudentRow}>
+                                      <View style={styles.sessionStudentAvatar}>
+                                        <Text style={styles.sessionStudentAvatarText}>{initials}</Text>
+                                      </View>
+                                      <View style={{ flex: 1 }}>
+                                        <Text style={styles.sessionStudentName} numberOfLines={1}>
+                                          {att.student?.full_name || "Siswa"}
+                                        </Text>
+                                        <Text style={styles.sessionStudentMeta}>
+                                          NIS: {att.student?.nis || "-"} | Waktu: {formatAttendanceTime(att.time)}
+                                        </Text>
+                                      </View>
+                                      <View style={[styles.historyItemBadge, { backgroundColor: `${statusColor}14` }]}>
+                                        <Text style={[styles.historyItemBadgeText, { color: statusColor, fontSize: 8 }]}>
+                                          {getStatusLabel(att.status).toUpperCase()}
+                                        </Text>
+                                      </View>
+                                    </View>
+                                  );
+                                })}
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )
+                )
+              ) : (
+                /* Tab 2: Kehadiran Siswa / Rekan Sekelas */
+                studentSummaries.length === 0 ? (
+                  <View style={styles.emptyHistoryState}>
+                    <Ionicons name="people-outline" size={36} color="#9CA3AF" />
+                    <Text style={styles.emptyHistoryText}>Tidak ada data siswa terdaftar di kelas ini.</Text>
+                  </View>
+                ) : (
+                  <View style={{ gap: 10, paddingBottom: 24 }}>
+                    {studentSummaries.map((stud) => {
+                      const initials = stud.name.charAt(0).toUpperCase();
+                      const presentCount = stud.stats.hadir + stud.stats.telat;
+                      const ringColor = stud.stats.percentage >= 85 ? "#10B981" : stud.stats.percentage >= 60 ? "#F59E0B" : "#EF4444";
+
+                      // Determine latest or active session status
+                      const latestAtt = stud.attendances && stud.attendances.length > 0 
+                        ? [...stud.attendances].sort((a: any, b: any) => b.date.localeCompare(a.date) || b.time.localeCompare(a.time))[0] 
+                        : null;
+
+                      let statusBadgeText = "";
+                      let statusBadgeColor = "#9CA3AF";
+                      
+                      if (latestAtt) {
+                        let dateStr = "";
+                        if (typeof latestAtt.date === "string") {
+                          dateStr = latestAtt.date.split(" ")[0].split("T")[0];
+                        } else {
+                          const d = new Date(latestAtt.date);
+                          const y = d.getFullYear();
+                          const m = String(d.getMonth() + 1).padStart(2, "0");
+                          const dayVal = String(d.getDate()).padStart(2, "0");
+                          dateStr = `${y}-${m}-${dayVal}`;
+                        }
+                        const isTodayRecord = dateStr === todayDateStr;
+                        
+                        statusBadgeText = isTodayRecord 
+                          ? getStatusLabel(latestAtt.status) 
+                          : `${getStatusLabel(latestAtt.status)} (${new Date(dateStr).toLocaleDateString("id-ID", { day: 'numeric', month: 'short' })})`;
+                        statusBadgeColor = getStatusColor(latestAtt.status);
+                      } else if (selectedSubjectSchedule?.active_session) {
+                        statusBadgeText = "Belum Absen";
+                        statusBadgeColor = "#EF4444";
+                      } else {
+                        statusBadgeText = "Belum Absen";
+                        statusBadgeColor = "#9CA3AF";
+                      }
+
+                      return (
+                        <View key={stud.studentId} style={styles.studentSummaryRow}>
+                          <View style={styles.sessionStudentAvatar}>
+                            <Text style={styles.sessionStudentAvatarText}>{initials}</Text>
+                          </View>
+                          <View style={{ flex: 1, gap: 4 }}>
+                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1, marginRight: 8 }}>
+                                <Text style={[styles.sessionStudentName, { flexShrink: 1 }]} numberOfLines={1}>
+                                  {stud.name}
+                                </Text>
+                                <View style={{ backgroundColor: `${statusBadgeColor}14`, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                  <Text style={{ color: statusBadgeColor, fontSize: 9, fontWeight: "800" }}>
+                                    {statusBadgeText.toUpperCase()}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={{ fontSize: 12, fontWeight: "800", color: ringColor }}>
+                                {stud.stats.percentage}%
+                              </Text>
+                            </View>
+
+                            {/* Linear progress bar */}
+                            <View style={styles.studentProgressBg}>
+                              <View
+                                style={[
+                                  styles.studentProgressFill,
+                                  { width: `${stud.stats.percentage}%`, backgroundColor: ringColor }
+                                ]}
+                              />
+                            </View>
+
+                            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+                              <Text style={styles.sessionStudentMeta}>
+                                NIS: {stud.nis}
+                              </Text>
+                              <Text style={[styles.sessionStudentMeta, { fontWeight: "700" }]}>
+                                {presentCount}/{stud.stats.total} Sesi | {stud.stats.alpha} Alpha
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )
               )}
             </ScrollView>
 

@@ -61,8 +61,28 @@ class AttendanceController extends BaseController
 
             // Role-based filtering
             if ($user->hasRole('siswa') && $user->student) {
-                // Siswa can only see their own attendance
-                $query->where('attendances.student_id', $user->student->id);
+                // Siswa can see attendance for their own class, but not other classes
+                $studentClassId = $user->student->class_id;
+                
+                if ($request->has('schedule_id')) {
+                    // Check if schedule belongs to student's class
+                    $schedule = \Illuminate\Support\Facades\DB::table('schedules')
+                        ->where('id', $request->schedule_id)
+                        ->first();
+                        
+                    if (!$schedule || $schedule->class_id != $studentClassId) {
+                        // Not student's class schedule, restrict to own student_id
+                        $query->where('attendances.student_id', $user->student->id);
+                    }
+                } elseif ($request->has('class_id')) {
+                    if ($request->class_id != $studentClassId) {
+                        // Not student's class, restrict
+                        $query->where('attendances.student_id', $user->student->id);
+                    }
+                } else {
+                    // No specific schedule/class of student, restrict to own student_id
+                    $query->where('attendances.student_id', $user->student->id);
+                }
             }
 
             if ($request->boolean('all') || $request->input('paginate') === 'false') {
