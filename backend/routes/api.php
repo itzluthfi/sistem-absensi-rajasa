@@ -124,6 +124,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('attendance-sessions/{id}/close', [\App\Http\Controllers\Api\AttendanceSessionController::class, 'close']);
     });
 
+    // Absen gerbang oleh petugas / guru piket
+    Route::middleware('role:super_admin,admin,petugas,guru,wali_kelas')->group(function () {
+        Route::post('attendance/petugas-scan', [AttendanceController::class, 'petugasScan']);
+        Route::get('petugas/classes', [AttendanceController::class, 'getPetugasClasses']);
+    });
+
     // Delete attendance - Admin, Guru, Wali Kelas
     Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
         Route::delete('attendance/{id}', [AttendanceController::class, 'destroy']);
@@ -136,6 +142,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah')->group(function () {
         Route::get('reports/attendance/csv', [ReportController::class, 'attendanceCsv']);
         Route::get('reports/attendance/pdf', [ReportController::class, 'attendancePdf']);
+        Route::get('reports/attendance/percent-excel', [ReportController::class, 'attendancePercentExcel']);
+        Route::get('reports/attendance/percent-pdf', [ReportController::class, 'attendancePercentPdf']);
         Route::get('reports/attendance/summary', [ReportController::class, 'attendanceSummary']);
     });
 
@@ -258,6 +266,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware('role:super_admin,admin')->group(function () {
         Route::put('settings/gps', [SettingsController::class, 'updateGpsSettings']);
+    });
+
+    // Settings & Konfigurasi Mode Absensi
+    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah,petugas')->group(function () {
+        Route::get('settings/entry-mode', [SettingsController::class, 'getEntryMode']);
+    });
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::put('settings/entry-mode', [SettingsController::class, 'updateEntryMode']);
     });
 
     // ============================================

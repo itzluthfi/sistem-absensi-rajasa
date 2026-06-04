@@ -22,7 +22,8 @@ class Attendance extends Model
         'checkout_time',
         'location', 
         'device_info', 
-        'notes'
+        'notes',
+        'recorded_by'
     ];
 
     protected $casts = [

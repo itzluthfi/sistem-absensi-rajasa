@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Laporan Absensi SMKS Rajasa</title>
+    <title>Rekap Persentase Absensi SMKS Rajasa</title>
     <style>
         @page {
             margin: 50px 45px 60px 45px;
@@ -94,9 +94,7 @@
         .text-left {
             text-align: left;
         }
-        .legend-box {
-            margin-top: 15px;
-            font-size: 10px;
+        .percentage-badge {
             font-weight: bold;
         }
         .signature-table {
@@ -146,22 +144,6 @@
         $now = \Carbon\Carbon::now()->setTimezone('Asia/Jakarta');
         $formattedPrintDate = $now->day . ' ' . $months[$now->month] . ' ' . $now->year;
         $printTime = $now->format('H:i');
-
-        if (isset($from) && $from !== '-' && isset($to) && $to !== '-') {
-            $fromDate = \Carbon\Carbon::parse($from);
-            $toDate = \Carbon\Carbon::parse($to);
-            
-            $fromStr = $fromDate->day . ' ' . $months[$fromDate->month] . ' ' . $fromDate->year;
-            $toStr = $toDate->day . ' ' . $months[$toDate->month] . ' ' . $toDate->year;
-            
-            if ($from === $to) {
-                $dateRange = $fromStr;
-            } else {
-                $dateRange = $fromStr . ' - ' . $toStr;
-            }
-        } else {
-            $dateRange = 'Semua Data';
-        }
     @endphp
 
     <div class="footer-page-number"></div>
@@ -169,69 +151,55 @@
     <div class="header-box">
         <div class="header-title-main">SMKS RAJASA SURABAYA</div>
         <div class="header-address">JL. Genteng Kali No. 27, Surabaya</div>
-        <div class="header-title-sub">LAPORAN ABSENSI</div>
+        <div class="header-title-sub">LAPORAN PERSENTASE ABSENSI</div>
         <div class="header-academic-year"><strong>Tahun Ajaran:</strong> {{ $academicYear }}</div>
     </div>
 
     <div class="divider"></div>
     <div class="metadata">
-        <p><strong>Tanggal:</strong> {{ $dateRange }}</p>
+        <p><strong>Nama Kelas:</strong> {{ $className }}</p>
+        <p><strong>Jenis Absensi:</strong> 
+            @if($reportType === 'daily')
+                Absen Masuk Harian Gerbang
+            @else
+                Sesi Pelajaran: {{ $subjectName ?? 'Semua Mapel' }}
+            @endif
+        </p>
         <p><strong>Dicetak:</strong> {{ $formattedPrintDate }} | {{ $printTime }} WIB</p>
-        <p><strong>Guru Pengampu:</strong> ____________________________________</p>
+        <p><strong>Total Siswa:</strong> {{ count($rows) }} Siswa</p>
     </div>
     <div class="divider"></div>
 
     <table>
         <thead>
             <tr>
-                <th rowspan="2" style="width: 5%;">NO</th>
-                <th rowspan="2" style="width: 15%;">NISN</th>
-                <th rowspan="2" style="width: 35%; text-align: left; padding-left: 10px;">NAMA SISWA</th>
-                <th rowspan="2" style="width: 10%;">KELAS</th>
-                <th colspan="4" style="width: 16%;">STATUS KEHADIRAN</th>
-                <th rowspan="2" style="width: 19%;">KETERANGAN</th>
-            </tr>
-            <tr>
-                <th style="width: 4%;">H</th>
-                <th style="width: 4%;">S</th>
-                <th style="width: 4%;">I</th>
-                <th style="width: 4%;">A</th>
+                <th style="width: 8%;">No</th>
+                <th style="width: 22%;">NISN</th>
+                <th style="width: 18%;">NIS</th>
+                <th style="width: 35%; text-align: left; padding-left: 10px;">Nama Siswa</th>
+                <th style="width: 17%;">Persentase Kehadiran</th>
             </tr>
         </thead>
         <tbody>
             @forelse($rows as $index => $row)
             <tr>
                 <td class="text-center">{{ $index + 1 }}</td>
-                <td class="text-center">{{ $row->student->nisn ?? '-' }}</td>
-                <td class="text-left" style="padding-left: 10px;">{{ strtoupper(optional($row->student)->full_name ?? 'N/A') }}</td>
-                <td class="text-center">{{ optional($row->class)->class_name ?? 'N/A' }}</td>
-                <td class="text-center">{{ ($row->status == 'hadir' || $row->status == 'telat') ? '✓' : '' }}</td>
-                <td class="text-center">{{ ($row->status == 'sakit') ? '✓' : '' }}</td>
-                <td class="text-center">{{ ($row->status == 'izin') ? '✓' : '' }}</td>
-                <td class="text-center">{{ ($row->status == 'alpha') ? '✓' : '' }}</td>
-                <td class="text-center">
-                    @if($row->status == 'telat')
-                        Terlambat {{ $row->late_minutes }} menit
-                    @elseif($row->notes)
-                        {{ $row->notes }}
-                    @else
-                        -
-                    @endif
+                <td class="text-center">{{ $row->nisn ?? '-' }}</td>
+                <td class="text-center">{{ $row->nis ?? '-' }}</td>
+                <td class="text-left" style="padding-left: 10px;">{{ strtoupper($row->full_name) }}</td>
+                <td class="text-center percentage-badge">
+                    {{ number_format($row->percentage, 1, ',', '.') }}%
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="9" class="text-center" style="padding: 20px;">
-                    Tidak ada data absensi
+                <td colspan="5" class="text-center" style="padding: 20px;">
+                    Tidak ada data siswa
                 </td>
             </tr>
             @endforelse
         </tbody>
     </table>
-
-    <div class="legend-box">
-        Keterangan: H = Hadir, S = Sakit, I = Izin, A = Alfa
-    </div>
 
     <table class="signature-table">
         <tr>
@@ -244,7 +212,7 @@
             </td>
             <td style="width: 50%;">
                 <p>Surabaya, {{ $formattedPrintDate }}</p>
-                <p><strong>Guru Pengampu</strong></p>
+                <p><strong>Wali Kelas / Guru</strong></p>
                 <br><br><br><br>
                 <p>__________________________________</p>
                 <p style="margin-top: 5px;">NIP. ___________________________</p>

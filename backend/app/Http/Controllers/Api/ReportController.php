@@ -143,8 +143,10 @@ class ReportController extends Controller
                     'a.time',
                     'a.status',
                     'a.late_minutes',
+                    'a.notes',
                     's.full_name as student_full_name',
                     's.nis as student_nis',
+                    's.nisn as student_nisn',
                     'c.class_name as class_name'
                 );
  
@@ -171,10 +173,12 @@ class ReportController extends Controller
                 $mapped->time = $r->time;
                 $mapped->status = $r->status;
                 $mapped->late_minutes = $r->late_minutes;
+                $mapped->notes = $r->notes;
  
                 $mapped->student = new \stdClass();
                 $mapped->student->full_name = $r->student_full_name;
                 $mapped->student->nis = $r->student_nis;
+                $mapped->student->nisn = $r->student_nisn;
  
                 $mapped->class = new \stdClass();
                 $mapped->class->class_name = $r->class_name;
@@ -214,7 +218,7 @@ class ReportController extends Controller
             $to = $request->end_date ?? '-';
  
             $pdf = PDF::loadView('reports.attendance', compact('rows', 'from', 'to', 'stats'));
-            $pdf->setPaper('A4', 'landscape');
+            $pdf->setPaper('A4', 'portrait');
  
             return $pdf->download('laporan_absensi_' . now()->format('Ymd_His') . '.pdf');
         } catch (\Exception $e) {
@@ -284,6 +288,201 @@ class ReportController extends Controller
             return (new BaseController)->sendResponse($stats, 'Ringkasan absensi');
         } catch (\Exception $e) {
             return (new BaseController)->sendError('Gagal mengambil ringkasan.');
+        }
+    }
+
+    /**
+     * Helper to compute attendance percentages for a class.
+     */
+    private function computeClassPercentages(Request $request)
+    {
+        $request->validate([
+            'class_id' => 'required|exists:classes,id',
+            'type' => 'required|in:daily,subject',
+            'subject_id' => 'nullable|exists:subjects,id',
+        ]);
+
+        $classId = (int) $request->class_id;
+        $type = $request->type;
+        $subjectId = $request->has('subject_id') ? (int) $request->subject_id : null;
+
+        $class = DB::table('classes')->where('id', $classId)->first();
+        $className = $class ? $class->class_name : 'N/A';
+
+        // Get all students in this class
+        $students = DB::table('students')
+            ->where('class_id', $classId)
+            ->orderBy('full_name', 'asc')
+            ->get();
+
+        $rows = [];
+        $subjectName = null;
+
+        if ($type === 'daily') {
+            // Daily check-in percentage:
+            // Total school entry check-in days recorded for this class
+            $totalDays = DB::table('attendances')
+                ->where('class_id', $classId)
+                ->whereNull('schedule_id')
+                ->where('status', '!=', 'ditolak')
+                ->distinct()
+                ->count('date');
+
+            if ($totalDays === 0) {
+                $totalDays = 1; // avoid division by zero
+            }
+
+            foreach ($students as $student) {
+                $presentCount = DB::table('attendances')
+                    ->where('student_id', $student->id)
+                    ->whereNull('schedule_id')
+                    ->whereIn('status', ['hadir', 'telat'])
+                    ->count();
+
+                $percentage = round(($presentCount / $totalDays) * 100, 1);
+                if ($percentage > 100) $percentage = 100.0;
+
+                $rows[] = (object) [
+                    'nisn' => $student->nisn,
+                    'nis' => $student->nis,
+                    'full_name' => $student->full_name,
+                    'percentage' => $percentage,
+                ];
+            }
+        } else {
+            // Subject attendance sessions percentage:
+            $sessionsQuery = DB::table('attendance_sessions as ats')
+                ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
+                ->where('sc.class_id', $classId);
+
+            if ($subjectId) {
+                $sessionsQuery->where('sc.subject_id', $subjectId);
+                $subjectName = DB::table('subjects')->where('id', $subjectId)->value('subject_name');
+            }
+
+            $sessionIds = $sessionsQuery->pluck('ats.id')->toArray();
+            $totalSessions = count($sessionIds);
+
+            $hasSessions = $totalSessions > 0;
+            $denominator = $hasSessions ? $totalSessions : 1;
+
+            // Fetch attendances for all relevant sessionIds in one query to optimize
+            $attendancesGrouped = collect();
+            if ($hasSessions) {
+                $attendancesGrouped = DB::table('attendances')
+                    ->whereIn('attendance_session_id', $sessionIds)
+                    ->whereIn('status', ['hadir', 'telat'])
+                    ->get()
+                    ->groupBy('student_id');
+            }
+
+            foreach ($students as $student) {
+                $presentCount = isset($attendancesGrouped[$student->id]) ? count($attendancesGrouped[$student->id]) : 0;
+                $percentage = $hasSessions ? round(($presentCount / $denominator) * 100, 1) : 100.0;
+                
+                $rows[] = (object) [
+                    'nisn' => $student->nisn,
+                    'nis' => $student->nis,
+                    'full_name' => $student->full_name,
+                    'percentage' => $percentage,
+                ];
+            }
+        }
+
+        return [
+            'rows' => $rows,
+            'class' => $class,
+            'className' => $className,
+            'reportType' => $type,
+            'subjectName' => $subjectName,
+        ];
+    }
+
+    /**
+     * Export attendance percentage report to Excel
+     */
+    public function attendancePercentExcel(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+                return (new BaseController)->sendError('Akses ditolak. Anda tidak memiliki izin untuk melihat laporan.', [], 403);
+            }
+
+            $resData = $this->computeClassPercentages($request);
+            $rows = $resData['rows'];
+            $className = $resData['className'];
+
+            // Format data for Excel
+            $exportData = collect($rows)->map(function ($r) {
+                return [
+                    'NISN' => $r->nisn ?? '-',
+                    'NIS' => $r->nis ?? '-',
+                    'Nama Siswa' => $r->full_name,
+                    'Persentase Kehadiran' => $r->percentage . '%',
+                ];
+            });
+
+            // Log export action
+            DB::table('audit_logs')->insert([
+                'user_id' => $user->id,
+                'action' => AuditLog::ACTION_EXPORT,
+                'description' => "Exported class percentage Excel for class ID {$request->class_id}",
+                'model_type' => Attendance::class,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'new_values' => json_encode(['class_id' => $request->class_id, 'format' => 'Excel']),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $filename = 'rekap_kehadiran_' . str_replace(' ', '_', $className) . '_' . now()->format('Ymd_His') . '.xlsx';
+            
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\GenericExport($exportData, ['NISN', 'NIS', 'Nama Siswa', 'Persentase Kehadiran']),
+                $filename
+            );
+        } catch (\Exception $e) {
+            return (new BaseController)->sendError('Gagal mengunduh Excel: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Export attendance percentage report to PDF
+     */
+    public function attendancePercentPdf(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+                return (new BaseController)->sendError('Akses ditolak. Anda tidak memiliki izin untuk melihat laporan.', [], 403);
+            }
+
+            $resData = $this->computeClassPercentages($request);
+            $rows = $resData['rows'];
+            $className = $resData['className'];
+            $reportType = $resData['reportType'];
+            $subjectName = $resData['subjectName'];
+
+            // Log export action
+            DB::table('audit_logs')->insert([
+                'user_id' => $user->id,
+                'action' => AuditLog::ACTION_EXPORT,
+                'description' => "Exported class percentage PDF for class ID {$request->class_id}",
+                'model_type' => Attendance::class,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'new_values' => json_encode(['class_id' => $request->class_id, 'format' => 'PDF']),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $pdf = PDF::loadView('reports.attendance-percentage', compact('rows', 'className', 'reportType', 'subjectName'));
+            $pdf->setPaper('A4', 'portrait');
+
+            return $pdf->download('rekap_kehadiran_' . str_replace(' ', '_', $className) . '_' . now()->format('Ymd_His') . '.pdf');
+        } catch (\Exception $e) {
+            return (new BaseController)->sendError('Gagal mengunduh PDF: ' . $e->getMessage());
         }
     }
 }

@@ -42,6 +42,13 @@ return new class extends Migration
                 'description' => 'Radius toleransi absensi siswa dalam meter',
                 'created_at' => now(),
                 'updated_at' => now(),
+            ],
+            [
+                'key' => 'school_entry_attendance_mode',
+                'value' => 'scan',
+                'description' => 'Mode absensi masuk sekolah: scan (oleh petugas piket) atau click (klik mandiri siswa dengan GPS)',
+                'created_at' => now(),
+                'updated_at' => now(),
             ]
         ]);
     }

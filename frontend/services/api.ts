@@ -476,6 +476,16 @@ export const reportsApi = {
     const response = await api.get('/reports/attendance/pdf', { params, responseType: 'blob' });
     return response.data;
   },
+
+  getPercentExcel: async (params?: any) => {
+    const response = await api.get('/reports/attendance/percent-excel', { params, responseType: 'blob' });
+    return response.data;
+  },
+
+  getPercentPDF: async (params?: any) => {
+    const response = await api.get('/reports/attendance/percent-pdf', { params, responseType: 'blob' });
+    return response.data;
+  },
 };
 
 // Notifications API

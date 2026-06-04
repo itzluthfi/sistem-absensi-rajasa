@@ -107,4 +107,63 @@ class SettingsController extends BaseController
             return $this->sendError('Gagal memperbarui pengaturan GPS: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Get the global daily entry attendance mode setting (scan vs click)
+     */
+    public function getEntryMode(Request $request)
+    {
+        try {
+            $mode = DB::table('settings')->where('key', 'school_entry_attendance_mode')->value('value') ?? 'scan';
+            return $this->sendResponse(['mode' => $mode], 'Mode absensi masuk berhasil diambil.');
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal mengambil mode absensi masuk: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Update the global daily entry attendance mode setting (scan vs click)
+     */
+    public function updateEntryMode(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            // Strictly check for write permission (only Admin and Super Admin)
+            if (!$user->hasRole(['super_admin', 'admin'])) {
+                return $this->sendError('Anda tidak memiliki izin untuk mengubah mode absensi masuk.', [], 403);
+            }
+
+            $data = $request->validate([
+                'mode' => 'required|in:scan,click',
+            ]);
+
+            DB::table('settings')
+                ->where('key', 'school_entry_attendance_mode')
+                ->update([
+                    'value' => $data['mode'],
+                    'updated_at' => now(),
+                ]);
+
+            // Audit Log the change
+            DB::table('audit_logs')->insert([
+                'user_id' => $user->id,
+                'action' => AuditLog::ACTION_UPDATE,
+                'description' => "Updated school entry attendance mode to: " . $data['mode'],
+                'model_type' => 'App\\Models\\Setting',
+                'model_id' => 0,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'new_values' => json_encode($data),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return $this->sendResponse($data, 'Mode absensi masuk berhasil diperbarui.');
+        } catch (ValidationException $e) {
+            return $this->sendValidationError($e->errors());
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal memperbarui mode absensi masuk: ' . $e->getMessage());
+        }
+    }
 }

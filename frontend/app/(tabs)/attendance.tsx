@@ -109,7 +109,7 @@ export default function AttendanceScreen() {
   const handleSiswaSelfClick = async () => {
     setIsLoadingSession(true);
     try {
-      const studentId = (user?.student_info?.id || user?.id || 0) as number;
+      const studentId = (user?.student_info?.id || 0) as number;
 
       // Request Location for GPS validation
       const coords = await getGPSLocation();
@@ -362,7 +362,7 @@ export default function AttendanceScreen() {
         return;
       }
 
-      const studentId = (user?.student_info?.id || user?.id || 0) as number;
+      const studentId = (user?.student_info?.id || 0) as number;
 
       const result = await scanTeacherQR({
         session_id: qrData.session_id,
@@ -805,7 +805,7 @@ export default function AttendanceScreen() {
                       uri: `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(
                         JSON.stringify({
                           student_id:
-                            (user?.student_info as any)?.id || user?.id,
+                            (user?.student_info as any)?.id || 0,
                           session_id: activeSchedule.active_session!.id,
                           timestamp: new Date().toISOString(),
                         }),

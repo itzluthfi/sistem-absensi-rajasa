@@ -180,6 +180,18 @@ class PermissionsSeeder extends Seeder
         ];
         $kepalaSekolah->syncPermissions($kepalaSekolahPermissions);
 
+        // Petugas Piket - Gates check-in scanning permissions
+        $petugas = Role::findByName('petugas');
+        $petugasPermissions = [
+            'students.view',
+            'classes.view',
+            'attendance.view', 
+            'attendance.create', 
+            'attendance.scan',
+            'notifications.view',
+        ];
+        $petugas->syncPermissions($petugasPermissions);
+
         // Clear cache again after all assignments
         app('cache')->forget('spatie.permission.cache');
     }

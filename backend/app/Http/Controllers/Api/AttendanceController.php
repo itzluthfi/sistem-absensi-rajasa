@@ -62,6 +62,42 @@ class AttendanceController extends BaseController
                 $query->where('attendances.student_id', $user->student->id);
             }
 
+            if ($request->boolean('all') || $request->input('paginate') === 'false') {
+                $rows = $query->orderBy('attendances.date', 'desc')
+                    ->orderBy('attendances.time', 'desc')
+                    ->get();
+                $formatted = $rows->map(function ($item) {
+                    return [
+                        'id' => $item->id,
+                        'student_id' => $item->student_id,
+                        'class_id' => $item->class_id,
+                        'schedule_id' => $item->schedule_id,
+                        'attendance_session_id' => $item->attendance_session_id,
+                        'recorded_by' => isset($item->recorded_by) ? $item->recorded_by : null,
+                        'date' => $item->date,
+                        'time' => $item->time,
+                        'status' => $item->status,
+                        'late_minutes' => $item->late_minutes,
+                        'device_info' => $item->device_info,
+                        'notes' => $item->notes,
+                        'location' => $item->location ? json_decode($item->location, true) : null,
+                        'checkout_time' => $item->checkout_time,
+                        'created_at' => $item->created_at,
+                        'updated_at' => $item->updated_at,
+                        'student' => $item->student_id ? [
+                            'id' => $item->student_id,
+                            'full_name' => $item->student_full_name,
+                            'nis' => $item->student_nis
+                        ] : null,
+                        'class' => $item->class_id ? [
+                            'id' => $item->class_id,
+                            'class_name' => $item->class_class_name
+                        ] : null
+                    ];
+                });
+                return $this->sendResponse($formatted);
+            }
+
             $perPage = $request->input('per_page', 20);
             $attendances = $query->orderBy('attendances.date', 'desc')
                 ->orderBy('attendances.time', 'desc')
@@ -279,7 +315,14 @@ class AttendanceController extends BaseController
             }
 
             // Verify student class matches schedule class (SMK class-package boundary!)
-            $student = \App\Models\Student::findOrFail($data['student_id']);
+            if ($user->hasRole('siswa')) {
+                $student = $user->student;
+                if (!$student) {
+                    return $this->sendError('Data profil siswa Anda tidak ditemukan.', [], 422);
+                }
+            } else {
+                $student = \App\Models\Student::findOrFail($data['student_id']);
+            }
             $schedule = $session->schedule;
             
             if ($student->class_id !== $schedule->class_id) {
@@ -578,6 +621,12 @@ class AttendanceController extends BaseController
         try {
             $user = $request->user();
             
+            // Check daily entrance attendance mode setting (scan vs click)
+            $mode = DB::table('settings')->where('key', 'school_entry_attendance_mode')->value('value') ?? 'scan';
+            if ($mode === 'scan') {
+                return $this->sendError('Absen masuk mandiri dinonaktifkan. Anda harus melakukan scan kartu QR di petugas piket pintu gerbang.', [], 422);
+            }
+            
             if (!$user->hasRole('siswa') || !$user->student) {
                 return $this->sendError('Hanya siswa yang dapat melakukan absen masuk sekolah.', [], 403);
             }
@@ -789,6 +838,150 @@ class AttendanceController extends BaseController
             );
         } catch (\Exception $e) {
             return $this->sendError('Gagal melakukan absen pulang sekolah: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Petugas Piket scan student QR Card (Absen awal gerbang masuk sekolah)
+     */
+    public function petugasScan(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            // Only admin, petugas, or teachers can scan
+            if (!$user->hasRole(['super_admin', 'admin', 'petugas', 'guru', 'wali_kelas'])) {
+                return $this->sendError('Akses ditolak. Anda tidak memiliki izin untuk memindai kehadiran gerbang.', [], 403);
+            }
+            
+            $request->validate([
+                'student_identifier' => 'required|string', // NISN or Student ID/NIS
+            ]);
+            
+            $identifier = $request->student_identifier;
+            
+            // Find student by NISN, NIS, or ID
+            $student = \App\Models\Student::where('nisn', $identifier)
+                ->orWhere('nis', $identifier)
+                ->orWhere('id', $identifier)
+                ->first();
+                
+            if (!$student) {
+                return $this->sendError('Siswa tidak ditemukan. Pastikan kartu QR Code valid.', [], 404);
+            }
+            
+            if ($student->status !== 'active') {
+                return $this->sendError('Siswa sudah tidak aktif.', [], 422);
+            }
+            
+            $today = now()->toDateString();
+            
+            // Check if already checked in today for school entrance (schedule_id is null)
+            $existing = Attendance::where('student_id', $student->id)
+                ->whereNull('schedule_id')
+                ->where('date', $today)
+                ->first();
+                
+            if ($existing) {
+                $studentClass = DB::table('classes')->where('id', $student->class_id)->first();
+                return $this->sendError($student->full_name . ' sudah melakukan absen masuk harian.', [
+                    'student' => [
+                        'id' => $student->id,
+                        'full_name' => $student->full_name,
+                        'nis' => $student->nis,
+                        'nisn' => $student->nisn,
+                        'photo' => $student->photo,
+                    ],
+                    'class_name' => $studentClass ? $studentClass->class_name : 'N/A',
+                    'time' => substr($existing->time, 0, 5),
+                    'status' => $existing->status
+                ], 422);
+            }
+            
+            // Cutoff time: 07:00:00 WIB
+            $now = now();
+            $schoolStartTime = \Carbon\Carbon::parse('07:00:00');
+            
+            $status = 'hadir';
+            $lateMinutes = 0;
+            
+            if ($now->format('H:i:s') > $schoolStartTime->format('H:i:s')) {
+                $status = 'telat';
+                $lateMinutes = (int) $schoolStartTime->diffInMinutes($now);
+            }
+            
+            // Create Daily Attendance Check-in
+            $attendance = Attendance::create([
+                'attendance_session_id' => null,
+                'schedule_id' => null,
+                'student_id' => $student->id,
+                'class_id' => $student->class_id,
+                'date' => $today,
+                'time' => $now->format('H:i:s'),
+                'status' => $status,
+                'late_minutes' => $lateMinutes,
+                'recorded_by' => $user->id,
+                'notes' => 'Di-scan oleh petugas piket: ' . $user->name,
+                'location' => $request->input('location'),
+            ]);
+            
+            // Audit Log
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => AuditLog::ACTION_CREATE,
+                'description' => "Petugas #{$user->id} scanned student #{$student->id} at gate. Status: {$status}",
+                'model_type' => Attendance::class,
+                'model_id' => $attendance->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+            
+            $class = DB::table('classes')->where('id', $student->class_id)->first();
+            
+            return $this->sendResponse([
+                'attendance' => [
+                    'id' => $attendance->id,
+                    'student_id' => $attendance->student_id,
+                    'class_id' => $attendance->class_id,
+                    'date' => $attendance->date,
+                    'time' => substr($attendance->time, 0, 5),
+                    'status' => $attendance->status,
+                    'late_minutes' => $attendance->late_minutes,
+                ],
+                'student' => [
+                    'id' => $student->id,
+                    'full_name' => $student->full_name,
+                    'nis' => $student->nis,
+                    'nisn' => $student->nisn,
+                    'photo' => $student->photo,
+                ],
+                'class_name' => $class ? $class->class_name : 'N/A'
+            ], 'Absensi masuk harian berhasil dicatat.');
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal memproses absensi piket: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get classes monitored by a petugas piket
+     */
+    public function getPetugasClasses(Request $request)
+    {
+        try {
+            $user = $request->user();
+            if (!$user->hasRole('petugas')) {
+                return $this->sendError('Akses ditolak. Hanya petugas piket yang memiliki kelas pengawasan.', [], 403);
+            }
+            
+            $classes = DB::table('class_petugas as cp')
+                ->join('classes as c', 'cp.class_id', '=', 'c.id')
+                ->select('c.*')
+                ->where('cp.user_id', $user->id)
+                ->get();
+                
+            return $this->sendResponse($classes, 'Daftar kelas pengawasan petugas piket.');
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal mengambil kelas pengawasan: ' . $e->getMessage());
         }
     }
 }

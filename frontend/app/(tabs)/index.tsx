@@ -197,7 +197,7 @@ export default function HomeScreen() {
     setLoadingHistory(true);
     setClassStudents([]);
     try {
-      const response = await attendanceApi.getAll({ schedule_id: schedule.id });
+      const response = await attendanceApi.getAll({ schedule_id: schedule.id, all: true });
       const records = response.data?.data ?? response.data ?? [];
       const historyList = Array.isArray(records) ? records : [];
       setSubjectAttendanceHistory(historyList);
@@ -1172,7 +1172,16 @@ export default function HomeScreen() {
                     let statusBadgeColor = "#9CA3AF";
                     
                     if (latestAtt) {
-                      const dateStr = latestAtt.date;
+                      let dateStr = "";
+                      if (typeof latestAtt.date === "string") {
+                        dateStr = latestAtt.date.split(" ")[0].split("T")[0];
+                      } else {
+                        const d = new Date(latestAtt.date);
+                        const y = d.getFullYear();
+                        const m = String(d.getMonth() + 1).padStart(2, "0");
+                        const dayVal = String(d.getDate()).padStart(2, "0");
+                        dateStr = `${y}-${m}-${dayVal}`;
+                      }
                       const isTodayRecord = dateStr === todayDateStr;
                       
                       statusBadgeText = isTodayRecord 
