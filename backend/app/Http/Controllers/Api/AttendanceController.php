@@ -737,6 +737,114 @@ class AttendanceController extends BaseController
     }
 
     /**
+     * Student scans Picket Officer's Gate QR (Absen Masuk via scan QR Piket)
+     */
+    public function scanGate(Request $request)
+    {
+        try {
+            $user = $request->user();
+            
+            if (!$user->hasRole('siswa') || !$user->student) {
+                return $this->sendError('Hanya siswa yang dapat melakukan absen masuk sekolah.', [], 403);
+            }
+            
+            $student = $user->student;
+            $today = now()->toDateString();
+            
+            // Check if already checked in today for school entry
+            $existing = Attendance::where('student_id', $student->id)
+                ->whereNull('schedule_id')
+                ->where('date', $today)
+                ->first();
+                
+            if ($existing) {
+                return $this->sendError('Anda sudah melakukan absen masuk sekolah hari ini.', [], 422);
+            }
+            
+            // GPS Geofencing validation
+            if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
+                $userLat = (double) $request->location['latitude'];
+                $userLng = (double) $request->location['longitude'];
+
+                $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
+
+                if ($activeLocations->isEmpty()) {
+                    $activeLocations = collect([[
+                        'name'          => 'Sekolah',
+                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
+                    ]])->map(fn($a) => (object) $a);
+                }
+
+                $withinAny = false;
+                foreach ($activeLocations as $loc) {
+                    $dist = $this->calculateDistance($userLat, $userLng, $loc->latitude, $loc->longitude);
+                    if ($dist <= $loc->radius_meters) {
+                        $withinAny = true;
+                        break;
+                    }
+                }
+
+                if (!$withinAny) {
+                    return $this->sendError('Anda berada di luar jangkauan area sekolah. Silakan mendekat ke gerbang sekolah.', [], 422);
+                }
+            } else {
+                return $this->sendError('Koordinat GPS lokasi Anda diperlukan untuk verifikasi geofencing.', [], 422);
+            }
+            
+            // Cutoff time: 07:00:00 WIB
+            $now = now();
+            $schoolStartTime = \Carbon\Carbon::parse('07:00:00');
+            
+            $status = 'hadir';
+            $lateMinutes = 0;
+            
+            if ($now->format('H:i:s') > $schoolStartTime->format('H:i:s')) {
+                $status = 'telat';
+                $lateMinutes = (int) $schoolStartTime->diffInMinutes($now);
+            }
+            
+            $activePeriod = DB::table('academic_periods')->where('is_active', true)->first();
+            $academicPeriodId = $activePeriod ? $activePeriod->id : null;
+
+            $attendance = Attendance::create([
+                'attendance_session_id' => null,
+                'schedule_id' => null,
+                'student_id' => $student->id,
+                'class_id' => $student->class_id,
+                'academic_period_id' => $academicPeriodId,
+                'date' => $today,
+                'time' => $now->format('H:i:s'),
+                'status' => $status,
+                'late_minutes' => $lateMinutes,
+                'recorded_by' => $user->id,
+                'location' => $request->input('location'),
+                'device_info' => $request->input('device_info', 'Expo Mobile Client'),
+                'notes' => 'Absen Masuk Sekolah Harian via Scan QR Piket',
+            ]);
+            
+            // Audit Log
+            AuditLog::create([
+                'user_id' => $user->id,
+                'action' => AuditLog::ACTION_CREATE,
+                'description' => "Student #{$student->id} completed Daily School Check-In via Scan QR Piket ({$status})",
+                'model_type' => Attendance::class,
+                'model_id' => $attendance->id,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+            
+            return $this->sendResponse(
+                $attendance->load(['student', 'class']),
+                'Absen masuk sekolah via scan QR Piket berhasil dicatat sebagai ' . ($status === 'telat' ? 'Terlambat (' . $lateMinutes . ' menit)' : 'Hadir tepat waktu.')
+            );
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal melakukan absen masuk sekolah via scan: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Daily School Check-out (Absen Harian Pulang Sekolah)
      */
     public function dailyCheckOut(Request $request)

@@ -66,6 +66,7 @@ export default function LeaveRequestScreen() {
   const isMobile = width < 600;
 
   const canApprove = hasRole(["guru", "admin", "super_admin"]);
+  const isSiswa = hasRole(["siswa"]);
 
   useEffect(() => {
     fetchLeaveRequests();

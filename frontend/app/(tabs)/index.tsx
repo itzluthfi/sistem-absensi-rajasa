@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import * as Location from "expo-location";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import {
   ActivityIndicator,
   Alert,
@@ -86,6 +87,46 @@ export default function HomeScreen() {
   const [enableDailyCheckout, setEnableDailyCheckout] = useState(false);
   const [entryMode, setEntryMode] = useState<"scan" | "click">("scan");
   const [dailyCheckOutLoading, setDailyCheckOutLoading] = useState(false);
+
+  // States for student gate check-in scanning
+  const [myQrBase64, setMyQrBase64] = useState<string | null>(null);
+  const [showMyQrModal, setShowMyQrModal] = useState(false);
+  const [loadingQr, setLoadingQr] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanned, setScanned] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+
+  const convertArrayBufferToBase64 = (buffer: ArrayBuffer) => {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    if (typeof window !== 'undefined' && typeof window.btoa === 'function') {
+      return window.btoa(binary);
+    }
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let base64 = '';
+    let i = 0;
+    for (; i < len - 2; i += 3) {
+      base64 += chars[bytes[i] >> 2];
+      base64 += chars[((bytes[i] & 3) << 4) | (bytes[i + 1] >> 4)];
+      base64 += chars[((bytes[i + 1] & 15) << 2) | (bytes[i + 2] >> 6)];
+      base64 += chars[bytes[i + 2] & 63];
+    }
+    if (i === len - 2) {
+      base64 += chars[bytes[i] >> 2];
+      base64 += chars[((bytes[i] & 3) << 4) | (bytes[i + 1] >> 4)];
+      base64 += chars[(bytes[i + 1] & 15) << 2];
+      base64 += '=';
+    } else if (i === len - 1) {
+      base64 += chars[bytes[i] >> 2];
+      base64 += chars[(bytes[i] & 3) << 4];
+      base64 += '==';
+    }
+    return base64;
+  };
   const [scheduleViewMode, setScheduleViewMode] = useState<"calendar" | "list">("list");
   const [openPresensiModalVisible, setOpenPresensiModalVisible] = useState(false);
   const [selectedScheduleForSession, setSelectedScheduleForSession] = useState<number | null>(null);
@@ -392,6 +433,82 @@ export default function HomeScreen() {
       );
     } finally {
       setDailyCheckOutLoading(false);
+    }
+  };
+
+  const fetchMyQrCode = async () => {
+    setLoadingQr(true);
+    try {
+      const data = await studentsApi.getMyQRCode();
+      const base64 = convertArrayBufferToBase64(data);
+      setMyQrBase64(`data:image/png;base64,${base64}`);
+      setShowMyQrModal(true);
+    } catch (e) {
+      toast.error("Gagal memuat kartu QR Code Anda.");
+    } finally {
+      setLoadingQr(false);
+    }
+  };
+
+  const handleOpenScanner = async () => {
+    if (!cameraPermission || !cameraPermission.granted) {
+      const res = await requestCameraPermission();
+      if (!res.granted) {
+        toast.error("Izin kamera diperlukan untuk melakukan scan QR Code.");
+        return;
+      }
+    }
+    setScanned(false);
+    setShowScanner(true);
+  };
+
+  const handleBarCodeScanned = async ({ data }: { data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+
+    const isGateQr = data.includes("school_gate") || data.includes("SMKS_RAJASA_GATE_ABSENSI") || data.includes("gate_checkin");
+    
+    if (!isGateQr) {
+      toast.error("Kode QR tidak valid untuk gerbang sekolah.");
+      setTimeout(() => setScanned(false), 2000);
+      return;
+    }
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        toast.error("Akses lokasi ditolak. Kami memerlukan izin lokasi untuk memverifikasi Anda berada di area sekolah.");
+        setTimeout(() => setScanned(false), 2000);
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      
+      if (loc.mocked) {
+        toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
+        setTimeout(() => setScanned(false), 2000);
+        return;
+      }
+
+      const coords = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+      };
+
+      const result = await attendanceApi.scanGate({ location: coords });
+      if (result.success) {
+        toast.success(result.message || "Absen masuk sekolah berhasil.");
+        setShowScanner(false);
+        loadData();
+      } else {
+        toast.error(result.message || "Gagal melakukan absen masuk.");
+        setTimeout(() => setScanned(false), 2000);
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.message || "Terjadi kesalahan saat memproses absensi.");
+      setTimeout(() => setScanned(false), 2000);
     }
   };
 
@@ -790,6 +907,195 @@ export default function HomeScreen() {
 
   // Roles check already performed at the top
 
+  const renderMyQrModal = () => {
+    return (
+      <Modal
+        visible={showMyQrModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowMyQrModal(false)}
+      >
+        <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
+          <View style={[styles.modalContent, { width: isMobile ? '90%' : 400, borderRadius: 20, padding: 24, alignItems: 'center' }]}>
+            {/* Header */}
+            <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: '#1E3A8A' }}>Kartu QR Absensi</Text>
+              <TouchableOpacity onPress={() => setShowMyQrModal(false)}>
+                <Ionicons name="close" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            {/* QR Card Background */}
+            <View style={{
+              backgroundColor: '#EFF6FF',
+              borderRadius: 16,
+              padding: 20,
+              width: '100%',
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: '#BFDBFE',
+              marginBottom: 20,
+            }}>
+              {/* School Label */}
+              <Text style={{ fontSize: 13, fontWeight: '800', color: '#2563EB', marginBottom: 2 }}>SMKS RAJASA SURABAYA</Text>
+              <Text style={{ fontSize: 10, color: '#6B7280', marginBottom: 16 }}>Sistem Absensi Akademik (RAS)</Text>
+
+              {/* QR Image Frame */}
+              <View style={{
+                backgroundColor: '#ffffff',
+                padding: 16,
+                borderRadius: 12,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+                marginBottom: 16,
+              }}>
+                {myQrBase64 ? (
+                  <Image
+                    source={{ uri: myQrBase64 }}
+                    style={{ width: 180, height: 180 }}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={{ width: 180, height: 180, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color="#2563EB" />
+                  </View>
+                )}
+              </View>
+
+              {/* Student Details */}
+              <Text style={{ fontSize: 16, fontWeight: '800', color: '#1F2937', textAlign: 'center', marginBottom: 4 }}>
+                {user?.name}
+              </Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563', marginBottom: 2 }}>
+                NIS: {user?.student_info?.nis || "-"}
+              </Text>
+              {user?.student_info?.class_name && (
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#4B5563' }}>
+                  Kelas: {user?.student_info?.class_name}
+                </Text>
+              )}
+            </View>
+
+            {/* Instruction */}
+            <Text style={{ fontSize: 11, color: '#6B7280', textAlign: 'center', lineHeight: 16, marginBottom: 20 }}>
+              Tunjukkan QR Code ini kepada petugas piket di gerbang sekolah untuk melakukan pencatatan kehadiran masuk.
+            </Text>
+
+            {/* Close Button */}
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#2563EB',
+                borderRadius: 12,
+                paddingVertical: 12,
+                width: '100%',
+                alignItems: 'center',
+              }}
+              onPress={() => setShowMyQrModal(false)}
+            >
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>Tutup</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
+  const renderScannerModal = () => {
+    return (
+      <Modal
+        visible={showScanner}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setShowScanner(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <CameraView
+            style={StyleSheet.absoluteFillObject}
+            facing="back"
+            onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ["qr"],
+            }}
+          />
+
+          {/* Scanner Overlay Guide */}
+          <View style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}>
+            {/* Top translucent screen mask */}
+            <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', width: '100%' }} />
+
+            <View style={{ flexDirection: 'row', height: 260, width: '100%' }}>
+              {/* Left translucent screen mask */}
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} />
+              
+              {/* Scan box area (perfect square) */}
+              <View style={{
+                width: 260,
+                height: 260,
+                borderWidth: 2,
+                borderColor: '#10B981',
+                backgroundColor: 'transparent',
+                position: 'relative',
+              }}>
+                {/* Corners styling */}
+                <View style={{ position: 'absolute', top: -2, left: -2, width: 20, height: 20, borderTopWidth: 4, borderLeftWidth: 4, borderColor: '#10B981' }} />
+                <View style={{ position: 'absolute', top: -2, right: -2, width: 20, height: 20, borderTopWidth: 4, borderRightWidth: 4, borderColor: '#10B981' }} />
+                <View style={{ position: 'absolute', bottom: -2, left: -2, width: 20, height: 20, borderBottomWidth: 4, borderLeftWidth: 4, borderColor: '#10B981' }} />
+                <View style={{ position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderBottomWidth: 4, borderRightWidth: 4, borderColor: '#10B981' }} />
+              </View>
+
+              {/* Right translucent screen mask */}
+              <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} />
+            </View>
+
+            {/* Bottom translucent screen mask with close button */}
+            <View style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              width: '100%',
+              alignItems: 'center',
+              paddingTop: 30,
+            }}>
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center', marginHorizontal: 30, marginBottom: 40 }}>
+                Arahkan kamera ke QR Code Gerbang Sekolah
+              </Text>
+              
+              <TouchableOpacity
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  borderColor: 'rgba(255,255,255,0.4)',
+                  borderWidth: 1,
+                  borderRadius: 50,
+                  paddingVertical: 12,
+                  paddingHorizontal: 30,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+                onPress={() => setShowScanner(false)}
+              >
+                <Ionicons name="close-circle" size={20} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>
+                  Batal / Kembali
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    );
+  };
+
   const renderSubjectDetailModal = () => {
     if (!selectedSubjectSchedule) return null;
     const isSiswa = user?.roles?.includes("siswa");
@@ -919,7 +1225,7 @@ export default function HomeScreen() {
           border: "#EF4444",
           text: "#991B1B",
           icon: "warning-outline",
-          message: "Perhatian! Kehadiranmu di bawah batas aman 80%. Hubungi guru mapel atau wali kelas segera agar tidak terkendala ujian akhir!"
+          message: "Perhatian! Kehadiranmu di bawah batas aman 80%. Hubungi guru mapel atau pihak sekolah segera agar tidak terkendala ujian akhir!"
         };
       }
     };
@@ -1765,46 +2071,88 @@ export default function HomeScreen() {
                     style={[
                       styles.dailyCheckInCard,
                       styles.dailyCheckInPending,
+                      { flexDirection: "column", alignItems: "stretch" }
                     ]}
                   >
-                    <View style={styles.dailyCheckInIconPending}>
-                      <Ionicons
-                        name={entryMode === "scan" ? "qr-code-outline" : "location-outline"}
-                        size={22}
-                        color="#3B82F6"
-                      />
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <View style={styles.dailyCheckInIconPending}>
+                        <Ionicons
+                          name={entryMode === "scan" ? "qr-code-outline" : "location-outline"}
+                          size={22}
+                          color="#3B82F6"
+                        />
+                      </View>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <Text style={styles.dailyCheckInTitlePending}>
+                          Belum Absen Masuk Sekolah Hari Ini
+                        </Text>
+                        <Text style={styles.dailyCheckInDesc}>
+                          {entryMode === "scan"
+                            ? "Absen masuk melalui QR Code. Tampilkan QR Anda ke petugas piket atau scan QR gerbang sekolah."
+                            : "Batas toleransi masuk 07:00 pagi. Wajib klik tombol untuk melapor kehadiran harian Anda."}
+                        </Text>
+                      </View>
+                      {entryMode === "click" && (
+                        <TouchableOpacity
+                          style={styles.dailyCheckInButton}
+                          onPress={handleDailyCheckIn}
+                          disabled={dailyCheckInLoading}
+                        >
+                          {dailyCheckInLoading ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="finger-print-outline"
+                                size={14}
+                                color="#fff"
+                              />
+                              <Text style={styles.dailyCheckInButtonText}>
+                                Absen Masuk
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    <View style={{ flex: 1, paddingRight: 8 }}>
-                      <Text style={styles.dailyCheckInTitlePending}>
-                        Belum Absen Masuk Sekolah Hari Ini
-                      </Text>
-                      <Text style={styles.dailyCheckInDesc}>
-                        {entryMode === "scan"
-                          ? "Absen masuk wajib melalui pemindaian QR Code oleh petugas piket di gerbang sekolah."
-                          : "Batas toleransi masuk 07:00 pagi. Wajib klik tombol untuk melapor kehadiran harian Anda."}
-                      </Text>
-                    </View>
-                    {entryMode === "click" && (
-                      <TouchableOpacity
-                        style={styles.dailyCheckInButton}
-                        onPress={handleDailyCheckIn}
-                        disabled={dailyCheckInLoading}
-                      >
-                        {dailyCheckInLoading ? (
-                          <ActivityIndicator color="#fff" size="small" />
-                        ) : (
-                          <>
-                            <Ionicons
-                              name="finger-print-outline"
-                              size={14}
-                              color="#fff"
-                            />
-                            <Text style={styles.dailyCheckInButtonText}>
-                              Absen Masuk
-                            </Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
+
+                    {entryMode === "scan" && (
+                      <View style={{ borderTopWidth: 1, borderTopColor: "rgba(59, 130, 246, 0.15)", marginTop: 12, paddingTop: 12, flexDirection: "row", gap: 10 }}>
+                        <TouchableOpacity
+                          style={[styles.dailyCheckInButton, { flex: 1, justifyContent: "center" }]}
+                          onPress={fetchMyQrCode}
+                          disabled={loadingQr}
+                        >
+                          {loadingQr ? (
+                            <ActivityIndicator color="#fff" size="small" />
+                          ) : (
+                            <>
+                              <Ionicons
+                                name="qr-code-outline"
+                                size={14}
+                                color="#fff"
+                              />
+                              <Text style={styles.dailyCheckInButtonText}>
+                                QR Saya
+                              </Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.dailyCheckInButton, { flex: 1, justifyContent: "center", backgroundColor: "#10B981", shadowColor: "#10B981" }]}
+                          onPress={handleOpenScanner}
+                        >
+                          <Ionicons
+                            name="scan-outline"
+                            size={14}
+                            color="#fff"
+                          />
+                          <Text style={styles.dailyCheckInButtonText}>
+                            Scan QR
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     )}
                   </View>
                 )}
@@ -2123,6 +2471,8 @@ export default function HomeScreen() {
       </ScrollView>
       {renderSubjectDetailModal()}
       {renderOpenPresensiModal()}
+      {renderMyQrModal()}
+      {renderScannerModal()}
     </View>
   );
 }

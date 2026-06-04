@@ -279,6 +279,11 @@ export const studentsApi = {
     return response.data;
   },
 
+  getMyQRCode: async () => {
+    const response = await api.get('/qr/my-qr', { responseType: 'arraybuffer' });
+    return response.data;
+  },
+
   promoteBulk: async (data: { student_ids: number[]; target_class_id: number }) => {
     const response = await api.post('/students/promote-bulk', data);
     return response.data;
@@ -380,6 +385,16 @@ export const attendanceApi = {
 
   dailyCheckOut: async (data: { location?: any }) => {
     const response = await api.post('/attendance/daily-checkout', data);
+    return response.data;
+  },
+
+  scanGate: async (data: { location?: any; device_info?: string }) => {
+    const response = await api.post('/attendance/scan-gate', data);
+    return response.data;
+  },
+
+  petugasScan: async (studentIdentifier: string) => {
+    const response = await api.post('/attendance/petugas-scan', { student_identifier: studentIdentifier });
     return response.data;
   },
 
