@@ -13,7 +13,6 @@ class RolesSeeder extends Seeder
             'super_admin',
             'admin',
             'guru',
-            'wali_kelas',
             'siswa',
             'kepala_sekolah',
             'petugas',

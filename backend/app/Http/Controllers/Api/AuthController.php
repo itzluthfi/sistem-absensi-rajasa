@@ -91,7 +91,7 @@ class AuthController extends BaseController
                     'class_id' => $user->student->class_id,
                     'class_name' => $user->student->class?->class_name,
                 ];
-            } elseif ($user->hasRole(['guru', 'wali_kelas']) && $user->teacher) {
+            } elseif ($user->hasRole('guru') && $user->teacher) {
                 $userData['teacher_info'] = [
                     'id' => $user->teacher->id,
                     'nip' => $user->teacher->nip,
@@ -225,7 +225,7 @@ class AuthController extends BaseController
                 'class_name' => $user->student->class?->class_name,
                 'major_name' => $user->student->class?->major?->major_name,
             ];
-        } elseif ($user->hasRole(['guru', 'wali_kelas']) && $user->teacher) {
+        } elseif ($user->hasRole('guru') && $user->teacher) {
             $userData['teacher_info'] = [
                 'id' => $user->teacher->id,
                 'nip' => $user->teacher->nip,

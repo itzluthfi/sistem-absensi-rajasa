@@ -59,7 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('students/{id}', [StudentsController::class, 'destroy']);
     });
 
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah,siswa')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,kepala_sekolah,siswa')->group(function () {
         Route::get('students', [StudentsController::class, 'index']);
         Route::get('students/{id}', [StudentsController::class, 'show']);
     });
@@ -76,7 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('teachers/{id}', [TeachersController::class, 'destroy']);
     });
 
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,kepala_sekolah')->group(function () {
         Route::get('teachers', [TeachersController::class, 'index']);
         Route::get('teachers/{id}', [TeachersController::class, 'show']);
     });
@@ -93,7 +93,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('classes/{id}', [ClassesController::class, 'destroy']);
     });
 
-    Route::middleware('role:super_admin,admin,wali_kelas,kepala_sekolah')->group(function () {
+    Route::middleware('role:super_admin,admin,kepala_sekolah')->group(function () {
         Route::get('classes', [ClassesController::class, 'index']);
         Route::get('classes/{id}', [ClassesController::class, 'show']);
     });
@@ -108,7 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Kepala Sekolah: Read all
 
     // Create attendance - Guru, Wali Kelas, Siswa
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,siswa')->group(function () {
         Route::post('attendance', [AttendanceController::class, 'store']);
         Route::post('attendance/qr-scan', [AttendanceController::class, 'qrScan']);
         Route::post('attendance/qr-student-scan', [AttendanceController::class, 'qrStudentScan']);
@@ -125,13 +125,13 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Absen gerbang oleh petugas / guru piket
-    Route::middleware('role:super_admin,admin,petugas,guru,wali_kelas')->group(function () {
+    Route::middleware('role:super_admin,admin,petugas,guru')->group(function () {
         Route::post('attendance/petugas-scan', [AttendanceController::class, 'petugasScan']);
         Route::get('petugas/classes', [AttendanceController::class, 'getPetugasClasses']);
     });
 
     // Delete attendance - Admin, Guru, Wali Kelas
-    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+    Route::middleware('role:super_admin,admin,guru')->group(function () {
         Route::delete('attendance/{id}', [AttendanceController::class, 'destroy']);
     });
 
@@ -139,7 +139,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // REPORTS - Role-based Access
     // ============================================
     // Admin, Guru, Wali Kelas, Kepala Sekolah: Can export
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,kepala_sekolah')->group(function () {
         Route::get('reports/attendance/csv', [ReportController::class, 'attendanceCsv']);
         Route::get('reports/attendance/pdf', [ReportController::class, 'attendancePdf']);
         Route::get('reports/attendance/percent-excel', [ReportController::class, 'attendancePercentExcel']);
@@ -156,7 +156,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('leave-requests', [LeaveRequestController::class, 'store']);
 
     // Approve/Reject - Guru, Wali Kelas, Admin, Super Admin
-    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+    Route::middleware('role:super_admin,admin,guru')->group(function () {
         Route::post('leave-requests/{id}/approve', [LeaveRequestController::class, 'approve']);
         Route::post('leave-requests/{id}/reject', [LeaveRequestController::class, 'reject']);
     });
@@ -181,7 +181,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Admin: Generate all QR codes
     // Guru: Generate QR for their students
     // Wali Kelas: Generate QR for their class
-    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+    Route::middleware('role:super_admin,admin,guru')->group(function () {
         Route::get('qr/student/{id}', [QRController::class, 'studentQr']);
         Route::get('qr/class/{classId}', [QRController::class, 'classQr']);
     });
@@ -222,7 +222,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('subjects', \App\Http\Controllers\Api\SubjectController::class);
     });
 
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,kepala_sekolah')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,kepala_sekolah')->group(function () {
         Route::get('subjects', [\App\Http\Controllers\Api\SubjectController::class, 'index']);
         Route::get('subjects/{id}', [\App\Http\Controllers\Api\SubjectController::class, 'show']);
     });
@@ -230,15 +230,15 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============================================
     // SCHEDULES (Jadwal Pelajaran)
     // ============================================
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,siswa,kepala_sekolah')->group(function () {
         Route::get('schedules/today', [\App\Http\Controllers\Api\ScheduleController::class, 'today']);
     });
 
-    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+    Route::middleware('role:super_admin,admin,guru')->group(function () {
         Route::apiResource('schedules', \App\Http\Controllers\Api\ScheduleController::class);
     });
 
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,siswa,kepala_sekolah')->group(function () {
         Route::get('schedules', [\App\Http\Controllers\Api\ScheduleController::class, 'index']);
         Route::get('schedules/{id}', [\App\Http\Controllers\Api\ScheduleController::class, 'show']);
     });
@@ -253,7 +253,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('academic-periods/{id}/sync-transition', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'syncTransition']);
     });
 
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,siswa,kepala_sekolah')->group(function () {
         Route::get('academic-periods', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'index']);
         Route::get('academic-periods/{id}', [\App\Http\Controllers\Api\AcademicPeriodsController::class, 'show']);
     });
@@ -261,7 +261,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============================================
     // SETTINGS (GPS Configuration)
     // ============================================
-    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+    Route::middleware('role:super_admin,admin,guru')->group(function () {
         Route::get('settings/gps', [SettingsController::class, 'getGpsSettings']);
     });
     Route::middleware('role:super_admin,admin')->group(function () {
@@ -269,7 +269,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Settings & Konfigurasi Mode Absensi
-    Route::middleware('role:super_admin,admin,guru,wali_kelas,siswa,kepala_sekolah,petugas')->group(function () {
+    Route::middleware('role:super_admin,admin,guru,siswa,kepala_sekolah,petugas')->group(function () {
         Route::get('settings/entry-mode', [SettingsController::class, 'getEntryMode']);
     });
     Route::middleware('role:super_admin,admin')->group(function () {
@@ -279,7 +279,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ============================================
     // GPS LOCATIONS (Multiple Geofence Points)
     // ============================================
-    Route::middleware('role:super_admin,admin,guru,wali_kelas')->group(function () {
+    Route::middleware('role:super_admin,admin,guru')->group(function () {
         Route::get('gps-locations', [GpsLocationsController::class, 'index']);
     });
     Route::middleware('role:super_admin,admin')->group(function () {

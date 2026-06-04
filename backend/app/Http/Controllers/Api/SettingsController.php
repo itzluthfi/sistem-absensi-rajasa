@@ -19,7 +19,7 @@ class SettingsController extends BaseController
             $user = $request->user();
             
             // Limit access to administrative roles
-            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+            if (!$user->hasRole(['super_admin', 'admin', 'guru'])) {
                 return $this->sendError('Anda tidak memiliki izin untuk melihat pengaturan GPS.', [], 403);
             }
  

@@ -24,11 +24,14 @@ class AttendanceController extends BaseController
             $query = \Illuminate\Support\Facades\DB::table('attendances')
                 ->leftJoin('students', 'attendances.student_id', '=', 'students.id')
                 ->leftJoin('classes', 'attendances.class_id', '=', 'classes.id')
+                ->leftJoin('schedules', 'attendances.schedule_id', '=', 'schedules.id')
+                ->leftJoin('subjects', 'schedules.subject_id', '=', 'subjects.id')
                 ->select([
                     'attendances.*',
                     'students.full_name as student_full_name',
                     'students.nis as student_nis',
-                    'classes.class_name as class_class_name'
+                    'classes.class_name as class_class_name',
+                    'subjects.subject_name as subject_subject_name'
                 ]);
 
             // Filter by date range
@@ -84,6 +87,7 @@ class AttendanceController extends BaseController
                         'checkout_time' => $item->checkout_time,
                         'created_at' => $item->created_at,
                         'updated_at' => $item->updated_at,
+                        'subject_name' => $item->subject_subject_name ?? null,
                         'student' => $item->student_id ? [
                             'id' => $item->student_id,
                             'full_name' => $item->student_full_name,
@@ -122,6 +126,7 @@ class AttendanceController extends BaseController
                     'checkout_time' => $item->checkout_time,
                     'created_at' => $item->created_at,
                     'updated_at' => $item->updated_at,
+                    'subject_name' => $item->subject_subject_name ?? null,
                     'student' => $item->student_id ? [
                         'id' => $item->student_id,
                         'full_name' => $item->student_full_name,
@@ -227,7 +232,7 @@ class AttendanceController extends BaseController
             ]);
 
             // Check permission (handled by middleware, but double check here)
-            if (!$user->hasPermissionTo('attendance.create') && !$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+            if (!$user->hasPermissionTo('attendance.create') && !$user->hasRole(['super_admin', 'admin', 'guru'])) {
                 return $this->sendError('Anda tidak memiliki izin untuk membuat absensi.', [], 403);
             }
 
@@ -449,7 +454,7 @@ class AttendanceController extends BaseController
             $user = $request->user();
 
             // Only teacher or admin can scan student
-            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+            if (!$user->hasRole(['super_admin', 'admin', 'guru'])) {
                 return $this->sendError('Hanya Guru atau Staf yang dapat memindai QR siswa.', [], 403);
             }
 
@@ -850,7 +855,7 @@ class AttendanceController extends BaseController
             $user = $request->user();
             
             // Only admin, petugas, or teachers can scan
-            if (!$user->hasRole(['super_admin', 'admin', 'petugas', 'guru', 'wali_kelas'])) {
+            if (!$user->hasRole(['super_admin', 'admin', 'petugas', 'guru'])) {
                 return $this->sendError('Akses ditolak. Anda tidak memiliki izin untuk memindai kehadiran gerbang.', [], 403);
             }
             

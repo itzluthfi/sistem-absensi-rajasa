@@ -65,7 +65,6 @@ class DatabaseSeeder extends Seeder
             MajorsSeeder::class,
             AcademicPeriodsSeeder::class,
             TeachersSeeder::class,
-            WaliKelasSeeder::class,
             ClassesSeeder::class,
             StudentsSeeder::class,
             SubjectsSeeder::class,

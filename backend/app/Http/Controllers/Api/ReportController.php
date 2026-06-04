@@ -405,7 +405,7 @@ class ReportController extends Controller
     {
         try {
             $user = $request->user();
-            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+            if (!$user->hasRole(['super_admin', 'admin', 'guru'])) {
                 return (new BaseController)->sendError('Akses ditolak. Anda tidak memiliki izin untuk melihat laporan.', [], 403);
             }
 
@@ -454,7 +454,7 @@ class ReportController extends Controller
     {
         try {
             $user = $request->user();
-            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+            if (!$user->hasRole(['super_admin', 'admin', 'guru'])) {
                 return (new BaseController)->sendError('Akses ditolak. Anda tidak memiliki izin untuk melihat laporan.', [], 403);
             }
 

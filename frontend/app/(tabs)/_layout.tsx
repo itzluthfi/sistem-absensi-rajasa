@@ -174,14 +174,13 @@ export default function TabsLayout() {
   const userRoles = user?.roles || [];
   const isSuperAdmin = userRoles.includes('super_admin');
   const isAdmin = userRoles.includes('admin');
-  const isWaliKelas = userRoles.includes('wali_kelas');
   const isGuru = userRoles.includes('guru');
   const isSiswa = userRoles.includes('siswa');
   const isKepalaSekolah = userRoles.includes('kepala_sekolah');
 
   // Permission checks for bottom tabs
-  const canSeeMasterData = isSuperAdmin || isAdmin || isWaliKelas; // Admin, Super Admin, Wali Kelas
-  const canSeeAttendance = isSiswa || isSuperAdmin || isAdmin || isGuru || isWaliKelas; // Only Siswa, Super Admin, Admin TU, and Teachers can see Scan Absensi tab
+  const canSeeMasterData = isSuperAdmin || isAdmin; // Admin, Super Admin
+  const canSeeAttendance = isSiswa || isSuperAdmin || isAdmin || isGuru; // Only Siswa, Super Admin, Admin TU, and Teachers can see Scan Absensi tab
   const canSeeReports = !isSiswa; // All role except Siswa
   const canSeeLeaveRequest = !isKepalaSekolah; // All except Kepala Sekolah
 
@@ -189,7 +188,6 @@ export default function TabsLayout() {
   const getRoleColor = () => {
     if (userRoles.includes('super_admin')) return '#DC2626';
     if (userRoles.includes('admin')) return '#F59E0B';
-    if (userRoles.includes('wali_kelas')) return '#8B5CF6';
     if (userRoles.includes('guru')) return '#3B82F6';
     if (userRoles.includes('kepala_sekolah')) return '#EC4899';
     if (userRoles.includes('siswa')) return '#10B981';
@@ -201,7 +199,6 @@ export default function TabsLayout() {
       super_admin: 'Super Admin',
       admin: 'Admin TU',
       guru: 'Guru',
-      wali_kelas: 'Wali Kelas',
       siswa: 'Siswa',
       kepala_sekolah: 'Kepsek',
     };
@@ -214,11 +211,10 @@ export default function TabsLayout() {
       show: true,
       items: [
         { name: 'index', label: 'Beranda', icon: 'home-outline', activeIcon: 'home', href: '/(tabs)', show: true },
-        { name: 'attendance', label: 'Scan Absensi', icon: 'qr-code-outline', activeIcon: 'qr-code', href: '/(tabs)/attendance', show: canSeeAttendance },
+        { name: 'attendance', label: 'Scan Absensi', icon: 'qr-code-outline', activeIcon: 'qr-code', href: '/(tabs)/attendance', show: false },
         { name: 'history', label: 'Riwayat', icon: 'time-outline', activeIcon: 'time', href: '/(tabs)/history', show: true },
         { name: 'leave-request', label: 'Izin', icon: 'document-text-outline', activeIcon: 'document-text', href: '/(tabs)/leave-request', show: canSeeLeaveRequest },
         { name: 'reports', label: 'Laporan', icon: 'bar-chart-outline', activeIcon: 'bar-chart', href: '/(tabs)/reports', show: canSeeReports },
-        { name: 'perwalian', label: 'Kelas Perwalian', icon: 'ribbon-outline', activeIcon: 'ribbon', href: '/teacher/perwalian', show: isWaliKelas },
       ]
     },
     {
@@ -301,7 +297,7 @@ export default function TabsLayout() {
         name="attendance"
         options={{
           title: 'Scan Absensi',
-          href: canSeeAttendance ? '/(tabs)/attendance' : null,
+          href: null,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="qr-code-outline" size={size} color={color} />
           ),

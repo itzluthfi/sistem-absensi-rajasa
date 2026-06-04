@@ -61,12 +61,7 @@ export default function ProfileScreen() {
       subtitle: "Cari & atur lokasi & radius sekolah",
       onPress: () => router.push("/admin/gps-settings"),
     }] : []),
-    ...(user?.roles?.includes("wali_kelas") ? [{
-      icon: "ribbon-outline" as IconName,
-      label: "Kelas Perwalian Saya",
-      subtitle: "Kelola siswa, jadwal & izin perwalian",
-      onPress: () => router.push("/teacher/perwalian"),
-    }] : []),
+    
     {
       icon: "lock-closed-outline",
       label: "Ubah Kata Sandi",
@@ -202,16 +197,7 @@ export default function ProfileScreen() {
               <Text style={styles.infoLabel}>NIP</Text>
               <Text style={styles.infoValue}>{user.teacher_info.nip}</Text>
             </View>
-            {user.roles?.includes("wali_kelas") && (
-              <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Kelas Perwalian</Text>
-                <Text style={styles.infoValue}>
-                  {user.teacher_info.class_names && user.teacher_info.class_names.length > 0
-                    ? user.teacher_info.class_names.join(", ")
-                    : "-"}
-                </Text>
-              </View>
-            )}
+            
             <View style={styles.infoRow}>
               <Text style={styles.infoLabel}>Kelas Mengajar</Text>
               <Text style={styles.infoValue}>

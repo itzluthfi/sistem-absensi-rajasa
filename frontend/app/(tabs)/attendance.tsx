@@ -615,8 +615,13 @@ export default function AttendanceScreen() {
     <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
       {/* Dynamic Header */}
       <View style={styles.indicatorHeader}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginRight: 8, padding: 4 }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
-          <Ionicons name="finger-print" size={16} color="#fff" />
           <Text style={styles.indicatorText} numberOfLines={1}>
             {isSiswa
               ? "PRESENSI SISWA • RADJASA SECURE HIBRIDA"

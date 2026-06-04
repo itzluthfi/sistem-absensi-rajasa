@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   FlatList,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Image,
   useWindowDimensions,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuthStore } from "../../store/authStore";
@@ -17,8 +18,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function HistoryScreen() {
   const { user } = useAuthStore();
-  const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
+  const [allAttendanceData, setAllAttendanceData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Filters State
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "harian" | "mapel">("all");
 
   const isSiswa = user?.roles?.includes("siswa");
 
@@ -37,48 +42,70 @@ export default function HistoryScreen() {
     try {
       const response = await attendanceApi.getAll();
       const data = response.data?.data ?? response.data ?? [];
-
-      const studentId = user?.student_info?.id;
-      const isSuperAdmin = user?.roles?.includes("super_admin");
-      const isAdmin = user?.roles?.includes("admin");
-      const isKepalaSekolah = user?.roles?.includes("kepala_sekolah");
-      const isWaliKelas = user?.roles?.includes("wali_kelas");
-      const isGuru = user?.roles?.includes("guru");
-
-      if (isSuperAdmin || isAdmin || isKepalaSekolah) {
-        setAttendanceHistory(data);
-      } else if (isSiswa && studentId) {
-        const myAttendance = data.filter(
-          (a: any) => a.student_id === studentId
-        );
-        setAttendanceHistory(myAttendance);
-      } else {
-        // Teacher / Wali Kelas / Dual Role
-        const classIds = user?.teacher_info?.class_ids || [];
-        const teacherUserId = user?.id;
-
-        const filtered = data.filter((a: any) => {
-          let match = false;
-          if (isWaliKelas && classIds.length > 0) {
-            if (classIds.includes(a.class_id)) {
-              match = true;
-            }
-          }
-          if (isGuru && teacherUserId) {
-            if (a.recorded_by === teacherUserId) {
-              match = true;
-            }
-          }
-          return match;
-        });
-        setAttendanceHistory(filtered);
-      }
+      setAllAttendanceData(data);
     } catch (error) {
       console.error("Failed to load attendance:", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      hadir: "#10B981",
+      telat: "#F59E0B",
+      izin: "#3B82F6",
+      sakit: "#EF4444",
+      alpha: "#6B7280",
+      ditolak: "#DC2626",
+    };
+    return colors[status] || "#6B7280";
+  };
+
+  // Perform dynamic filtering in memory
+  const filteredHistory = useMemo(() => {
+    let list = [...allAttendanceData];
+
+    const studentId = user?.student_info?.id;
+    const isSuperAdmin = user?.roles?.includes("super_admin");
+    const isAdmin = user?.roles?.includes("admin");
+    const isKepalaSekolah = user?.roles?.includes("kepala_sekolah");
+    const isGuru = user?.roles?.includes("guru");
+
+    // 1. Role-based base filtering
+    if (isSuperAdmin || isAdmin || isKepalaSekolah) {
+      // Admins and Kepsek see all logs
+    } else if (isSiswa && studentId) {
+      list = list.filter((a: any) => a.student_id === studentId);
+    } else {
+      // Teacher base filtering
+      const teacherUserId = user?.id;
+
+      list = list.filter((a: any) => {
+        let match = false;
+        if (isGuru && teacherUserId && a.recorded_by === teacherUserId) {
+          match = true;
+        }
+        return match;
+      });
+    }
+
+    // 3. Status Filter
+    if (statusFilter !== "all") {
+      list = list.filter((a: any) => String(a.status).toLowerCase() === statusFilter);
+    }
+
+    // 4. Attendance Type Filter
+    if (typeFilter !== "all") {
+      if (typeFilter === "harian") {
+        list = list.filter((a: any) => a.schedule_id === null || a.schedule_id === undefined);
+      } else if (typeFilter === "mapel") {
+        list = list.filter((a: any) => a.schedule_id !== null && a.schedule_id !== undefined);
+      }
+    }
+
+    return list;
+  }, [allAttendanceData, statusFilter, typeFilter, user, isSiswa]);
 
   return (
     <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
@@ -99,7 +126,74 @@ export default function HistoryScreen() {
         </Text>
       </View>
 
-      {isLoading && attendanceHistory.length === 0 ? (
+      {/* Sticky Interactive Horizontal Scroll Filter Bar */}
+      <View style={styles.filterBar}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterScrollContent}
+        >
+          
+
+          {/* Type Filter */}
+          <View style={styles.filterGroup}>
+            <TouchableOpacity
+              style={[styles.filterButton, typeFilter === "all" && styles.filterButtonActive]}
+              onPress={() => setTypeFilter("all")}
+            >
+              <Text style={[styles.filterButtonText, typeFilter === "all" && styles.filterButtonTextActive]}>
+                Semua Tipe
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, typeFilter === "harian" && styles.filterButtonActive]}
+              onPress={() => setTypeFilter("harian")}
+            >
+              <Text style={[styles.filterButtonText, typeFilter === "harian" && styles.filterButtonTextActive]}>
+                Harian Sekolah
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.filterButton, typeFilter === "mapel" && styles.filterButtonActive]}
+              onPress={() => setTypeFilter("mapel")}
+            >
+              <Text style={[styles.filterButtonText, typeFilter === "mapel" && styles.filterButtonTextActive]}>
+                Pelajaran (Mapel)
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.divider} />
+          </View>
+
+          {/* Status Filter */}
+          <View style={styles.filterGroup}>
+            <TouchableOpacity
+              style={[styles.filterButton, statusFilter === "all" && styles.filterButtonActive]}
+              onPress={() => setStatusFilter("all")}
+            >
+              <Text style={[styles.filterButtonText, statusFilter === "all" && styles.filterButtonTextActive]}>
+                Semua Status
+              </Text>
+            </TouchableOpacity>
+            {["hadir", "telat", "izin", "sakit", "alpha", "ditolak"].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[styles.filterButton, statusFilter === status && styles.filterButtonActive]}
+                onPress={() => setStatusFilter(status)}
+              >
+                <Text style={[
+                  styles.filterButtonText, 
+                  statusFilter === status && styles.filterButtonTextActive,
+                  statusFilter === status && { color: getStatusColor(status) }
+                ]}>
+                  {status === "ditolak" ? "Ditolak" : status.charAt(0).toUpperCase() + status.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </View>
+
+      {isLoading && allAttendanceData.length === 0 ? (
         <View style={styles.listContent}>
           {[1, 2, 3, 4, 5].map((i) => (
             <View key={i} style={styles.historyCard}>
@@ -123,7 +217,7 @@ export default function HistoryScreen() {
         </View>
       ) : (
         <FlatList
-          data={attendanceHistory}
+          data={filteredHistory}
           keyExtractor={(item) => String(item.id)}
           refreshControl={
             <RefreshControl
@@ -134,35 +228,41 @@ export default function HistoryScreen() {
           }
           contentContainerStyle={[styles.listContent, { paddingBottom }]}
           ListHeaderComponent={
-            !isMobile && attendanceHistory.length > 0 ? (
+            !isMobile && filteredHistory.length > 0 ? (
               <View style={styles.tableHeader}>
                 {isSiswa ? (
                   <>
-                    <Text style={[styles.tableHeaderCell, { flex: 3 }]}>
+                    <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>
                       Hari & Tanggal
                     </Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                      Masuk / Pulang
+                    <Text style={[styles.tableHeaderCell, { flex: 2 }]}>
+                      Tipe / Mata Pelajaran
                     </Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>
+                      Jam Absen
+                    </Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.3 }]}>
                       Status
                     </Text>
                   </>
                 ) : (
                   <>
-                    <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>
+                    <Text style={[styles.tableHeaderCell, { flex: 2.2 }]}>
                       Hari & Tanggal
                     </Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
-                      Masuk / Pulang
+                    <Text style={[styles.tableHeaderCell, { flex: 2 }]}>
+                      Mata Pelajaran
+                    </Text>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>
+                      Jam Absen
                     </Text>
                     <Text style={[styles.tableHeaderCell, { flex: 2 }]}>
                       Nama Siswa
                     </Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1.3 }]}>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.1 }]}>
                       Kelas
                     </Text>
-                    <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>
+                    <Text style={[styles.tableHeaderCell, { flex: 1.3 }]}>
                       Status
                     </Text>
                   </>
@@ -176,12 +276,13 @@ export default function HistoryScreen() {
               <Text style={styles.emptyTitle}>Belum Ada Data</Text>
               <Text style={styles.emptyText}>
                 {isSiswa
-                  ? "Belum ada absensi tercatat untuk Anda"
-                  : "Belum ada absensi tercatat hari ini"}
+                  ? "Belum ada absensi tercatat untuk kriteria filter ini"
+                  : "Belum ada absensi tercatat untuk kriteria filter ini"}
               </Text>
             </View>
           }
           renderItem={({ item }) => {
+            const isItemHarian = item.schedule_id === null || item.schedule_id === undefined;
             if (!isMobile) {
               const formattedDate = new Date(item.date).toLocaleDateString(
                 "id-ID",
@@ -200,15 +301,21 @@ export default function HistoryScreen() {
                       <Text
                         style={[
                           styles.tableCell,
-                          { flex: 3, fontWeight: "700", color: "#1E293B" },
+                          { flex: 2.5, fontWeight: "700", color: "#1E293B" },
                         ]}
                       >
                         {formattedDate}
                       </Text>
-                      <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                        {item.time ? item.time.substring(0, 5) : "-"} / {item.checkout_time ? item.checkout_time.substring(0, 5) : "-"}
+                      <Text style={[styles.tableCell, { flex: 2, color: isItemHarian ? "#10B981" : "#3B82F6", fontWeight: "700" }]}>
+                        {isItemHarian
+                          ? "Masuk Sekolah (Harian)"
+                          : `${item.subject_name || "Mata Pelajaran"}`}
                       </Text>
-                      <View style={{ flex: 1.5, alignItems: "flex-start" }}>
+                      <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                        {item.time ? item.time.substring(0, 5) : "-"}
+                        {isItemHarian && item.checkout_time ? ` / ${item.checkout_time.substring(0, 5)}` : ""}
+                      </Text>
+                      <View style={{ flex: 1.3, alignItems: "flex-start" }}>
                         <StatusBadge status={item.status} />
                       </View>
                     </>
@@ -217,13 +324,19 @@ export default function HistoryScreen() {
                       <Text
                         style={[
                           styles.tableCell,
-                          { flex: 2.5, fontWeight: "700", color: "#1E293B" },
+                          { flex: 2.2, fontWeight: "700", color: "#1E293B" },
                         ]}
                       >
                         {formattedDate}
                       </Text>
-                      <Text style={[styles.tableCell, { flex: 1.5 }]}>
-                        {item.time ? item.time.substring(0, 5) : "-"} / {item.checkout_time ? item.checkout_time.substring(0, 5) : "-"}
+                      <Text style={[styles.tableCell, { flex: 2, color: isItemHarian ? "#10B981" : "#3B82F6", fontWeight: "700" }]}>
+                        {isItemHarian
+                          ? "Masuk Sekolah (Harian)"
+                          : `${item.subject_name || "Mata Pelajaran"}`}
+                      </Text>
+                      <Text style={[styles.tableCell, { flex: 1.2 }]}>
+                        {item.time ? item.time.substring(0, 5) : "-"}
+                        {isItemHarian && item.checkout_time ? ` / ${item.checkout_time.substring(0, 5)}` : ""}
                       </Text>
                       <Text
                         style={[
@@ -233,10 +346,10 @@ export default function HistoryScreen() {
                       >
                         {item.student?.full_name || "-"}
                       </Text>
-                      <Text style={[styles.tableCell, { flex: 1.3 }]}>
+                      <Text style={[styles.tableCell, { flex: 1.1 }]}>
                         {item.student?.class?.class_name || "-"}
                       </Text>
-                      <View style={{ flex: 1.5, alignItems: "flex-start" }}>
+                      <View style={{ flex: 1.3, alignItems: "flex-start" }}>
                         <StatusBadge status={item.status} />
                       </View>
                     </>
@@ -257,6 +370,21 @@ export default function HistoryScreen() {
                         year: "numeric",
                       })}
                     </Text>
+                    
+                    {/* Attendance Type Distinction */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginVertical: 6 }}>
+                      <Ionicons
+                        name={isItemHarian ? "school-outline" : "book-outline"}
+                        size={14}
+                        color={isItemHarian ? "#10B981" : "#3B82F6"}
+                      />
+                      <Text style={{ fontSize: 13, fontWeight: "700", color: isItemHarian ? "#047857" : "#1D4ED8" }}>
+                        {isItemHarian
+                          ? "Masuk Sekolah (Harian)"
+                          : `Mapel: ${item.subject_name || "Mata Pelajaran"}`}
+                      </Text>
+                    </View>
+
                     <View style={{ flexDirection: "row", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
                       {item.time && (
                         <View style={styles.timeBadge}>
@@ -268,16 +396,18 @@ export default function HistoryScreen() {
                           <Text style={styles.timeText}>Masuk: {item.time.substring(0, 5)}</Text>
                         </View>
                       )}
-                      <View style={styles.timeBadge}>
-                        <Ionicons
-                          name="log-out-outline"
-                          size={12}
-                          color="#EF4444"
-                        />
-                        <Text style={styles.timeText}>
-                          Pulang: {item.checkout_time ? item.checkout_time.substring(0, 5) : "-"}
-                        </Text>
-                      </View>
+                      {isItemHarian && (
+                        <View style={styles.timeBadge}>
+                          <Ionicons
+                            name="log-out-outline"
+                            size={12}
+                            color="#EF4444"
+                          />
+                          <Text style={styles.timeText}>
+                            Pulang: {item.checkout_time ? item.checkout_time.substring(0, 5) : "-"}
+                          </Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                   <StatusBadge status={item.status} />
@@ -476,5 +606,49 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#475569",
     fontWeight: "600",
+  },
+  filterBar: {
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+    paddingVertical: 10,
+  },
+  filterScrollContent: {
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  filterGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  filterButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  filterButtonActive: {
+    backgroundColor: "#EFF6FF",
+    borderColor: "#3B82F6",
+  },
+  filterButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#4B5563",
+  },
+  filterButtonTextActive: {
+    color: "#3B82F6",
+    fontWeight: "700",
+  },
+  divider: {
+    width: 1,
+    height: 16,
+    backgroundColor: "#D1D5DB",
+    marginHorizontal: 8,
   },
 });

@@ -1244,13 +1244,57 @@ export default function HomeScreen() {
               )}
             </ScrollView>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { gap: 10, flexDirection: 'row' }]}>
               <TouchableOpacity
                 style={[styles.secondaryButton, { flex: 1 }]}
                 onPress={() => setSelectedSubjectSchedule(null)}
               >
                 <Text style={styles.secondaryButtonText}>Tutup</Text>
               </TouchableOpacity>
+
+              {isSiswa && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.secondaryButton, { flex: 1, borderColor: '#3B82F6', borderWidth: 1 }]}
+                    onPress={() => {
+                      setSelectedSubjectSchedule(null);
+                      router.push("/(tabs)/leave-request" as any);
+                    }}
+                  >
+                    <Ionicons name="document-text-outline" size={16} color="#3B82F6" style={{ marginRight: 4 }} />
+                    <Text style={[styles.secondaryButtonText, { color: '#3B82F6' }]}>Ajukan Izin</Text>
+                  </TouchableOpacity>
+
+                  {selectedSubjectSchedule && 
+                   selectedSubjectSchedule.day_name === todayEng && 
+                   !!selectedSubjectSchedule.active_session && 
+                   !(selectedSubjectSchedule.attendance_status === "hadir" || 
+                     selectedSubjectSchedule.attendance_status === "telat" || 
+                     selectedSubjectSchedule.attendance_status === "izin" || 
+                     selectedSubjectSchedule.attendance_status === "sakit") && 
+                   !activeApprovedLeave && (
+                    <TouchableOpacity
+                      style={{
+                        flex: 1.5,
+                        backgroundColor: "#10B981",
+                        borderRadius: 8,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        paddingVertical: 10,
+                      }}
+                      onPress={() => {
+                        const schedId = selectedSubjectSchedule.id;
+                        setSelectedSubjectSchedule(null);
+                        router.push({ pathname: "/(tabs)/attendance", params: { schedule_id: schedId } } as any);
+                      }}
+                    >
+                      <Ionicons name="scan-outline" size={16} color="#fff" style={{ marginRight: 4 }} />
+                      <Text style={{ color: "#fff", fontWeight: "700", fontSize: 13 }}>Absen Sekarang</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
             </View>
           </View>
         </View>
@@ -1264,7 +1308,9 @@ export default function HomeScreen() {
     const isFinished =
       isToday &&
       (schedule.attendance_status === "hadir" ||
-        schedule.attendance_status === "telat");
+        schedule.attendance_status === "telat" ||
+        schedule.attendance_status === "izin" ||
+        schedule.attendance_status === "sakit");
 
     const cardWidthStyle = Platform.OS === 'web' && !isMobile && scheduleViewMode === 'list'
       ? { width: (width < 1024 ? '48%' : '31.5%') as any, minWidth: 280 }

@@ -198,7 +198,7 @@ class AttendanceSessionController extends BaseController
             $user = $request->user();
  
             // Validate that user is teacher or admin
-            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+            if (!$user->hasRole(['super_admin', 'admin', 'guru'])) {
                 return $this->sendError('Anda tidak memiliki izin untuk membuka sesi absensi.', [], 403);
             }
  

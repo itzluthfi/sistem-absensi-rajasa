@@ -122,23 +122,7 @@ class PermissionsSeeder extends Seeder
         ];
         $admin->syncPermissions($adminPermissions);
 
-        // Wali Kelas - Manage their own class
-        $waliKelas = Role::findByName('wali_kelas');
-        $waliKelasPermissions = [
-            'students.view',
-            'teachers.view',
-            'classes.view',
-            'subjects.view',
-            'schedules.view',
-            'attendance.view', 'attendance.create', 'attendance.scan',
-            'leave_requests.view', 'leave_requests.approve', 'leave_requests.reject',
-            'reports.view', 'reports.export',
-            'notifications.view',
-            'qr_codes.generate', 'qr_codes.view',
-        ];
-        $waliKelas->syncPermissions($waliKelasPermissions);
-
-        // Guru - Basic teaching permissions
+        // Guru - Basic teaching permissions and direct leave approvals
         $guru = Role::findByName('guru');
         $guruPermissions = [
             'teachers.view',
@@ -146,7 +130,7 @@ class PermissionsSeeder extends Seeder
             'subjects.view',
             'schedules.view',
             'attendance.view', 'attendance.create', 'attendance.scan',
-            'leave_requests.view', 'leave_requests.create',
+            'leave_requests.view', 'leave_requests.create', 'leave_requests.approve', 'leave_requests.reject',
             'reports.view',
             'notifications.view',
             'qr_codes.generate', 'qr_codes.view',

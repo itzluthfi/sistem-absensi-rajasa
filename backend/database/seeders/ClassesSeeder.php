@@ -14,13 +14,6 @@ class ClassesSeeder extends Seeder
     {
         $majors = Major::all()->keyBy('major_code');
         
-        // Ambil hanya guru yang memiliki role 'wali_kelas'
-        $waliKelasTeachers = Teacher::whereHas('user', function($query) {
-            $query->whereHas('roles', function($rQuery) {
-                $rQuery->where('name', 'wali_kelas');
-            });
-        })->get()->values();
-
         $activePeriod = AcademicPeriod::where('is_active', true)->first();
 
         // 19 Kelas representatif
@@ -59,16 +52,13 @@ class ClassesSeeder extends Seeder
 
         foreach ($classesData as $idx => $class) {
             $major = $majors->get($class['major_code']);
-            
-            // Setiap kelas dipasangkan dengan 1 wali kelas unik secara sekuensial
-            $homeroomTeacher = $waliKelasTeachers->get($idx);
 
             if ($major) {
                 SchoolClass::updateOrCreate([
                     'class_name' => $class['class_name'],
                 ], [
                     'major_id' => $major->id,
-                    'homeroom_teacher_id' => $homeroomTeacher ? $homeroomTeacher->id : null,
+                    'homeroom_teacher_id' => null,
                     'academic_period_id' => $activePeriod ? $activePeriod->id : null,
                     'academic_year' => '2025/2026'
                 ]);

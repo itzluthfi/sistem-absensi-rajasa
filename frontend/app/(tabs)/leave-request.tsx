@@ -34,6 +34,11 @@ interface LeaveRequest {
   approved_by?: number;
   approved_at?: string;
   created_at: string;
+  student?: {
+    id: number;
+    full_name: string;
+    nis?: string;
+  } | null;
 }
 
 export default function LeaveRequestScreen() {
@@ -60,7 +65,7 @@ export default function LeaveRequestScreen() {
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
 
-  const canApprove = hasRole(["guru", "wali_kelas", "admin", "super_admin"]);
+  const canApprove = hasRole(["guru", "admin", "super_admin"]);
 
   useEffect(() => {
     fetchLeaveRequests();
@@ -204,6 +209,7 @@ export default function LeaveRequestScreen() {
             !isMobile && leaveRequests.length > 0 ? (
               <View style={styles.tableHeader}>
                 <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
+                {!isSiswa && <Text style={[styles.tableHeaderCell, { flex: 2 }]}>Siswa</Text>}
                 <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Jenis</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 3 }]}>Alasan</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Mulai</Text>
@@ -259,6 +265,11 @@ export default function LeaveRequestScreen() {
                   >
                     {item.id}
                   </Text>
+                  {!isSiswa && (
+                    <Text style={[styles.tableCell, { flex: 2, fontWeight: "600" }]}>
+                      {item.student?.full_name ?? "-"}
+                    </Text>
+                  )}
                   <Text
                     style={[
                       styles.tableCell,
@@ -313,6 +324,11 @@ export default function LeaveRequestScreen() {
                   </View>
                   <StatusBadge status={item.approval_status} />
                 </View>
+                {!isSiswa && item.student?.full_name && (
+                  <Text style={{ fontSize: 13, fontWeight: "700", color: "#475569", marginBottom: 6 }}>
+                    Siswa: {item.student.full_name}
+                  </Text>
+                )}
                 <Text style={styles.requestReason} numberOfLines={2}>
                   {item.reason}
                 </Text>
@@ -423,6 +439,9 @@ export default function LeaveRequestScreen() {
                   onClose={() => setSelectedRequest(null)}
                 />
                 <ScrollView style={styles.modalBody}>
+                  {!isSiswa && selectedRequest.student?.full_name && (
+                    <DetailRow label="Siswa" value={selectedRequest.student.full_name} />
+                  )}
                   <DetailRow
                     label="Jenis"
                     value={
