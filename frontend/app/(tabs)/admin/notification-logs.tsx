@@ -50,12 +50,25 @@ export default function NotificationLogsScreen() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
 
+  // Clear modal states
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearFilter, setClearFilter] = useState<"all" | "1_week" | "1_month" | "custom">("all");
+  const [clearStartDate, setClearStartDate] = useState("");
+  const [clearEndDate, setClearEndDate] = useState("");
+
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
 
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const paddingBottom = 64 + safeBottom + 24;
+
+  // Set default custom dates to today's date
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    setClearStartDate(today);
+    setClearEndDate(today);
+  }, []);
 
   useEffect(() => {
     // Reset page and reload on filters change
@@ -119,33 +132,39 @@ export default function NotificationLogsScreen() {
   };
 
   const handleClearLogs = () => {
-    Alert.alert(
-      "Hapus Semua Log",
-      "Apakah Anda yakin ingin menghapus seluruh riwayat log notifikasi dari sistem?",
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Hapus Semua",
-          style: "destructive",
-          onPress: async () => {
-            setIsClearing(true);
-            try {
-              await notificationLogsApi.clearAll();
-              setLogs([]);
-              setPage(1);
-              setHasMore(false);
-              toast.success("Semua log notifikasi berhasil dibersihkan.");
-            } catch (error: any) {
-              toast.error(
-                error.response?.data?.message || "Gagal menghapus log."
-              );
-            } finally {
-              setIsClearing(false);
-            }
-          },
-        },
-      ]
-    );
+    setShowClearModal(true);
+  };
+
+  const executeClearLogs = async () => {
+    if (clearFilter === "custom") {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(clearStartDate) || !dateRegex.test(clearEndDate)) {
+        toast.error("Format tanggal harus YYYY-MM-DD (contoh: 2026-06-05)");
+        return;
+      }
+    }
+
+    setIsClearing(true);
+    try {
+      const params: any = { filter: clearFilter };
+      if (clearFilter === "custom") {
+        params.start_date = clearStartDate;
+        params.end_date = clearEndDate;
+      }
+
+      const res = await notificationLogsApi.clearAll(params);
+      setShowClearModal(false);
+      toast.success(res.message || "Pembersihan log berhasil.");
+      
+      // Reload logs feed
+      fetchLogs(1, true);
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Gagal membersihkan log."
+      );
+    } finally {
+      setIsClearing(false);
+    }
   };
 
   const getRoleColor = (roles: string[] | undefined) => {
@@ -344,16 +363,23 @@ export default function NotificationLogsScreen() {
               <View style={[styles.logCard, !isSuccess && styles.logCardFailed]}>
                 {/* Header: Recipient info */}
                 <View style={styles.logCardHeader}>
-                  <View style={{ flex: 1, flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-                    <Text style={styles.recipientName} numberOfLines={1}>
-                      {item.user ? item.user.name : "System (Sistem)"}
-                    </Text>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
+                      <Text style={styles.recipientName} numberOfLines={1}>
+                        {item.user ? item.user.name : "System (Sistem)"}
+                      </Text>
+                      {item.user && (
+                        <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor(userRole)}15` }]}>
+                          <Text style={[styles.roleText, { color: getRoleColor(userRole) }]}>
+                            {getRoleLabel(userRole)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     {item.user && (
-                      <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor(userRole)}15` }]}>
-                        <Text style={[styles.roleText, { color: getRoleColor(userRole) }]}>
-                          {getRoleLabel(userRole)}
-                        </Text>
-                      </View>
+                      <Text style={styles.recipientEmailSubtitle}>
+                        {item.user.email}
+                      </Text>
                     )}
                   </View>
 
@@ -406,6 +432,100 @@ export default function NotificationLogsScreen() {
           }}
         />
       )}
+
+      {/* Clear Logs Modal */}
+      <Modal visible={showClearModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Bersihkan Log Notifikasi</Text>
+              <TouchableOpacity onPress={() => setShowClearModal(false)} style={styles.iconButton}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              <Text style={styles.modalInstructions}>
+                Pilih opsi pembersihan data log. Data yang dihapus tidak dapat dipulihkan.
+              </Text>
+
+              {/* Filter Template Selection */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Template Rentang Waktu</Text>
+                <View style={styles.templateOptions}>
+                  {[
+                    { label: "Semua", value: "all" },
+                    { label: "1 Minggu", value: "1_week" },
+                    { label: "1 Bulan", value: "1_month" },
+                    { label: "Kustom", value: "custom" },
+                  ].map((opt) => (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[
+                        styles.templateButton,
+                        clearFilter === opt.value && styles.templateButtonActive,
+                      ]}
+                      onPress={() => setClearFilter(opt.value as any)}
+                    >
+                      <Text
+                        style={[
+                          styles.templateButtonText,
+                          clearFilter === opt.value && styles.templateButtonTextActive,
+                        ]}
+                      >
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+
+              {/* Custom Date Inputs */}
+              {clearFilter === "custom" && (
+                <View style={styles.dateInputsRow}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>Mulai Tanggal</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={clearStartDate}
+                      onChangeText={setClearStartDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>Sampai Tanggal</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={clearEndDate}
+                      onChangeText={setClearEndDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#9CA3AF"
+                    />
+                  </View>
+                </View>
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => setShowClearModal(false)}>
+                <Text style={styles.secondaryButtonText}>Batal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: "#EF4444" }]}
+                onPress={executeClearLogs}
+                disabled={isClearing}
+              >
+                {isClearing ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.primaryButtonText}>Bersihkan</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -632,6 +752,11 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     maxWidth: 180,
   },
+  recipientEmailSubtitle: {
+    fontSize: 11,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
   footerLoader: {
     flexDirection: "row",
     alignItems: "center",
@@ -663,5 +788,127 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 18,
     paddingHorizontal: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    maxHeight: "88%",
+  },
+  modalHeader: {
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#1E3A8A",
+  },
+  modalInstructions: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 16,
+    lineHeight: 18,
+    fontWeight: "500",
+  },
+  iconButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#374151",
+    marginBottom: 6,
+  },
+  templateOptions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  templateButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  templateButtonActive: {
+    backgroundColor: "#EF4444",
+    borderColor: "#EF4444",
+  },
+  templateButtonText: {
+    fontSize: 12,
+    color: "#4B5563",
+    fontWeight: "700",
+  },
+  templateButtonTextActive: {
+    color: "#fff",
+  },
+  dateInputsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 4,
+  },
+  input: {
+    height: 44,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: "#111827",
+    backgroundColor: "#F9FAFB",
+  },
+  modalFooter: {
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: "#F3F4F6",
+  },
+  secondaryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryButtonText: {
+    fontSize: 13,
+    color: "#374151",
+    fontWeight: "700",
+  },
+  primaryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: "#EF4444",
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 90,
+  },
+  primaryButtonText: {
+    fontSize: 13,
+    color: "#fff",
+    fontWeight: "700",
   },
 });

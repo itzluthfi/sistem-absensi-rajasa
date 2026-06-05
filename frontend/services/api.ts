@@ -722,8 +722,8 @@ export const notificationLogsApi = {
     return response.data;
   },
 
-  clearAll: async () => {
-    const response = await api.delete('/notification-logs');
+  clearAll: async (params?: { filter: 'all' | '1_week' | '1_month' | 'custom'; start_date?: string; end_date?: string }) => {
+    const response = await api.delete('/notification-logs', { params });
     return response.data;
   },
 };

@@ -91,13 +91,38 @@ class NotificationLogController extends BaseController
     }
 
     /**
-     * Clear all notification logs (Admin only)
+     * Clear notification logs with filters (Admin only)
      */
-    public function clear()
+    public function clear(Request $request)
     {
         try {
-            DB::table('notification_logs')->truncate();
-            return $this->sendResponse([], 'Semua log notifikasi berhasil dihapus.');
+            $filter = $request->input('filter', 'all');
+            $query = DB::table('notification_logs');
+
+            if ($filter === '1_week') {
+                // Delete logs older than 1 week
+                $query->where('created_at', '<', now()->subWeek());
+                $message = 'Log notifikasi berusia lebih dari 1 minggu berhasil dihapus.';
+            } elseif ($filter === '1_month') {
+                // Delete logs older than 1 month
+                $query->where('created_at', '<', now()->subMonth());
+                $message = 'Log notifikasi berusia lebih dari 1 bulan berhasil dihapus.';
+            } elseif ($filter === 'custom') {
+                $startDate = $request->input('start_date');
+                $endDate = $request->input('end_date');
+                if ($startDate && $endDate) {
+                    $query->whereBetween('created_at', [$startDate . ' 00:00:00', $endDate . ' 23:59:59']);
+                    $message = "Log notifikasi dari tanggal {$startDate} hingga {$endDate} berhasil dihapus.";
+                } else {
+                    return $this->sendError('Tanggal mulai dan selesai wajib diisi untuk filter kustom.');
+                }
+            } else {
+                // Delete all logs
+                $message = 'Semua log notifikasi berhasil dihapus.';
+            }
+
+            $query->delete();
+            return $this->sendResponse([], $message);
         } catch (\Exception $e) {
             return $this->sendError('Gagal menghapus log notifikasi: ' . $e->getMessage());
         }
