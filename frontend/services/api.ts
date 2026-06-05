@@ -715,4 +715,17 @@ export const usersApi = {
   },
 };
 
+// Notification Logs API
+export const notificationLogsApi = {
+  getAll: async (params?: { page?: number; per_page?: number; search?: string; status?: string; channel?: string }) => {
+    const response = await api.get('/notification-logs', { params });
+    return response.data;
+  },
+
+  clearAll: async () => {
+    const response = await api.delete('/notification-logs');
+    return response.data;
+  },
+};
+
 export default api;

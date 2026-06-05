@@ -218,6 +218,14 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ============================================
+    // NOTIFICATION LOG - Admin Only
+    // ============================================
+    Route::middleware('role:super_admin,admin')->group(function () {
+        Route::get('notification-logs', [\App\Http\Controllers\Api\NotificationLogController::class, 'index']);
+        Route::delete('notification-logs', [\App\Http\Controllers\Api\NotificationLogController::class, 'clear']);
+    });
+
+    // ============================================
     // SUBJECTS (Mata Pelajaran)
     // ============================================
     Route::middleware('role:super_admin,admin')->group(function () {

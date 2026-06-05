@@ -15,32 +15,75 @@ class FcmService
      * @param string $body Notification body content
      * @param array $data Optional custom data payload (keys & values must be strings)
      */
-    public static function sendNotification($tokens, $title, $body, $data = [])
+    public static function sendNotification($tokens, $title, $body, $data = [], $user = null)
     {
         $recipients = is_array($tokens) ? $tokens : [$tokens];
         $recipients = array_filter($recipients); // Remove empty values
 
         if (empty($recipients)) {
+            if ($user) {
+                \App\Models\NotificationLog::create([
+                    'user_id' => $user->id,
+                    'title' => $title,
+                    'message' => $body,
+                    'channel' => 'fcm',
+                    'status' => 'failed',
+                    'error_message' => 'Siswa tidak memiliki token perangkat (Device Token) yang terdaftar. Pastikan siswa sudah login di aplikasi HP.'
+                ]);
+            }
             return;
         }
 
         // Get Service Account credentials
         $credentials = self::getCredentials();
         if (!$credentials) {
-            Log::error('FCM Error: Service account credentials not found or invalid.');
+            $errorMsg = 'FCM Error: Service account credentials not found or invalid.';
+            Log::error($errorMsg);
+            if ($user) {
+                \App\Models\NotificationLog::create([
+                    'user_id' => $user->id,
+                    'title' => $title,
+                    'message' => $body,
+                    'channel' => 'fcm',
+                    'status' => 'failed',
+                    'error_message' => $errorMsg
+                ]);
+            }
             return;
         }
 
         // Get Google OAuth2 access token
         $accessToken = self::getGoogleAccessToken($credentials);
         if (!$accessToken) {
-            Log::error('FCM Error: Failed to obtain Google OAuth2 Access Token.');
+            $errorMsg = 'FCM Error: Failed to obtain Google OAuth2 Access Token.';
+            Log::error($errorMsg);
+            if ($user) {
+                \App\Models\NotificationLog::create([
+                    'user_id' => $user->id,
+                    'title' => $title,
+                    'message' => $body,
+                    'channel' => 'fcm',
+                    'status' => 'failed',
+                    'error_message' => $errorMsg
+                ]);
+            }
             return;
         }
 
         $projectId = env('FIREBASE_PROJECT_ID', $credentials['project_id'] ?? null);
         if (!$projectId) {
-            Log::error('FCM Error: Firebase Project ID is not configured.');
+            $errorMsg = 'FCM Error: Firebase Project ID is not configured.';
+            Log::error($errorMsg);
+            if ($user) {
+                \App\Models\NotificationLog::create([
+                    'user_id' => $user->id,
+                    'title' => $title,
+                    'message' => $body,
+                    'channel' => 'fcm',
+                    'status' => 'failed',
+                    'error_message' => $errorMsg
+                ]);
+            }
             return;
         }
 
@@ -86,10 +129,42 @@ class FcmService
                     ->post($url, $payload);
 
                 if (!$response->successful()) {
-                    Log::error("FCM Send Failed for token: {$token}. Error: " . $response->body());
+                    $errorDetails = "FCM Send Failed for token: {$token}. Status code: " . $response->status() . ". Error: " . $response->body();
+                    Log::error($errorDetails);
+                    if ($user) {
+                        \App\Models\NotificationLog::create([
+                            'user_id' => $user->id,
+                            'title' => $title,
+                            'message' => $body,
+                            'channel' => 'fcm',
+                            'status' => 'failed',
+                            'error_message' => $errorDetails
+                        ]);
+                    }
+                } else {
+                    if ($user) {
+                        \App\Models\NotificationLog::create([
+                            'user_id' => $user->id,
+                            'title' => $title,
+                            'message' => $body,
+                            'channel' => 'fcm',
+                            'status' => 'success'
+                        ]);
+                    }
                 }
             } catch (\Exception $e) {
-                Log::error("FCM Send Exception: " . $e->getMessage());
+                $exMsg = "FCM Send Exception: " . $e->getMessage();
+                Log::error($exMsg);
+                if ($user) {
+                    \App\Models\NotificationLog::create([
+                        'user_id' => $user->id,
+                        'title' => $title,
+                        'message' => $body,
+                        'channel' => 'fcm',
+                        'status' => 'failed',
+                        'error_message' => $exMsg
+                    ]);
+                }
             }
         }
     }
