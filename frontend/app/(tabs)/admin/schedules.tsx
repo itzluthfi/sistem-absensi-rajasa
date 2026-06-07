@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { schedulesApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
+import { showConfirm } from "../../../utils/alert";
 import { useAuthStore } from "../../../store/authStore";
 import Skeleton from "../../../components/ui/Skeleton";
 
@@ -227,22 +228,15 @@ export default function SchedulesAdminScreen() {
   };
 
   const handleDelete = (item: ScheduleRecord) => {
-    Alert.alert("Hapus Jadwal", `Hapus jadwal mata pelajaran ${item.subject?.subject_name}?`, [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await schedulesApi.delete(item.id);
-            await fetchRecords();
-            toast.success("Jadwal berhasil dihapus.");
-          } catch (error: any) {
-            toast.error(error.response?.data?.message || "Jadwal tidak dapat dihapus.");
-          }
-        },
-      },
-    ]);
+    showConfirm("Hapus Jadwal", `Hapus jadwal mata pelajaran ${item.subject?.subject_name}?`, async () => {
+      try {
+        await schedulesApi.delete(item.id);
+        await fetchRecords();
+        toast.success("Jadwal berhasil dihapus.");
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Jadwal tidak dapat dihapus.");
+      }
+    });
   };
 
   return (

@@ -109,11 +109,17 @@ class AcademicPeriodsController extends BaseController
                 return $this->sendError('Tidak dapat menghapus periode akademik yang sedang aktif.', [], 400);
             }
 
+            // Check if period has classes
+            $hasClasses = \Illuminate\Support\Facades\DB::table('classes')->where('academic_period_id', $id)->exists();
+            if ($hasClasses) {
+                return $this->sendError('Tidak dapat menghapus periode akademik karena masih ada data kelas yang terdaftar pada periode ini.', [], 400);
+            }
+
             $period->delete();
 
             return $this->sendResponse(null, 'Periode akademik berhasil dihapus.');
         } catch (\Exception $e) {
-            return $this->sendError('Gagal menghapus periode akademik: ' . $e->getMessage());
+            return $this->sendError('Gagal menghapus periode akademik: ' . $e->getMessage(), [], 500);
         }
     }
 

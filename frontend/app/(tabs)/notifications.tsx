@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -16,6 +15,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { notificationsApi } from "../../services/api";
 import { useToast } from "../../hooks/useToast";
+import { showConfirm } from "../../utils/alert";
 import Skeleton from "../../components/ui/Skeleton";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -122,17 +122,10 @@ export default function NotificationsScreen() {
   };
 
   const clearAllNotifications = () => {
-    Alert.alert("Konfirmasi", "Hapus semua notifikasi dari tampilan?", [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          setNotifications([]);
-          toast.success("Tampilan notifikasi dibersihkan.");
-        },
-      },
-    ]);
+    showConfirm("Konfirmasi", "Hapus semua notifikasi dari tampilan?", async () => {
+      setNotifications([]);
+      toast.success("Tampilan notifikasi dibersihkan.");
+    });
   };
 
   const unreadCount = notifications.filter((item) => !item.is_read).length;

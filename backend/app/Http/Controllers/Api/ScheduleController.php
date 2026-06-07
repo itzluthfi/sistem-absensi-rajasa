@@ -494,13 +494,22 @@ class ScheduleController extends BaseController
     public function destroy($id)
     {
         try {
-            $deleted = DB::table('schedules')->where('id', $id)->delete();
-            if (!$deleted) {
+            // Check if schedule exists
+            $exists = DB::table('schedules')->where('id', $id)->exists();
+            if (!$exists) {
                 return $this->sendError('Jadwal tidak ditemukan.', [], 404);
             }
+
+            // Check if schedule has attendance records
+            $hasAttendances = DB::table('attendances')->where('schedule_id', $id)->exists();
+            if ($hasAttendances) {
+                return $this->sendError('Tidak dapat menghapus jadwal ini karena sudah memiliki catatan absensi siswa.', [], 400);
+            }
+
+            DB::table('schedules')->where('id', $id)->delete();
             return $this->sendResponse(null, 'Jadwal berhasil dihapus.');
         } catch (\Exception $e) {
-            return $this->sendError('Failed to delete schedule: ' . $e->getMessage());
+            return $this->sendError('Gagal menghapus jadwal: ' . $e->getMessage(), [], 500);
         }
     }
 }

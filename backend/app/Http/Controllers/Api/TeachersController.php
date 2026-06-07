@@ -196,15 +196,38 @@ class TeachersController extends BaseController
     {
         try {
             $teacher = DB::table('teachers')->where('id', $id)->first();
-            if (!$teacher) return $this->sendError('Guru tidak ditemukan', [], 404);
- 
+            if (!$teacher) {
+                return $this->sendError('Guru tidak ditemukan', [], 404);
+            }
+
+            // Check if teacher is assigned as a homeroom teacher
+            $isHomeroom = DB::table('classes')->where('homeroom_teacher_id', $id)->exists();
+            if ($isHomeroom) {
+                return $this->sendError('Tidak dapat menghapus guru karena guru ini sedang bertugas sebagai Wali Kelas. Silakan ganti wali kelas terlebih dahulu.', [], 400);
+            }
+
+            // Check if teacher has teaching schedules
+            $hasSchedules = DB::table('schedules')->where('teacher_id', $id)->exists();
+            if ($hasSchedules) {
+                return $this->sendError('Tidak dapat menghapus guru karena guru ini memiliki jadwal mengajar aktif. Silakan nonaktifkan akun pengguna guru jika tidak lagi aktif.', [], 400);
+            }
+
+            $userId = $teacher->user_id;
+
+            DB::beginTransaction();
+
             DB::table('teachers')->where('id', $id)->delete();
- 
+
+            // Clean up the associated user account
+            if ($userId) {
+                DB::table('users')->where('id', $userId)->delete();
+            }
+
             // Audit Log
             DB::table('audit_logs')->insert([
                 'user_id' => $request->user()->id,
                 'action' => AuditLog::ACTION_DELETE,
-                'description' => "Deleted teacher #{$id}",
+                'description' => "Deleted teacher #{$id} and associated user #{$userId}",
                 'model_type' => Teacher::class,
                 'model_id' => $id,
                 'ip_address' => $request->ip(),
@@ -212,10 +235,13 @@ class TeachersController extends BaseController
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
- 
-            return $this->sendResponse([], 'Guru dihapus');
+
+            DB::commit();
+
+            return $this->sendResponse([], 'Guru berhasil dihapus');
         } catch (\Exception $e) {
-            return $this->sendError('Gagal menghapus guru. Silakan coba lagi.');
+            DB::rollBack();
+            return $this->sendError('Gagal menghapus guru: ' . $e->getMessage(), [], 500);
         }
     }
 }

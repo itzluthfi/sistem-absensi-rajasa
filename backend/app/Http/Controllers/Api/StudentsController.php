@@ -221,11 +221,39 @@ class StudentsController extends BaseController
     {
         try {
             $student = Student::find($id);
-            if (!$student) return $this->sendError('Siswa tidak ditemukan', [], 404);
+            if (!$student) {
+                return $this->sendError('Siswa tidak ditemukan', [], 404);
+            }
+
+            // Check if student has attendance records
+            $hasAttendances = DB::table('attendances')->where('student_id', $id)->exists();
+            if ($hasAttendances) {
+                return $this->sendError('Tidak dapat menghapus siswa karena siswa sudah memiliki catatan absensi. Silakan nonaktifkan akun pengguna siswa untuk menonaktifkannya.', [], 400);
+            }
+
+            // Check if student has leave requests
+            $hasLeaveRequests = DB::table('leave_requests')->where('student_id', $id)->exists();
+            if ($hasLeaveRequests) {
+                return $this->sendError('Tidak dapat menghapus siswa karena siswa memiliki data pengajuan izin/sakit. Silakan nonaktifkan akun pengguna siswa.', [], 400);
+            }
+
+            $userId = $student->user_id;
+
+            DB::beginTransaction();
+
             $student->delete();
-            return $this->sendResponse([], 'Siswa dihapus');
+
+            // Clean up the associated user account
+            if ($userId) {
+                DB::table('users')->where('id', $userId)->delete();
+            }
+
+            DB::commit();
+
+            return $this->sendResponse([], 'Siswa berhasil dihapus');
         } catch (\Exception $e) {
-            return $this->sendError('Gagal menghapus siswa. Silakan coba lagi.');
+            DB::rollBack();
+            return $this->sendError('Gagal menghapus siswa: ' . $e->getMessage(), [], 500);
         }
     }
 

@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { usersApi, rolesApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
+import { showConfirm } from "../../../utils/alert";
 import Skeleton from "../../../components/ui/Skeleton";
 
 type UserRecord = {
@@ -167,22 +168,15 @@ export default function UsersAdminScreen() {
   };
 
   const handleDelete = (item: UserRecord) => {
-    Alert.alert("Hapus Pengguna", `Apakah Anda yakin ingin menghapus pengguna ${item.name}?`, [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await usersApi.delete(item.id);
-            await fetchRecords();
-            toast.success("Pengguna berhasil dihapus.");
-          } catch (error: any) {
-            toast.error(error.response?.data?.message || "Pengguna tidak dapat dihapus.");
-          }
-        },
-      },
-    ]);
+    showConfirm("Hapus Pengguna", `Apakah Anda yakin ingin menghapus pengguna ${item.name}?`, async () => {
+      try {
+        await usersApi.delete(item.id);
+        await fetchRecords();
+        toast.success("Pengguna berhasil dihapus.");
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Pengguna tidak dapat dihapus.");
+      }
+    });
   };
 
   return (

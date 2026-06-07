@@ -99,11 +99,18 @@ class SubjectController extends BaseController
     {
         try {
             $subject = Subject::findOrFail($id);
+
+            // Check if subject is used in schedules
+            $hasSchedules = \Illuminate\Support\Facades\DB::table('schedules')->where('subject_id', $id)->exists();
+            if ($hasSchedules) {
+                return $this->sendError('Tidak dapat menghapus mata pelajaran karena masih digunakan dalam jadwal pelajaran aktif.', [], 400);
+            }
+
             $subject->delete();
 
-            return $this->sendResponse(null, 'Subject deleted successfully');
+            return $this->sendResponse(null, 'Mata pelajaran berhasil dihapus.');
         } catch (\Exception $e) {
-            return $this->sendError('Failed to delete subject');
+            return $this->sendError('Gagal menghapus mata pelajaran: ' . $e->getMessage(), [], 500);
         }
     }
 }

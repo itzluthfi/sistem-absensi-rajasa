@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { teachersApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
+import { showConfirm } from "../../../utils/alert";
 import Skeleton from "../../../components/ui/Skeleton";
 
 type TeacherRecord = {
@@ -198,22 +199,15 @@ export default function TeachersAdminScreen() {
   };
 
   const handleDelete = (item: TeacherRecord) => {
-    Alert.alert("Hapus Guru", `Hapus data guru ${item.full_name}?`, [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await teachersApi.delete(item.id);
-            await fetchRecords();
-            toast.success("Guru berhasil dihapus.");
-          } catch (error: any) {
-            toast.error(error.response?.data?.message || "Data guru tidak dapat dihapus.");
-          }
-        },
-      },
-    ]);
+    showConfirm("Hapus Guru", `Hapus data guru ${item.full_name}?`, async () => {
+      try {
+        await teachersApi.delete(item.id);
+        await fetchRecords();
+        toast.success("Guru berhasil dihapus.");
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Data guru tidak dapat dihapus.");
+      }
+    });
   };
 
   return (

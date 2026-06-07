@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { studentsApi, academicPeriodsApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
+import { showConfirm } from "../../../utils/alert";
 import { useAuthStore } from "../../../store/authStore";
 import Skeleton from "../../../components/ui/Skeleton";
 
@@ -235,22 +236,15 @@ export default function StudentsAdminScreen() {
   };
 
   const handleDelete = (item: StudentRecord) => {
-    Alert.alert("Hapus Siswa", `Hapus data siswa ${item.full_name}?`, [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await studentsApi.delete(item.id);
-            await fetchRecords();
-            toast.success("Siswa berhasil dihapus.");
-          } catch (error: any) {
-            toast.error(error.response?.data?.message || "Data siswa tidak dapat dihapus.");
-          }
-        },
-      },
-    ]);
+    showConfirm("Hapus Siswa", `Hapus data siswa ${item.full_name}?`, async () => {
+      try {
+        await studentsApi.delete(item.id);
+        await fetchRecords();
+        toast.success("Siswa berhasil dihapus.");
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Data siswa tidak dapat dihapus.");
+      }
+    });
   };
 
   return (

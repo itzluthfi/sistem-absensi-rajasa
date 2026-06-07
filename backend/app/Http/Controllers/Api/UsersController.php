@@ -173,6 +173,34 @@ class UsersController extends BaseController
                 return $this->sendError('Anda tidak dapat menghapus akun Anda sendiri.');
             }
 
+            // Check if user is associated with a student who has attendance or leave records
+            $student = DB::table('students')->where('user_id', $id)->first();
+            if ($student) {
+                $hasAttendances = DB::table('attendances')->where('student_id', $student->id)->exists();
+                if ($hasAttendances) {
+                    return $this->sendError('Tidak dapat menghapus pengguna karena siswa terkait memiliki catatan absensi. Silakan nonaktifkan akun pengguna ini saja.', [], 400);
+                }
+
+                $hasLeaveRequests = DB::table('leave_requests')->where('student_id', $student->id)->exists();
+                if ($hasLeaveRequests) {
+                    return $this->sendError('Tidak dapat menghapus pengguna karena siswa terkait memiliki pengajuan izin/sakit. Silakan nonaktifkan akun pengguna ini saja.', [], 400);
+                }
+            }
+
+            // Check if user is associated with a teacher who is a homeroom or has schedules
+            $teacher = DB::table('teachers')->where('user_id', $id)->first();
+            if ($teacher) {
+                $isHomeroom = DB::table('classes')->where('homeroom_teacher_id', $teacher->id)->exists();
+                if ($isHomeroom) {
+                    return $this->sendError('Tidak dapat menghapus pengguna karena guru terkait bertugas sebagai Wali Kelas. Ganti wali kelas terlebih dahulu.', [], 400);
+                }
+
+                $hasSchedules = DB::table('schedules')->where('teacher_id', $teacher->id)->exists();
+                if ($hasSchedules) {
+                    return $this->sendError('Tidak dapat menghapus pengguna karena guru terkait memiliki jadwal mengajar aktif. Silakan nonaktifkan akun pengguna ini saja.', [], 400);
+                }
+            }
+
             DB::beginTransaction();
 
             // Store name for description before delete

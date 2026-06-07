@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { classesApi, academicPeriodsApi, importExportApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
+import { showConfirm } from "../../../utils/alert";
 import Skeleton from "../../../components/ui/Skeleton";
 
 type ClassRecord = {
@@ -226,22 +227,15 @@ export default function ClassesAdminScreen() {
   };
 
   const handleDelete = (item: ClassRecord) => {
-    Alert.alert("Hapus Kelas", `Hapus kelas ${item.class_name}?`, [
-      { text: "Batal", style: "cancel" },
-      {
-        text: "Hapus",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            await classesApi.delete(item.id);
-            await fetchRecords();
-            toast.success("Kelas berhasil dihapus.");
-          } catch (error: any) {
-            toast.error(error.response?.data?.message || "Data kelas tidak dapat dihapus.");
-          }
-        },
-      },
-    ]);
+    showConfirm("Hapus Kelas", `Hapus kelas ${item.class_name}?`, async () => {
+      try {
+        await classesApi.delete(item.id);
+        await fetchRecords();
+        toast.success("Kelas berhasil dihapus.");
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Data kelas tidak dapat dihapus.");
+      }
+    });
   };
 
   return (

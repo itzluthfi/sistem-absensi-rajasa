@@ -156,11 +156,26 @@ class ClassesController extends BaseController
     {
         try {
             $class = SchoolClass::find($id);
-            if (!$class) return $this->sendError('Kelas tidak ditemukan', [], 404);
+            if (!$class) {
+                return $this->sendError('Kelas tidak ditemukan', [], 404);
+            }
+
+            // Check if class has students
+            $hasStudents = \Illuminate\Support\Facades\DB::table('students')->where('class_id', $id)->exists();
+            if ($hasStudents) {
+                return $this->sendError('Tidak dapat menghapus kelas karena masih ada siswa di dalam kelas ini. Silakan pindahkan siswa terlebih dahulu.', [], 400);
+            }
+
+            // Check if class has schedules
+            $hasSchedules = \Illuminate\Support\Facades\DB::table('schedules')->where('class_id', $id)->exists();
+            if ($hasSchedules) {
+                return $this->sendError('Tidak dapat menghapus kelas karena kelas ini memiliki jadwal pelajaran aktif. Silakan hapus jadwal pelajaran terkait terlebih dahulu.', [], 400);
+            }
+
             $class->delete();
-            return $this->sendResponse([], 'Kelas dihapus');
+            return $this->sendResponse([], 'Kelas berhasil dihapus');
         } catch (\Exception $e) {
-            return $this->sendError('Gagal menghapus kelas. Silakan coba lagi.');
+            return $this->sendError('Gagal menghapus kelas: ' . $e->getMessage(), [], 500);
         }
     }
 }
