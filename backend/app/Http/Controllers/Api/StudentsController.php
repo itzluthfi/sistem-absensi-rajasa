@@ -41,7 +41,7 @@ class StudentsController extends BaseController
                     'students.created_at',
                     'students.updated_at',
                     'users.email as user_email',
-                    'users.username as user_username',
+                    'users.name as user_username',
                     'classes.class_name as class_class_name',
                     'classes.academic_period_id as class_academic_period_id'
                 ]);
@@ -129,7 +129,7 @@ class StudentsController extends BaseController
                 ->select([
                     'students.*',
                     'users.email as user_email',
-                    'users.username as user_username',
+                    'users.name as user_username',
                     'classes.class_name as class_class_name',
                     'classes.academic_period_id as class_academic_period_id'
                 ])
