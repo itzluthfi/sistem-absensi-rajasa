@@ -35,6 +35,7 @@ export default function TabsLayout() {
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -549,6 +550,10 @@ export default function TabsLayout() {
                             sidebarCollapsed && { justifyContent: 'center', paddingHorizontal: 0 }
                           ]}
                           onPress={() => router.push(item.href as any)}
+                          {...({
+                            onMouseEnter: () => sidebarCollapsed && setHoveredItem(item.name),
+                            onMouseLeave: () => setHoveredItem(null)
+                          } as any)}
                         >
                           <Ionicons
                             name={(active ? item.activeIcon : item.icon) as any}
@@ -559,6 +564,14 @@ export default function TabsLayout() {
                             <Text style={[styles.sidebarMenuText, active && styles.sidebarMenuTextActive]}>
                               {item.label}
                             </Text>
+                          )}
+                          {sidebarCollapsed && hoveredItem === item.name && (
+                            <View style={styles.tooltipContainer}>
+                              <View style={styles.tooltipArrow} />
+                              <Text style={styles.tooltipText} numberOfLines={1}>
+                                {item.label}
+                              </Text>
+                            </View>
                           )}
                         </TouchableOpacity>
                       );
@@ -579,9 +592,21 @@ export default function TabsLayout() {
               await logout();
               router.replace('/(auth)/login');
             }}
+            {...({
+              onMouseEnter: () => sidebarCollapsed && setHoveredItem('logout'),
+              onMouseLeave: () => setHoveredItem(null)
+            } as any)}
           >
             <Ionicons name="log-out-outline" size={20} color="#EF4444" />
             {!sidebarCollapsed && <Text style={styles.logoutText}>Keluar</Text>}
+            {sidebarCollapsed && hoveredItem === 'logout' && (
+              <View style={styles.tooltipContainer}>
+                <View style={styles.tooltipArrow} />
+                <Text style={styles.tooltipText} numberOfLines={1}>
+                  Keluar
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -739,6 +764,13 @@ const styles = StyleSheet.create({
     borderRightColor: '#E5E7EB',
     padding: 20,
     justifyContent: 'space-between',
+    ...Platform.select({
+      web: {
+        transitionProperty: 'width, padding',
+        transitionDuration: '0.25s',
+        transitionTimingFunction: 'cubic-bezier(0.4, 0, 0.2, 1)',
+      } as any
+    })
   },
   sidebarTopSection: {
     flex: 1,
@@ -802,14 +834,17 @@ const styles = StyleSheet.create({
   sidebarMenu: {
     flex: 1,
     gap: 6,
+    overflow: 'visible',
   },
   sidebarMenuItem: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
+    overflow: 'visible',
   },
   sidebarMenuItemActive: {
     backgroundColor: '#EFF6FF',
@@ -829,6 +864,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#F3F4F6',
   },
   logoutButton: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
@@ -871,5 +907,39 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     paddingHorizontal: 16,
     letterSpacing: 1,
+  },
+  tooltipContainer: {
+    position: 'absolute',
+    left: 58,
+    top: '50%',
+    transform: [{ translateY: -14 }],
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    zIndex: 9999,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    pointerEvents: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tooltipText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  tooltipArrow: {
+    position: 'absolute',
+    left: -3,
+    top: '50%',
+    marginTop: -4,
+    width: 8,
+    height: 8,
+    backgroundColor: '#1E293B',
+    transform: [{ rotate: '45deg' }],
   },
 });

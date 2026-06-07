@@ -173,11 +173,14 @@
     <table>
         <thead>
             <tr>
-                <th style="width: 8%;">No</th>
-                <th style="width: 22%;">NISN</th>
-                <th style="width: 18%;">NIS</th>
-                <th style="width: 35%; text-align: left; padding-left: 10px;">Nama Siswa</th>
-                <th style="width: 17%;">Persentase Kehadiran</th>
+                <th style="width: 6%;">No</th>
+                <th style="width: @if($className === 'Semua Kelas') 16% @else 22% @endif;">NISN</th>
+                <th style="width: @if($className === 'Semua Kelas') 14% @else 18% @endif;">NIS</th>
+                <th style="width: @if($className === 'Semua Kelas') 28% @else 37% @endif; text-align: left; padding-left: 10px;">Nama Siswa</th>
+                @if($className === 'Semua Kelas')
+                <th style="width: 18%;">Kelas</th>
+                @endif
+                <th style="width: 18%;">Persentase Kehadiran</th>
             </tr>
         </thead>
         <tbody>
@@ -187,13 +190,16 @@
                 <td class="text-center">{{ $row->nisn ?? '-' }}</td>
                 <td class="text-center">{{ $row->nis ?? '-' }}</td>
                 <td class="text-left" style="padding-left: 10px;">{{ strtoupper($row->full_name) }}</td>
+                @if($className === 'Semua Kelas')
+                <td class="text-center">{{ $row->class_name ?? '-' }}</td>
+                @endif
                 <td class="text-center percentage-badge">
                     {{ number_format($row->percentage, 1, ',', '.') }}%
                 </td>
             </tr>
             @empty
             <tr>
-                <td colspan="5" class="text-center" style="padding: 20px;">
+                <td colspan="@if($className === 'Semua Kelas') 6 @else 5 @endif" class="text-center" style="padding: 20px;">
                     Tidak ada data siswa
                 </td>
             </tr>

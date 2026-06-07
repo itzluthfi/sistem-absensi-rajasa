@@ -12,10 +12,12 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { reportsApi, classesApi, subjectsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../hooks/useToast";
+import { showConfirm } from "../../utils/alert";
 
 type ReportType = "daily" | "weekly" | "monthly" | "semester";
 type ExportFormat = "pdf" | "csv";
@@ -37,6 +39,66 @@ export default function ReportsScreen() {
   const [selectedSubjectId, setSelectedSubjectId] = useState<number | null>(null);
   const [showClassList, setShowClassList] = useState(false);
   const [showSubjectList, setShowSubjectList] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadHistory();
+  }, []);
+
+  const loadHistory = async () => {
+    try {
+      const stored = await AsyncStorage.getItem("report_download_history");
+      if (stored) {
+        setHistory(JSON.parse(stored));
+      }
+    } catch (e) {
+      console.log("Error loading history:", e);
+    }
+  };
+
+  const saveToHistory = async (category: string, format: string) => {
+    try {
+      const typeLabel = category === "detail"
+        ? (selectedType === "daily" ? "Harian" : selectedType === "weekly" ? "Mingguan" : selectedType === "monthly" ? "Bulanan" : "Semester")
+        : (entryModeType === "daily" ? "Gerbang" : "Pelajaran");
+
+      const className = selectedClassId 
+        ? (classesList.find(c => c.id === selectedClassId)?.class_name || "Kelas N/A") 
+        : "Semua Kelas";
+
+      const dateRangeStr = category === "detail"
+        ? `${new Date(dateRange.startDate).toLocaleDateString("id-ID", { day: "numeric", month: "short" })} - ${new Date(dateRange.endDate).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}`
+        : "";
+
+      const newEntry = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        category,
+        type: category === "detail" ? selectedType : entryModeType,
+        typeLabel,
+        className,
+        format,
+        dateRangeStr,
+        params: {
+          reportCategory: category,
+          selectedType,
+          entryModeType,
+          selectedClassId,
+          selectedSubjectId,
+          selectedFormat: format,
+          dateRange: { ...dateRange }
+        }
+      };
+
+      const stored = await AsyncStorage.getItem("report_download_history");
+      let currentHistory = stored ? JSON.parse(stored) : [];
+      currentHistory = [newEntry, ...currentHistory].slice(0, 10);
+      setHistory(currentHistory);
+      await AsyncStorage.setItem("report_download_history", JSON.stringify(currentHistory));
+    } catch (e) {
+      console.log("Error saving history:", e);
+    }
+  };
 
   const insets = useSafeAreaInsets();
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
@@ -195,8 +257,10 @@ export default function ReportsScreen() {
         link.click();
         link.parentNode?.removeChild(link);
         window.URL.revokeObjectURL(url);
+        await saveToHistory(reportCategory, selectedFormat);
         toast.success(`Laporan ${selectedFormat.toUpperCase()} berhasil diunduh.`);
       } else {
+        await saveToHistory(reportCategory, selectedFormat);
         toast.success(`Laporan ${selectedFormat.toUpperCase()} berhasil dibuat.`);
       }
     } catch (error: any) {
@@ -206,6 +270,87 @@ export default function ReportsScreen() {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleRedownload = async (item: any) => {
+    setIsExporting(true);
+    try {
+      const { params } = item;
+      let data;
+      let filename = "";
+
+      if (params.reportCategory === "detail") {
+        const queryParams: any = {
+          start_date: params.dateRange.startDate,
+          end_date: params.dateRange.endDate,
+        };
+        if (params.selectedClassId) {
+          queryParams.class_id = params.selectedClassId;
+        }
+
+        if (params.selectedFormat === "pdf") {
+          data = await reportsApi.getAttendancePDF(queryParams);
+          filename = `laporan_absensi_detail_${Date.now()}.pdf`;
+        } else {
+          data = await reportsApi.getAttendanceCSV(queryParams);
+          filename = `laporan_absensi_detail_${Date.now()}.csv`;
+        }
+      } else {
+        const queryParams: any = {
+          class_id: params.selectedClassId,
+          type: params.entryModeType,
+        };
+        if (params.entryModeType === "subject" && params.selectedSubjectId) {
+          queryParams.subject_id = params.selectedSubjectId;
+        }
+
+        if (params.selectedFormat === "pdf") {
+          data = await reportsApi.getPercentPDF(queryParams);
+          filename = `rekap_kehadiran_persentase_${Date.now()}.pdf`;
+        } else {
+          data = await reportsApi.getPercentExcel(queryParams);
+          filename = `rekap_kehadiran_persentase_${Date.now()}.xlsx`;
+        }
+      }
+
+      if (Platform.OS === "web") {
+        const type = params.selectedFormat === "pdf" ? "application/pdf" : (params.reportCategory === "percentage" ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/csv");
+        const blob = new Blob([data], { type });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode?.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        toast.success(`Laporan ${params.selectedFormat.toUpperCase()} berhasil diunduh.`);
+      } else {
+        toast.success(`Laporan ${params.selectedFormat.toUpperCase()} berhasil dibuat.`);
+      }
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.message || "Gagal mengunduh laporan dari server. Silakan coba lagi."
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleClearHistory = () => {
+    showConfirm(
+      "Bersihkan Riwayat",
+      "Apakah Anda yakin ingin menghapus semua riwayat unduhan laporan?",
+      async () => {
+        try {
+          await AsyncStorage.removeItem("report_download_history");
+          setHistory([]);
+          toast.success("Riwayat unduhan berhasil dibersihkan.");
+        } catch (e) {
+          console.log("Error clearing history:", e);
+        }
+      }
+    );
   };
 
   return (
@@ -225,6 +370,7 @@ export default function ReportsScreen() {
                 setReportCategory("detail");
                 setSelectedFormat("pdf");
               }}
+              style={{ minWidth: isMobile ? "45%" : "48%" }}
             />
             <OptionCard
               active={reportCategory === "percentage"}
@@ -235,6 +381,7 @@ export default function ReportsScreen() {
                 setReportCategory("percentage");
                 setSelectedFormat("pdf");
               }}
+              style={{ minWidth: isMobile ? "45%" : "48%" }}
             />
           </View>
         </Section>
@@ -250,6 +397,7 @@ export default function ReportsScreen() {
                   label={type.label}
                   activeColor="#3B82F6"
                   onPress={() => setSelectedType(type.key)}
+                  style={{ minWidth: isMobile ? "45%" : "22%" }}
                 />
               ))}
             </View>
@@ -285,6 +433,7 @@ export default function ReportsScreen() {
                 label="Absen Masuk Gerbang"
                 activeColor="#3B82F6"
                 onPress={() => setEntryModeType("daily")}
+                style={{ minWidth: isMobile ? "45%" : "48%" }}
               />
               <OptionCard
                 active={entryModeType === "subject"}
@@ -292,6 +441,7 @@ export default function ReportsScreen() {
                 label="Sesi Pelajaran"
                 activeColor="#3B82F6"
                 onPress={() => setEntryModeType("subject")}
+                style={{ minWidth: isMobile ? "45%" : "48%" }}
               />
             </View>
 
@@ -371,7 +521,7 @@ export default function ReportsScreen() {
               <Text style={styles.dropdownHeaderText}>
                 {selectedClassId 
                   ? classesList.find(c => c.id === selectedClassId)?.class_name || "Pilih Kelas"
-                  : "Semua Kelas (Hanya untuk Detail)"}
+                  : "Semua Kelas"}
               </Text>
               <Ionicons 
                 name={showClassList ? "chevron-up" : "chevron-down"} 
@@ -382,25 +532,23 @@ export default function ReportsScreen() {
             {showClassList && (
               <View style={styles.dropdownList}>
                 <ScrollView style={{ maxHeight: 150 }} nestedScrollEnabled={true}>
-                  {reportCategory === "detail" && (
-                    <TouchableOpacity 
-                      style={[
-                        styles.dropdownItem,
-                        selectedClassId === null && styles.dropdownItemActive
-                      ]}
-                      onPress={() => {
-                        setSelectedClassId(null);
-                        setShowClassList(false);
-                      }}
-                    >
-                      <Text style={[
-                        styles.dropdownItemText,
-                        selectedClassId === null && styles.dropdownItemTextActive
-                      ]}>
-                        Semua Kelas
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity 
+                    style={[
+                      styles.dropdownItem,
+                      selectedClassId === null && styles.dropdownItemActive
+                    ]}
+                    onPress={() => {
+                      setSelectedClassId(null);
+                      setShowClassList(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.dropdownItemText,
+                      selectedClassId === null && styles.dropdownItemTextActive
+                    ]}>
+                      Semua Kelas
+                    </Text>
+                  </TouchableOpacity>
                   {classesList.map((c) => (
                     <TouchableOpacity 
                       key={c.id} 
@@ -460,6 +608,7 @@ export default function ReportsScreen() {
                 label={format.label}
                 activeColor="#10B981"
                 onPress={() => setSelectedFormat(format.key)}
+                style={{ minWidth: isMobile ? "45%" : "48%" }}
               />
             ))}
           </View>
@@ -471,7 +620,7 @@ export default function ReportsScreen() {
             (!canExport || isExporting || (reportCategory === "percentage" && !selectedClassId)) && styles.exportButtonDisabled,
           ]}
           onPress={handleExport}
-          disabled={isExporting || (reportCategory === "percentage" && !selectedClassId)}
+          disabled={isExporting}
         >
           {isExporting ? (
             <ActivityIndicator color="#fff" />
@@ -522,6 +671,68 @@ export default function ReportsScreen() {
             <PreviewStat value={selectedFormat.toUpperCase()} label="Format" />
           </View>
         </View>
+
+        <View style={{ height: 16 }} />
+
+        <Section title="Riwayat Unduhan Laporan">
+          {history.length === 0 ? (
+            <View style={styles.emptyHistory}>
+              <Ionicons name="cloud-download-outline" size={32} color="#9CA3AF" />
+              <Text style={styles.emptyHistoryText}>Belum ada riwayat unduhan laporan.</Text>
+            </View>
+          ) : (
+            <View style={{ gap: 10 }}>
+              {history.map((item) => (
+                <View key={item.id} style={styles.historyItem}>
+                  <View style={styles.historyLeft}>
+                    <View style={[styles.historyIconBg, { backgroundColor: item.format === 'pdf' ? '#FEE2E2' : '#D1FAE5' }]}>
+                      <Ionicons 
+                        name={item.format === 'pdf' ? 'document-text-outline' : 'grid-outline'} 
+                        size={18} 
+                        color={item.format === 'pdf' ? '#EF4444' : '#10B981'} 
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.historyTitle} numberOfLines={1}>
+                        {item.category === "detail" ? "Detail Kehadiran" : "Persentase Kelas"} ({item.typeLabel})
+                      </Text>
+                      <Text style={styles.historySubtitle} numberOfLines={1}>
+                        Kelas: {item.className} • Format: {item.format.toUpperCase()}
+                      </Text>
+                      {item.dateRangeStr ? (
+                        <Text style={styles.historyDate} numberOfLines={1}>
+                          Rentang: {item.dateRangeStr}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.historyTime}>
+                        {new Date(item.timestamp).toLocaleString("id-ID", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit"
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.historyRight}>
+                    <TouchableOpacity 
+                      style={styles.redownloadButton} 
+                      onPress={() => handleRedownload(item)}
+                    >
+                      <Ionicons name="download-outline" size={14} color="#3B82F6" />
+                      <Text style={styles.redownloadText}>Unduh Lagi</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+              <TouchableOpacity style={styles.clearHistoryButton} onPress={handleClearHistory}>
+                <Ionicons name="trash-outline" size={14} color="#6B7280" />
+                <Text style={styles.clearHistoryText}>Bersihkan Riwayat</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </Section>
       </ScrollView>
     </View>
   );
@@ -548,12 +759,14 @@ function OptionCard({
   label,
   activeColor,
   onPress,
+  style,
 }: {
   active: boolean;
   icon: IconName;
   label: string;
   activeColor: string;
   onPress: () => void;
+  style?: any;
 }) {
   return (
     <TouchableOpacity
@@ -563,12 +776,13 @@ function OptionCard({
           borderColor: activeColor,
           backgroundColor: `${activeColor}12`,
         },
+        style,
       ]}
       onPress={onPress}
     >
       <Ionicons
         name={icon}
-        size={28}
+        size={20}
         color={active ? activeColor : "#6B7280"}
       />
       <Text style={[styles.optionLabel, active && { color: activeColor }]}>
@@ -658,16 +872,117 @@ const styles = StyleSheet.create({
   optionsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   optionCard: {
     flex: 1,
-    minWidth: "45%",
     backgroundColor: "#F9FAFB",
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: "#E5E7EB",
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+        transition: 'all 0.2s ease-in-out',
+      } as any
+    })
   },
-  optionLabel: { fontSize: 14, color: "#6B7280", fontWeight: "700" },
+  optionLabel: { fontSize: 13, color: "#6B7280", fontWeight: "700" },
+  emptyHistory: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+  },
+  emptyHistoryText: {
+    color: "#6B7280",
+    fontSize: 13,
+    marginTop: 8,
+    fontWeight: "500",
+  },
+  historyItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 10,
+    padding: 12,
+    gap: 12,
+  },
+  historyLeft: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  historyIconBg: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  historyTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
+  historySubtitle: {
+    fontSize: 11,
+    color: "#4B5563",
+    marginTop: 2,
+    fontWeight: "500",
+  },
+  historyDate: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 1,
+  },
+  historyTime: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    marginTop: 4,
+  },
+  historyRight: {
+    alignItems: "flex-end",
+  },
+  redownloadButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    gap: 4,
+    ...Platform.select({
+      web: {
+        cursor: 'pointer',
+      } as any
+    })
+  },
+  redownloadText: {
+    fontSize: 11,
+    color: "#3B82F6",
+    fontWeight: "700",
+  },
+  clearHistoryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    gap: 6,
+    marginTop: 6,
+  },
+  clearHistoryText: {
+    fontSize: 12,
+    color: "#6B7280",
+    fontWeight: "600",
+  },
   dateContainer: { flexDirection: "row", gap: 12 },
   dateInput: { flex: 1 },
   dateLabel: { fontSize: 12, color: "#6B7280", marginBottom: 4 },

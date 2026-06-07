@@ -216,10 +216,10 @@ class ReportController extends Controller
  
             $from = $request->start_date ?? '-';
             $to = $request->end_date ?? '-';
- 
+
             $pdf = PDF::loadView('reports.attendance', compact('rows', 'from', 'to', 'stats'));
-            $pdf->setPaper('A4', 'portrait');
- 
+            $pdf->setPaper('A4', 'landscape');
+
             return $pdf->download('laporan_absensi_' . now()->format('Ymd_His') . '.pdf');
         } catch (\Exception $e) {
             return (new BaseController)->sendError('Gagal membuat laporan PDF.');
@@ -297,93 +297,166 @@ class ReportController extends Controller
     private function computeClassPercentages(Request $request)
     {
         $request->validate([
-            'class_id' => 'required|exists:classes,id',
+            'class_id' => 'nullable|exists:classes,id',
             'type' => 'required|in:daily,subject',
             'subject_id' => 'nullable|exists:subjects,id',
         ]);
 
-        $classId = (int) $request->class_id;
+        $classId = $request->class_id ? (int) $request->class_id : null;
         $type = $request->type;
         $subjectId = $request->has('subject_id') ? (int) $request->subject_id : null;
 
-        $class = DB::table('classes')->where('id', $classId)->first();
-        $className = $class ? $class->class_name : 'N/A';
+        $className = 'Semua Kelas';
+        $class = null;
+        if ($classId) {
+            $class = DB::table('classes')->where('id', $classId)->first();
+            $className = $class ? $class->class_name : 'N/A';
+        }
 
-        // Get all students in this class
-        $students = DB::table('students')
-            ->where('class_id', $classId)
-            ->orderBy('full_name', 'asc')
-            ->get();
+        // Get all students
+        if ($classId) {
+            $students = DB::table('students')
+                ->where('class_id', $classId)
+                ->orderBy('full_name', 'asc')
+                ->get();
+        } else {
+            $students = DB::table('students')
+                ->orderBy('class_id', 'asc')
+                ->orderBy('full_name', 'asc')
+                ->get();
+        }
 
         $rows = [];
         $subjectName = null;
 
         if ($type === 'daily') {
             // Daily check-in percentage:
-            // Total school entry check-in days recorded for this class
-            $totalDays = DB::table('attendances')
-                ->where('class_id', $classId)
-                ->whereNull('schedule_id')
-                ->where('status', '!=', 'ditolak')
-                ->distinct()
-                ->count('date');
-
-            if ($totalDays === 0) {
-                $totalDays = 1; // avoid division by zero
+            if ($classId) {
+                $totalDays = DB::table('attendances')
+                    ->where('class_id', $classId)
+                    ->whereNull('schedule_id')
+                    ->where('status', '!=', 'ditolak')
+                    ->distinct()
+                    ->count('date');
+                if ($totalDays === 0) $totalDays = 1;
+            } else {
+                $classTotalDays = DB::table('attendances')
+                    ->whereNull('schedule_id')
+                    ->where('status', '!=', 'ditolak')
+                    ->groupBy('class_id')
+                    ->select('class_id', DB::raw('count(distinct date) as total_days'))
+                    ->pluck('total_days', 'class_id')
+                    ->toArray();
+                
+                $globalTotalDays = DB::table('attendances')
+                    ->whereNull('schedule_id')
+                    ->where('status', '!=', 'ditolak')
+                    ->distinct()
+                    ->count('date');
+                if ($globalTotalDays === 0) $globalTotalDays = 1;
             }
 
             foreach ($students as $student) {
+                if ($classId) {
+                    $tDays = $totalDays;
+                } else {
+                    $sClassId = $student->class_id;
+                    $tDays = isset($classTotalDays[$sClassId]) ? (int)$classTotalDays[$sClassId] : 0;
+                    if ($tDays === 0) $tDays = $globalTotalDays;
+                }
+
                 $presentCount = DB::table('attendances')
                     ->where('student_id', $student->id)
                     ->whereNull('schedule_id')
                     ->whereIn('status', ['hadir', 'telat'])
                     ->count();
 
-                $percentage = round(($presentCount / $totalDays) * 100, 1);
+                $percentage = round(($presentCount / $tDays) * 100, 1);
                 if ($percentage > 100) $percentage = 100.0;
+
+                $cName = $classId ? $className : (DB::table('classes')->where('id', $student->class_id)->value('class_name') ?? 'N/A');
 
                 $rows[] = (object) [
                     'nisn' => $student->nisn,
                     'nis' => $student->nis,
                     'full_name' => $student->full_name,
+                    'class_name' => $cName,
                     'percentage' => $percentage,
                 ];
             }
         } else {
             // Subject attendance sessions percentage:
             $sessionsQuery = DB::table('attendance_sessions as ats')
-                ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
-                ->where('sc.class_id', $classId);
-
+                ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id');
+            if ($classId) {
+                $sessionsQuery->where('sc.class_id', $classId);
+            }
             if ($subjectId) {
                 $sessionsQuery->where('sc.subject_id', $subjectId);
+            }
+
+            if ($classId) {
+                $sessionIds = $sessionsQuery->pluck('ats.id')->toArray();
+                $totalSessions = count($sessionIds);
+                $hasSessions = $totalSessions > 0;
+                $denominator = $hasSessions ? $totalSessions : 1;
+
+                $attendancesGrouped = collect();
+                if ($hasSessions) {
+                    $attendancesGrouped = DB::table('attendances')
+                        ->whereIn('attendance_session_id', $sessionIds)
+                        ->whereIn('status', ['hadir', 'telat'])
+                        ->get()
+                        ->groupBy('student_id');
+                }
+            } else {
+                $classSessionsMap = $sessionsQuery
+                    ->groupBy('sc.class_id')
+                    ->select('sc.class_id', DB::raw('count(ats.id) as total_sessions'))
+                    ->pluck('total_sessions', 'class_id')
+                    ->toArray();
+
+                $sessionIds = DB::table('attendance_sessions as ats')
+                    ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
+                    ->when($subjectId, function($q) use ($subjectId) {
+                        return $q->where('sc.subject_id', $subjectId);
+                    })
+                    ->pluck('ats.id')
+                    ->toArray();
+
+                $attendancesGrouped = collect();
+                if (count($sessionIds) > 0) {
+                    $attendancesGrouped = DB::table('attendances')
+                        ->whereIn('attendance_session_id', $sessionIds)
+                        ->whereIn('status', ['hadir', 'telat'])
+                        ->get()
+                        ->groupBy('student_id');
+                }
+            }
+
+            if ($subjectId) {
                 $subjectName = DB::table('subjects')->where('id', $subjectId)->value('subject_name');
             }
 
-            $sessionIds = $sessionsQuery->pluck('ats.id')->toArray();
-            $totalSessions = count($sessionIds);
-
-            $hasSessions = $totalSessions > 0;
-            $denominator = $hasSessions ? $totalSessions : 1;
-
-            // Fetch attendances for all relevant sessionIds in one query to optimize
-            $attendancesGrouped = collect();
-            if ($hasSessions) {
-                $attendancesGrouped = DB::table('attendances')
-                    ->whereIn('attendance_session_id', $sessionIds)
-                    ->whereIn('status', ['hadir', 'telat'])
-                    ->get()
-                    ->groupBy('student_id');
-            }
-
             foreach ($students as $student) {
-                $presentCount = isset($attendancesGrouped[$student->id]) ? count($attendancesGrouped[$student->id]) : 0;
-                $percentage = $hasSessions ? round(($presentCount / $denominator) * 100, 1) : 100.0;
-                
+                if ($classId) {
+                    $presentCount = isset($attendancesGrouped[$student->id]) ? count($attendancesGrouped[$student->id]) : 0;
+                    $percentage = $hasSessions ? round(($presentCount / $denominator) * 100, 1) : 100.0;
+                } else {
+                    $sClassId = $student->class_id;
+                    $tSessions = isset($classSessionsMap[$sClassId]) ? (int)$classSessionsMap[$sClassId] : 0;
+                    
+                    $presentCount = isset($attendancesGrouped[$student->id]) ? count($attendancesGrouped[$student->id]) : 0;
+                    $percentage = $tSessions > 0 ? round(($presentCount / $tSessions) * 100, 1) : 100.0;
+                }
+
+                $cName = $classId ? $className : (DB::table('classes')->where('id', $student->class_id)->value('class_name') ?? 'N/A');
+
                 $rows[] = (object) [
                     'nisn' => $student->nisn,
                     'nis' => $student->nis,
                     'full_name' => $student->full_name,
+                    'class_name' => $cName,
                     'percentage' => $percentage,
                 ];
             }
@@ -414,13 +487,17 @@ class ReportController extends Controller
             $className = $resData['className'];
 
             // Format data for Excel
-            $exportData = collect($rows)->map(function ($r) {
-                return [
+            $exportData = collect($rows)->map(function ($r) use ($className) {
+                $item = [
                     'NISN' => $r->nisn ?? '-',
                     'NIS' => $r->nis ?? '-',
                     'Nama Siswa' => $r->full_name,
-                    'Persentase Kehadiran' => $r->percentage . '%',
                 ];
+                if ($className === 'Semua Kelas') {
+                    $item['Kelas'] = $r->class_name ?? '-';
+                }
+                $item['Persentase Kehadiran'] = $r->percentage . '%';
+                return $item;
             });
 
             // Log export action
@@ -438,8 +515,14 @@ class ReportController extends Controller
 
             $filename = 'rekap_kehadiran_' . str_replace(' ', '_', $className) . '_' . now()->format('Ymd_His') . '.xlsx';
             
+            $headers = ['NISN', 'NIS', 'Nama Siswa'];
+            if ($className === 'Semua Kelas') {
+                $headers[] = 'Kelas';
+            }
+            $headers[] = 'Persentase Kehadiran';
+
             return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\GenericExport($exportData, ['NISN', 'NIS', 'Nama Siswa', 'Persentase Kehadiran']),
+                new \App\Exports\GenericExport($exportData, $headers),
                 $filename
             );
         } catch (\Exception $e) {
@@ -478,7 +561,7 @@ class ReportController extends Controller
             ]);
 
             $pdf = PDF::loadView('reports.attendance-percentage', compact('rows', 'className', 'reportType', 'subjectName'));
-            $pdf->setPaper('A4', 'portrait');
+            $pdf->setPaper('A4', 'landscape');
 
             return $pdf->download('rekap_kehadiran_' . str_replace(' ', '_', $className) . '_' . now()->format('Ymd_His') . '.pdf');
         } catch (\Exception $e) {
