@@ -901,6 +901,23 @@ class AttendanceController extends BaseController
                 'user_agent' => $request->userAgent(),
             ]);
             
+            // Push Notification to Student
+            try {
+                $studentUser = $student->user;
+                if ($studentUser) {
+                    $dateStr = \Carbon\Carbon::parse($attendance->date)->translatedFormat('d F Y');
+                    $timeStr = substr($attendance->time, 0, 5);
+                    $statusText = $status === 'telat' ? 'Terlambat (' . $lateMinutes . ' menit)' : 'Hadir';
+                    $notifMessage = "Absensi masuk sekolah Anda pada tanggal {$dateStr} pukul {$timeStr} WIB berhasil dicatat sebagai {$statusText} via scan QR Piket.";
+                    \Illuminate\Support\Facades\Notification::send(
+                        $studentUser,
+                        new \App\Notifications\GenericNotification($notifMessage)
+                    );
+                }
+            } catch (\Exception $notifEx) {
+                \Illuminate\Support\Facades\Log::warning('Failed to send scan gate notification: ' . $notifEx->getMessage());
+            }
+
             return $this->sendResponse(
                 $attendance->load(['student', 'class']),
                 'Absen masuk sekolah via scan QR Piket berhasil dicatat sebagai ' . ($status === 'telat' ? 'Terlambat (' . $lateMinutes . ' menit)' : 'Hadir tepat waktu.')
@@ -1123,6 +1140,23 @@ class AttendanceController extends BaseController
                 'user_agent' => $request->userAgent(),
             ]);
             
+            // Push Notification to Student
+            try {
+                $studentUser = $student->user;
+                if ($studentUser) {
+                    $dateStr = \Carbon\Carbon::parse($attendance->date)->translatedFormat('d F Y');
+                    $timeStr = substr($attendance->time, 0, 5);
+                    $statusText = $status === 'telat' ? 'Terlambat (' . $lateMinutes . ' menit)' : 'Hadir';
+                    $notifMessage = "Absensi masuk sekolah Anda pada tanggal {$dateStr} pukul {$timeStr} WIB berhasil dicatat sebagai {$statusText} oleh petugas piket: {$user->name}.";
+                    \Illuminate\Support\Facades\Notification::send(
+                        $studentUser,
+                        new \App\Notifications\GenericNotification($notifMessage)
+                    );
+                }
+            } catch (\Exception $notifEx) {
+                \Illuminate\Support\Facades\Log::warning('Failed to send gate scan notification: ' . $notifEx->getMessage());
+            }
+
             $class = DB::table('classes')->where('id', $student->class_id)->first();
             
             return $this->sendResponse([

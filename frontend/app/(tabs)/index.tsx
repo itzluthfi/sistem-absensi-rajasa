@@ -14,6 +14,7 @@ import {
   Image,
   Platform,
   Animated,
+  Vibration,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -95,6 +96,41 @@ export default function HomeScreen() {
   const [showScanner, setShowScanner] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [enableTorch, setEnableTorch] = useState(false);
+  const [scanLineAnim] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    let anim: Animated.CompositeAnimation | null = null;
+    if (showScanner) {
+      scanLineAnim.setValue(0);
+      anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(scanLineAnim, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      anim.start();
+    } else {
+      scanLineAnim.setValue(0);
+      setEnableTorch(false);
+    }
+    return () => {
+      if (anim) anim.stop();
+    };
+  }, [showScanner]);
+
+  const scanLineTop = scanLineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["4%", "96%"],
+  });
 
   const convertArrayBufferToBase64 = (buffer: ArrayBuffer) => {
     let binary = '';
@@ -503,6 +539,7 @@ export default function HomeScreen() {
 
       const result = await attendanceApi.scanGate({ location: coords });
       if (result.success) {
+        if (Platform.OS !== "web") Vibration.vibrate(100);
         toast.success(result.message || "Absen masuk sekolah berhasil.");
         setShowScanner(false);
         loadData();
@@ -1019,6 +1056,7 @@ export default function HomeScreen() {
           <CameraView
             style={StyleSheet.absoluteFillObject}
             facing="back"
+            enableTorch={enableTorch}
             onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
             barcodeScannerSettings={{
               barcodeTypes: ["qr"],
@@ -1056,6 +1094,21 @@ export default function HomeScreen() {
                 <View style={{ position: 'absolute', top: -2, right: -2, width: 20, height: 20, borderTopWidth: 4, borderRightWidth: 4, borderColor: '#10B981' }} />
                 <View style={{ position: 'absolute', bottom: -2, left: -2, width: 20, height: 20, borderBottomWidth: 4, borderLeftWidth: 4, borderColor: '#10B981' }} />
                 <View style={{ position: 'absolute', bottom: -2, right: -2, width: 20, height: 20, borderBottomWidth: 4, borderRightWidth: 4, borderColor: '#10B981' }} />
+
+                {/* Laser animation line */}
+                <Animated.View style={{
+                  position: 'absolute',
+                  left: '4%',
+                  right: '4%',
+                  top: scanLineTop,
+                  height: 2,
+                  backgroundColor: '#10B981',
+                  shadowColor: '#10B981',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 4,
+                  elevation: 2,
+                }} />
               </View>
 
               {/* Right translucent screen mask */}
@@ -1068,9 +1121,31 @@ export default function HomeScreen() {
               backgroundColor: 'rgba(0,0,0,0.6)',
               width: '100%',
               alignItems: 'center',
-              paddingTop: 30,
+              paddingTop: 20,
             }}>
-              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center', marginHorizontal: 30, marginBottom: 40 }}>
+              {/* Senter toggle button */}
+              <TouchableOpacity
+                onPress={() => setEnableTorch(prev => !prev)}
+                style={{
+                  backgroundColor: enableTorch ? '#10B981' : 'rgba(255,255,255,0.15)',
+                  width: 50,
+                  height: 50,
+                  borderRadius: 25,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: 16,
+                  borderWidth: 1.5,
+                  borderColor: enableTorch ? '#10B981' : 'rgba(255,255,255,0.3)',
+                }}
+              >
+                <Ionicons
+                  name={enableTorch ? "flash" : "flash-off-outline"}
+                  size={24}
+                  color={enableTorch ? "#fff" : "rgba(255,255,255,0.8)"}
+                />
+              </TouchableOpacity>
+
+              <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center', marginHorizontal: 30, marginBottom: 20 }}>
                 Arahkan kamera ke QR Code Gerbang Sekolah
               </Text>
               

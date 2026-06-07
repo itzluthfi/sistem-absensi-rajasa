@@ -12,6 +12,8 @@ import {
   View,
   useWindowDimensions,
   Linking,
+  Animated,
+  Vibration,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "@react-navigation/native";
@@ -167,6 +169,41 @@ export default function AttendanceScreen() {
   >("none");
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
+  const [enableTorch, setEnableTorch] = useState(false);
+  const [scanLineAnim] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    let anim: Animated.CompositeAnimation | null = null;
+    if (scanMode !== "none") {
+      scanLineAnim.setValue(0);
+      anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanLineAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+          Animated.timing(scanLineAnim, {
+            toValue: 0,
+            duration: 2000,
+            useNativeDriver: false,
+          }),
+        ])
+      );
+      anim.start();
+    } else {
+      scanLineAnim.setValue(0);
+      setEnableTorch(false);
+    }
+    return () => {
+      if (anim) anim.stop();
+    };
+  }, [scanMode]);
+
+  const scanLineTop = scanLineAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["4%", "96%"],
+  });
 
   // GPS Coordinates
   const [location, setLocation] = useState<{
@@ -379,6 +416,7 @@ export default function AttendanceScreen() {
       });
 
       if (result.success) {
+        if (Platform.OS !== "web") Vibration.vibrate(100);
         playWebSuccessSound();
         setSuccessText(result.message);
         setShowSuccessModal(true);
@@ -423,6 +461,7 @@ export default function AttendanceScreen() {
       });
 
       if (result.success) {
+        if (Platform.OS !== "web") Vibration.vibrate(100);
         playWebSuccessSound();
         setSuccessText(result.message);
         setShowSuccessModal(true);
@@ -583,6 +622,7 @@ export default function AttendanceScreen() {
         <CameraView
           style={StyleSheet.absoluteFillObject}
           facing="back"
+          enableTorch={enableTorch}
           onBarcodeScanned={
             scanned
               ? undefined
@@ -598,12 +638,50 @@ export default function AttendanceScreen() {
             <View style={[styles.targetCorner, styles.cTopRight]} />
             <View style={[styles.targetCorner, styles.cBottomLeft]} />
             <View style={[styles.targetCorner, styles.cBottomRight]} />
+
+            {/* Laser animation line */}
+            <Animated.View style={{
+              position: 'absolute',
+              left: '4%',
+              right: '4%',
+              top: scanLineTop,
+              height: 2,
+              backgroundColor: '#3B82F6',
+              shadowColor: '#3B82F6',
+              shadowOffset: { width: 0, height: 0 },
+              shadowOpacity: 0.8,
+              shadowRadius: 4,
+              elevation: 2,
+            }} />
           </View>
           <Text style={styles.scannerInstruction}>
             {scanned
               ? "Memproses presensi..."
               : "Posisikan QR Code di dalam kotak"}
           </Text>
+
+          {/* Flash light toggle button */}
+          <TouchableOpacity
+            onPress={() => setEnableTorch(prev => !prev)}
+            style={{
+              backgroundColor: enableTorch ? '#3B82F6' : 'rgba(255,255,255,0.15)',
+              width: 50,
+              height: 50,
+              borderRadius: 25,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginVertical: 20,
+              borderWidth: 1.5,
+              borderColor: enableTorch ? '#3B82F6' : 'rgba(255,255,255,0.3)',
+            }}
+          >
+            <Ionicons
+              name={enableTorch ? "flash" : "flash-off-outline"}
+              size={24}
+              color={enableTorch ? "#fff" : "rgba(255,255,255,0.8)"}
+            />
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.cancelScanButton}
             onPress={() => setScanMode("none")}
@@ -924,15 +1002,57 @@ export default function AttendanceScreen() {
                         <CameraView
                           style={StyleSheet.absoluteFillObject}
                           facing="back"
+                          enableTorch={enableTorch}
                           onBarcodeScanned={scanned ? undefined : handleGuruScanSiswa}
                           barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
                         />
+
+                        {/* Floating Flash Button for Teacher inline camera */}
+                        <TouchableOpacity
+                          onPress={() => setEnableTorch(prev => !prev)}
+                          style={{
+                            position: 'absolute',
+                            top: 12,
+                            right: 12,
+                            backgroundColor: enableTorch ? '#3B82F6' : 'rgba(15, 23, 42, 0.6)',
+                            width: 36,
+                            height: 36,
+                            borderRadius: 18,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            zIndex: 20,
+                            borderWidth: 1,
+                            borderColor: 'rgba(255,255,255,0.2)',
+                          }}
+                        >
+                          <Ionicons
+                            name={enableTorch ? "flash" : "flash-off-outline"}
+                            size={18}
+                            color="#fff"
+                          />
+                        </TouchableOpacity>
+
                         <View style={styles.cameraOverlayInline}>
                           <View style={[styles.scannerTarget, { width: 160, height: 160 }]}>
                             <View style={[styles.targetCorner, styles.cTopLeft]} />
                             <View style={[styles.targetCorner, styles.cTopRight]} />
                             <View style={[styles.targetCorner, styles.cBottomLeft]} />
                             <View style={[styles.targetCorner, styles.cBottomRight]} />
+
+                            {/* Laser animation line */}
+                            <Animated.View style={{
+                              position: 'absolute',
+                              left: '4%',
+                              right: '4%',
+                              top: scanLineTop,
+                              height: 2,
+                              backgroundColor: '#3B82F6',
+                              shadowColor: '#3B82F6',
+                              shadowOffset: { width: 0, height: 0 },
+                              shadowOpacity: 0.8,
+                              shadowRadius: 4,
+                              elevation: 2,
+                            }} />
                           </View>
                           <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', marginTop: 12, textAlign: 'center', backgroundColor: 'rgba(15, 23, 42, 0.75)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
                             {scanned ? "Memproses..." : "Posisikan QR Siswa di kotak"}
