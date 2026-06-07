@@ -11,6 +11,7 @@ import {
   Platform,
   Modal,
   KeyboardAvoidingView,
+  useWindowDimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -18,6 +19,7 @@ import { gpsLocationsApi, settingsApi } from "../../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../../../hooks/useToast";
 import Skeleton from "../../../components/ui/Skeleton";
+import * as Location from "expo-location";
 
 // Platform-safe WebView
 let WebView: any = null;
@@ -153,17 +155,191 @@ const LeafletMap = forwardRef(function LeafletMap(
   );
 });
 
+// ─── Leaflet Map Selector (with drag & click coordinates selection) ──────────
+interface LeafletMapSelectorProps {
+  initialLat: number;
+  initialLng: number;
+  initialRadius: number;
+  onCoordsChange: (lat: number, lng: number) => void;
+}
+
+const LeafletMapSelector = forwardRef(function LeafletMapSelector(
+  { initialLat, initialLng, initialRadius, onCoordsChange }: LeafletMapSelectorProps,
+  ref: any
+) {
+  const webViewRef = useRef<any>(null);
+  const iframeRef = useRef<any>(null);
+
+  useImperativeHandle(ref, () => ({
+    updateCoords: (lat: number, lng: number, radius: number) => {
+      const data = { type: "updateCoords", lat, lng, radius };
+      if (Platform.OS === "web") {
+        try {
+          iframeRef.current?.contentWindow?.postMessage(data, "*");
+        } catch {}
+      } else {
+        const js = `
+          if (window.updateMarker) {
+            window.updateMarker(${lat}, ${lng}, ${radius});
+            map.setView([${lat}, ${lng}], map.getZoom());
+            if (circle) {
+              map.fitBounds(circle.getBounds());
+            }
+          }
+          void 0;
+        `;
+        webViewRef.current?.injectJavaScript(js);
+      }
+    },
+  }));
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>
+  <style>*{margin:0;padding:0;box-sizing:border-box}html,body,#map{width:100%;height:100%;background:#EFF6FF}<\/style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var map = L.map('map',{zoomControl:true,attributionControl:false}).setView([${initialLat},${initialLng}],16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+
+    var marker = null;
+    var circle = null;
+
+    window.updateMarker = function(lat, lng, radius) {
+      if (marker) {
+        marker.setLatLng([lat, lng]);
+      } else {
+        marker = L.marker([lat, lng], { draggable: true }).addTo(map);
+        marker.on('dragend', function(e) {
+          var latlng = marker.getLatLng();
+          sendCoords(latlng.lat, latlng.lng);
+        });
+      }
+
+      if (circle) {
+        circle.setLatLng([lat, lng]);
+        circle.setRadius(radius);
+      } else {
+        circle = L.circle([lat, lng], {
+          color: '#2563EB',
+          fillColor: '#2563EB',
+          fillOpacity: 0.15,
+          weight: 2,
+          radius: radius
+        }).addTo(map);
+      }
+    };
+
+    function sendCoords(lat, lng) {
+      var data = { type: 'mapClick', lat: lat, lng: lng };
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(data));
+      } else {
+        window.parent.postMessage(data, '*');
+      }
+    }
+
+    // Initialize marker
+    window.updateMarker(${initialLat}, ${initialLng}, ${initialRadius});
+
+    // Fit bounds
+    if (circle) {
+      map.fitBounds(circle.getBounds());
+    }
+
+    // Map click handler
+    map.on('click', function(e) {
+      window.updateMarker(e.latlng.lat, e.latlng.lng, circle ? circle.getRadius() : 100);
+      sendCoords(e.latlng.lat, e.latlng.lng);
+    });
+
+    // Listen to parent updates
+    window.addEventListener('message', function(e) {
+      try {
+        var d = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        if (d && d.type === 'updateCoords') {
+          window.updateMarker(d.lat, d.lng, d.radius);
+          map.setView([d.lat, d.lng], map.getZoom());
+          if (circle) {
+            map.fitBounds(circle.getBounds());
+          }
+        }
+      } catch(err) {}
+    });
+  <\/script>
+</body>
+</html>`;
+
+  // Message handler for Web
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const handleMessage = (e: MessageEvent) => {
+      const data = e.data;
+      if (data && data.type === "mapClick") {
+        onCoordsChange(data.lat, data.lng);
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [onCoordsChange]);
+
+  if (Platform.OS === "web") {
+    return (
+      <iframe
+        ref={iframeRef}
+        srcDoc={html}
+        style={{ width: "100%", height: "100%", border: "none" }}
+        sandbox="allow-scripts allow-same-origin"
+        title="GPS Zones Selector"
+      />
+    );
+  }
+
+  if (!WebView) return null;
+  return (
+    <WebView
+      ref={webViewRef}
+      source={{ html }}
+      style={{ flex: 1, backgroundColor: "transparent" }}
+      scrollEnabled={false}
+      javaScriptEnabled
+      domStorageEnabled
+      startInLoadingState
+      renderLoading={() => (
+        <View style={styles.mapLoading}>
+          <ActivityIndicator size="large" color="#2563EB" />
+        </View>
+      )}
+      onMessage={(event: any) => {
+        try {
+          const data = JSON.parse(event.nativeEvent.data);
+          if (data && data.type === "mapClick") {
+            onCoordsChange(data.lat, data.lng);
+          }
+        } catch {}
+      }}
+    />
+  );
+});
+
 // ─── Location Card ────────────────────────────────────────────────────────────
 function LocationCard({
   loc,
   onFocus,
   onToggle,
+  onEdit,
   onDelete,
   isDeleting,
 }: {
   loc: GpsLocation;
   onFocus: (loc: GpsLocation) => void;
   onToggle: (id: number) => void;
+  onEdit: (loc: GpsLocation) => void;
   onDelete: (id: number) => void;
   isDeleting: boolean;
 }) {
@@ -194,6 +370,13 @@ function LocationCard({
               size={16}
               color={loc.is_active ? "#10B981" : "#9CA3AF"}
             />
+          </TouchableOpacity>
+          {/* Edit button */}
+          <TouchableOpacity
+            style={[styles.iconBtn, { backgroundColor: "#EFF6FF" }]}
+            onPress={() => onEdit(loc)}
+          >
+            <Ionicons name="create-outline" size={16} color="#2563EB" />
           </TouchableOpacity>
           {/* Delete */}
           <TouchableOpacity
@@ -233,22 +416,27 @@ export default function GpsSettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 768;
   const paddingBottom = 24 + (insets.bottom > 0 ? insets.bottom + 8 : 16);
 
   const mapRef = useRef<any>(null);
+  const modalMapRef = useRef<any>(null);
 
   const [locations, setLocations] = useState<GpsLocation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
-  // Add modal state
-  const [showModal, setShowModal] = useState(false);
+  // Modal configuration states
+  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
+  const [editingLocationId, setEditingLocationId] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
   const [newLat, setNewLat] = useState("");
   const [newLng, setNewLng] = useState("");
   const [newRadius, setNewRadius] = useState(100);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRetrievingLocation, setIsRetrievingLocation] = useState(false);
 
   // System configuration states
   const [entryMode, setEntryMode] = useState<"scan" | "click">("scan");
@@ -362,13 +550,10 @@ export default function GpsSettingsScreen() {
     setIsSearching(true);
     setNoResultsMsg("");
     try {
-      // Strategy 1: with countrycodes=id (faster, more accurate for common names)
       let results = await nominatimFetch(text, true);
 
-      // Strategy 2 fallback: without country restriction if results < 2
       if (results.length < 2) {
         const broader = await nominatimFetch(text, false);
-        // Merge & deduplicate by place_id
         const ids = new Set(results.map((r) => r.place_id));
         for (const item of broader) {
           if (!ids.has(item.place_id)) {
@@ -407,15 +592,18 @@ export default function GpsSettingsScreen() {
   };
 
   const selectPlace = (place: SearchResult) => {
-    const lat = parseFloat(place.lat).toFixed(6);
-    const lng = parseFloat(place.lon).toFixed(6);
-    setNewLat(lat);
-    setNewLng(lng);
+    const lat = parseFloat(place.lat);
+    const lng = parseFloat(place.lon);
+    setNewLat(lat.toFixed(6));
+    setNewLng(lng.toFixed(6));
     const shortName = place.display_name.split(",")[0].trim();
     setSearchQuery(shortName);
     if (!newName) setNewName(shortName);
     setShowResults(false);
     setSearchResults([]);
+
+    // Update Map position
+    updateModalMap(lat, lng, newRadius);
   };
 
   // ─── Map focus handler ───────────────────────────────────────────────────────
@@ -471,8 +659,39 @@ export default function GpsSettingsScreen() {
     }
   };
 
-  // ─── Add new location ─────────────────────────────────────────────────────────
-  const handleAdd = async () => {
+  // ─── Get current location ───────────────────────────────────────────────────
+  const handleUseCurrentLocation = async () => {
+    setIsRetrievingLocation(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        toast.error("Izin lokasi ditolak. Silakan aktifkan izin lokasi di pengaturan perangkat.");
+        return;
+      }
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      if (loc && loc.coords) {
+        const lat = loc.coords.latitude;
+        const lng = loc.coords.longitude;
+        setNewLat(lat.toFixed(6));
+        setNewLng(lng.toFixed(6));
+        toast.success("Koordinat lokasi saat ini berhasil diterapkan.");
+
+        // Update modal map
+        updateModalMap(lat, lng, newRadius);
+      } else {
+        toast.error("Gagal mendeteksi lokasi saat ini.");
+      }
+    } catch (error: any) {
+      toast.error("Gagal mendapatkan lokasi saat ini: " + (error?.message || error));
+    } finally {
+      setIsRetrievingLocation(false);
+    }
+  };
+
+  // ─── Add/Edit save action ────────────────────────────────────────────────────
+  const handleSave = async () => {
     const lat = parseFloat(newLat);
     const lng = parseFloat(newLng);
     if (!newName.trim()) {
@@ -487,34 +706,91 @@ export default function GpsSettingsScreen() {
       toast.error("Longitude tidak valid. Contoh: 112.737750");
       return;
     }
+    
     setIsSaving(true);
     try {
-      const res = await gpsLocationsApi.create({
-        name: newName.trim(),
-        latitude: lat,
-        longitude: lng,
-        radius_meters: newRadius,
-        is_active: true,
-      });
-      if (res.success) {
-        setLocations((prev) => [...prev, res.data]);
-        setShowModal(false);
-        setNewName("");
-        setNewLat("");
-        setNewLng("");
-        setNewRadius(100);
-        setSearchQuery("");
-        setSearchResults([]);
-        setNoResultsMsg("");
-        toast.success(`Zona "${res.data.name}" berhasil ditambahkan!`);
+      if (modalMode === "create") {
+        const res = await gpsLocationsApi.create({
+          name: newName.trim(),
+          latitude: lat,
+          longitude: lng,
+          radius_meters: newRadius,
+          is_active: true,
+        });
+        if (res.success) {
+          setLocations((prev) => [...prev, res.data]);
+          setModalMode(null);
+          toast.success(`Zona "${res.data.name}" berhasil ditambahkan!`);
+        } else {
+          toast.error(res.message || "Gagal menambahkan lokasi.");
+        }
       } else {
-        toast.error(res.message || "Gagal menambahkan lokasi.");
+        if (editingLocationId === null) return;
+        const res = await gpsLocationsApi.update(editingLocationId, {
+          name: newName.trim(),
+          latitude: lat,
+          longitude: lng,
+          radius_meters: newRadius,
+        });
+        if (res.success) {
+          setLocations((prev) =>
+            prev.map((l) => (l.id === editingLocationId ? res.data : l))
+          );
+          setModalMode(null);
+          toast.success(`Zona "${res.data.name}" berhasil diperbarui!`);
+        } else {
+          toast.error(res.message || "Gagal memperbarui lokasi.");
+        }
       }
     } catch (e: any) {
       toast.error(e.response?.data?.message || "Terjadi kesalahan sistem.");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // ─── Helper to sync state changes to Leaflet Map Selector ───────────────────
+  const updateModalMap = (lat: number, lng: number, radius: number) => {
+    modalMapRef.current?.updateCoords(lat, lng, radius);
+  };
+
+  const handleMapCoordsChange = (lat: number, lng: number) => {
+    setNewLat(lat.toFixed(6));
+    setNewLng(lng.toFixed(6));
+  };
+
+  const handleRadiusAdjust = (delta: number) => {
+    const nextRadius = Math.min(5000, Math.max(5, newRadius + delta));
+    setNewRadius(nextRadius);
+    const lat = parseFloat(newLat);
+    const lng = parseFloat(newLng);
+    if (!isNaN(lat) && !isNaN(lng)) {
+      updateModalMap(lat, lng, nextRadius);
+    }
+  };
+
+  const openAdd = () => {
+    setNewName("");
+    setNewLat("-7.245583");
+    setNewLng("112.737750");
+    setNewRadius(100);
+    setSearchQuery("");
+    setSearchResults([]);
+    setNoResultsMsg("");
+    setEditingLocationId(null);
+    setModalMode("create");
+  };
+
+  const openEdit = (loc: GpsLocation) => {
+    setNewName(loc.name);
+    setNewLat(loc.latitude.toString());
+    setNewLng(loc.longitude.toString());
+    setNewRadius(loc.radius_meters);
+    setSearchQuery("");
+    setSearchResults([]);
+    setNoResultsMsg("");
+    setEditingLocationId(loc.id);
+    setModalMode("edit");
   };
 
   const activeCount = locations.filter((l) => l.is_active).length;
@@ -527,10 +803,10 @@ export default function GpsSettingsScreen() {
           <Ionicons name="arrow-back" size={22} color="#1F2937" />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.headerTitle}>Zona GPS Geofencing</Text>
+          <Text style={styles.headerTitle}>Pengaturan GPS Lokasi Absen</Text>
           <Text style={styles.headerSub}>{activeCount} zona aktif</Text>
         </View>
-        <TouchableOpacity style={styles.addHeaderBtn} onPress={() => setShowModal(true)}>
+        <TouchableOpacity style={styles.addHeaderBtn} onPress={openAdd}>
           <Ionicons name="add" size={20} color="#fff" />
           <Text style={styles.addHeaderBtnText}>Tambah</Text>
         </TouchableOpacity>
@@ -542,12 +818,12 @@ export default function GpsSettingsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Map Preview Skeleton */}
-          <View style={styles.mapCard}>
+          <View style={[styles.mapCard, isDesktop && { maxWidth: 850, alignSelf: 'center', width: '100%' }]}>
             <View style={styles.mapHeader}>
               <Ionicons name="map" size={16} color="#2563EB" />
               <Text style={styles.mapHeaderTitle}>Peta Semua Zona Aktif</Text>
             </View>
-            <View style={[styles.mapWrapper, { padding: 0 }]}>
+            <View style={[styles.mapWrapper, { padding: 0 }, isDesktop && { height: 380 }]}>
               <Skeleton width="100%" height="100%" borderRadius={0} />
             </View>
           </View>
@@ -565,6 +841,7 @@ export default function GpsSettingsScreen() {
                 <Skeleton width={12} height={12} borderRadius={6} style={{ marginRight: 8 }} />
                 <Skeleton width={150} height={16} borderRadius={4} />
                 <View style={styles.locActions}>
+                  <Skeleton width={32} height={32} borderRadius={8} />
                   <Skeleton width={32} height={32} borderRadius={8} />
                   <Skeleton width={32} height={32} borderRadius={8} />
                   <Skeleton width={32} height={32} borderRadius={8} />
@@ -586,7 +863,7 @@ export default function GpsSettingsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Map Preview */}
-          <View style={styles.mapCard}>
+          <View style={[styles.mapCard, isDesktop && { maxWidth: 850, alignSelf: 'center', width: '100%' }]}>
             <View style={styles.mapHeader}>
               <Ionicons name="map" size={16} color="#2563EB" />
               <Text style={styles.mapHeaderTitle}>Peta Semua Zona Aktif</Text>
@@ -594,7 +871,7 @@ export default function GpsSettingsScreen() {
                 <Text style={styles.mapBadgeText}>{activeCount} zona</Text>
               </View>
             </View>
-            <View style={styles.mapWrapper}>
+            <View style={[styles.mapWrapper, isDesktop && { height: 380 }]}>
               <LeafletMap ref={mapRef} locations={locations} />
             </View>
             <Text style={styles.mapHint}>
@@ -615,7 +892,7 @@ export default function GpsSettingsScreen() {
               <Text style={styles.emptyDesc}>
                 Tekan tombol "Tambah" di atas untuk menambahkan titik lokasi geofencing sekolah.
               </Text>
-              <TouchableOpacity style={styles.emptyAddBtn} onPress={() => setShowModal(true)}>
+              <TouchableOpacity style={styles.emptyAddBtn} onPress={openAdd}>
                 <Ionicons name="add-circle" size={18} color="#fff" />
                 <Text style={styles.emptyAddBtnText}>Tambah Lokasi Pertama</Text>
               </TouchableOpacity>
@@ -627,6 +904,7 @@ export default function GpsSettingsScreen() {
                 loc={loc}
                 onFocus={handleFocusLocation}
                 onToggle={handleToggle}
+                onEdit={openEdit}
                 onDelete={handleDelete}
                 isDeleting={deletingId === loc.id}
               />
@@ -706,12 +984,12 @@ export default function GpsSettingsScreen() {
         </ScrollView>
       )}
 
-      {/* Add Location Modal */}
+      {/* Add / Edit Location Modal */}
       <Modal
-        visible={showModal}
+        visible={modalMode !== null}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowModal(false)}
+        onRequestClose={() => setModalMode(null)}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -721,12 +999,18 @@ export default function GpsSettingsScreen() {
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Tambah Zona Geofencing</Text>
-                <Text style={styles.modalSub}>Cari lokasi atau isi koordinat manual</Text>
+                <Text style={styles.modalTitle}>
+                  {modalMode === "create" ? "Tambah Zona Geofencing" : "Edit Zona Geofencing"}
+                </Text>
+                <Text style={styles.modalSub}>
+                  {modalMode === "create"
+                    ? "Cari lokasi, isi koordinat, atau gunakan peta"
+                    : "Ubah lokasi menggunakan form atau peta"}
+                </Text>
               </View>
               <TouchableOpacity
                 onPress={() => {
-                  setShowModal(false);
+                  setModalMode(null);
                   setSearchQuery("");
                   setSearchResults([]);
                   setShowResults(false);
@@ -818,6 +1102,39 @@ export default function GpsSettingsScreen() {
                 ) : null}
               </View>
 
+              {/* ── Interactive Map Selector ───────────────────────────── */}
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>PILIH TITIK PADA PETA (GESER MARKER / KLIK)</Text>
+                <View style={styles.modalMapWrapper}>
+                  {modalMode !== null && (
+                    <LeafletMapSelector
+                      ref={modalMapRef}
+                      initialLat={parseFloat(newLat) || -7.245583}
+                      initialLng={parseFloat(newLng) || 112.737750}
+                      initialRadius={newRadius}
+                      onCoordsChange={handleMapCoordsChange}
+                    />
+                  )}
+                </View>
+              </View>
+
+              {/* ── Geolocation Current Position Button ────────────────── */}
+              <TouchableOpacity
+                style={styles.currentLocBtn}
+                onPress={handleUseCurrentLocation}
+                disabled={isRetrievingLocation}
+                activeOpacity={0.8}
+              >
+                {isRetrievingLocation ? (
+                  <ActivityIndicator size="small" color="#2563EB" />
+                ) : (
+                  <Ionicons name="location" size={18} color="#2563EB" />
+                )}
+                <Text style={styles.currentLocBtnText}>
+                  {isRetrievingLocation ? "Mengakses GPS..." : "Gunakan Lokasi Saat Ini"}
+                </Text>
+              </TouchableOpacity>
+
               {/* Name Field */}
               <View style={styles.fieldGroup}>
                 <Text style={styles.fieldLabel}>NAMA ZONA / LOKASI</Text>
@@ -840,7 +1157,14 @@ export default function GpsSettingsScreen() {
                     placeholderTextColor="#B0B7C3"
                     keyboardType="numeric"
                     value={newLat}
-                    onChangeText={setNewLat}
+                    onChangeText={(val) => {
+                      setNewLat(val);
+                      const parsed = parseFloat(val);
+                      const parsedLng = parseFloat(newLng);
+                      if (!isNaN(parsed) && !isNaN(parsedLng)) {
+                        updateModalMap(parsed, parsedLng, newRadius);
+                      }
+                    }}
                   />
                 </View>
                 <View style={[styles.fieldGroup, { flex: 1, marginLeft: 8 }]}>
@@ -851,7 +1175,14 @@ export default function GpsSettingsScreen() {
                     placeholderTextColor="#B0B7C3"
                     keyboardType="numeric"
                     value={newLng}
-                    onChangeText={setNewLng}
+                    onChangeText={(val) => {
+                      setNewLng(val);
+                      const parsed = parseFloat(val);
+                      const parsedLat = parseFloat(newLat);
+                      if (!isNaN(parsed) && !isNaN(parsedLat)) {
+                        updateModalMap(parsedLat, parsed, newRadius);
+                      }
+                    }}
                   />
                 </View>
               </View>
@@ -872,9 +1203,7 @@ export default function GpsSettingsScreen() {
                     <TouchableOpacity
                       key={label}
                       style={[styles.radiusBtn, { backgroundColor: color }]}
-                      onPress={() =>
-                        setNewRadius((p) => Math.min(5000, Math.max(5, p + delta)))
-                      }
+                      onPress={() => handleRadiusAdjust(delta)}
                     >
                       <Text style={styles.radiusBtnText}>{label}</Text>
                     </TouchableOpacity>
@@ -894,15 +1223,17 @@ export default function GpsSettingsScreen() {
               {/* Save Button */}
               <TouchableOpacity
                 style={[styles.saveBtn, isSaving && styles.saveBtnDisabled]}
-                onPress={handleAdd}
+                onPress={handleSave}
                 disabled={isSaving}
               >
                 {isSaving ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
                   <>
-                    <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                    <Text style={styles.saveBtnText}>SIMPAN ZONA BARU</Text>
+                    <Ionicons name="save-outline" size={20} color="#fff" />
+                    <Text style={styles.saveBtnText}>
+                      {modalMode === "create" ? "SIMPAN ZONA BARU" : "SIMPAN PERUBAHAN"}
+                    </Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1233,6 +1564,37 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   noResultText: { fontSize: 12, color: "#92400E", flex: 1, lineHeight: 17 },
+
+  // ── Geolocation current position button ────────────────────────────────────
+  currentLocBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#EFF6FF",
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+    gap: 8,
+  },
+  currentLocBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+
+  // ── Modal Map Selector ─────────────────────────────────────────────────────
+  modalMapWrapper: {
+    height: 220,
+    backgroundColor: "#EFF6FF",
+    borderRadius: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    marginBottom: 16,
+  },
 
   // ── Fields ────────────────────────────────────────────────────────────────
   fieldGroup: { marginBottom: 16 },

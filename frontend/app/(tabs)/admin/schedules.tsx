@@ -145,7 +145,7 @@ export default function SchedulesAdminScreen() {
       await importExportApi.import("schedules", file);
       setImportModalVisible(false);
       await fetchRecords();
-      toast.success("Import data Excel berhasil.");
+      toast.success("Impor data Excel berhasil.");
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || "Gagal mengimpor berkas Excel.";
       const details = error.response?.data?.errors;
@@ -183,9 +183,9 @@ export default function SchedulesAdminScreen() {
   };
 
   const validateForm = () => {
-    if (!Number(form.subject_id)) return "Mata Pelajaran (Subject ID) wajib diisi";
-    if (!Number(form.class_id)) return "Kelas (Class ID) wajib diisi";
-    if (!Number(form.teacher_id)) return "Guru (Teacher ID) wajib diisi";
+    if (!Number(form.subject_id)) return "ID Mata Pelajaran wajib diisi";
+    if (!Number(form.class_id)) return "ID Kelas wajib diisi";
+    if (!Number(form.teacher_id)) return "ID Guru wajib diisi";
     if (!form.start_time.trim()) return "Jam mulai wajib diisi";
     if (!form.end_time.trim()) return "Jam selesai wajib diisi";
     return null;
@@ -452,7 +452,7 @@ export default function SchedulesAdminScreen() {
 
             <ScrollView style={styles.modalBody}>
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Subject ID (Mata Pelajaran)</Text>
+                <Text style={styles.inputLabel}>ID Mata Pelajaran</Text>
                 <TextInput
                   style={styles.input}
                   value={form.subject_id}
@@ -464,7 +464,7 @@ export default function SchedulesAdminScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Class ID (Kelas)</Text>
+                <Text style={styles.inputLabel}>ID Kelas</Text>
                 <TextInput
                   style={styles.input}
                   value={form.class_id}
@@ -476,7 +476,7 @@ export default function SchedulesAdminScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Teacher ID (Guru Pengampu)</Text>
+                <Text style={styles.inputLabel}>ID Guru</Text>
                 <TextInput
                   style={styles.input}
                   value={form.teacher_id}
@@ -488,7 +488,7 @@ export default function SchedulesAdminScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Hari Ke (1 = Senin, 2 = Selasa, dst)</Text>
+                <Text style={styles.inputLabel}>Hari (1 = Senin, 2 = Selasa, dst)</Text>
                 <TextInput
                   style={styles.input}
                   value={form.day_of_week}

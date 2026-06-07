@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\GpsLocationsController;
 use App\Http\Controllers\Api\UsersController;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Broadcast;
 
 /**
  * API Routes - Sistem Absensi Digital SMKS Rajasa
@@ -33,6 +34,9 @@ Route::get('/qr/session', [QRController::class, 'sessionQr']);
 // PROTECTED ROUTES (Requires Authentication)
 // ============================================
 Route::middleware('auth:sanctum')->group(function () {
+
+    // Broadcasting Authorization (requires sanctum token)
+    Broadcast::routes(['middleware' => ['auth:sanctum']]);
 
     // ----------------------------------------
     // Auth Routes - All authenticated users

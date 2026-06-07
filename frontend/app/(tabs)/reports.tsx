@@ -450,7 +450,7 @@ export default function ReportsScreen() {
           </Section>
         )}
 
-        <Section title="Format Export">
+        <Section title="Format Ekspor">
           <View style={styles.formatGrid}>
             {exportFormats.map((format) => (
               <OptionCard
@@ -487,14 +487,14 @@ export default function ReportsScreen() {
                 color="#fff"
               />
               <Text style={styles.exportText}>
-                {canExport ? "Unduh Laporan" : "Tidak Ada Akses Export"}
+                {canExport ? "Unduh Laporan" : "Tidak Ada Akses Ekspor"}
               </Text>
             </>
           )}
         </TouchableOpacity>
 
         <View style={styles.previewCard}>
-          <Text style={styles.previewTitle}>Preview Laporan Absensi</Text>
+          <Text style={styles.previewTitle}>Pratinjau Laporan Absensi</Text>
           <Text style={styles.previewPeriod}>
             Kategori: {reportCategory === "detail" ? "Detail Kehadiran" : "Persentase Kelas"}
           </Text>
@@ -504,7 +504,19 @@ export default function ReportsScreen() {
               label="Kelas" 
             />
             <PreviewStat 
-              value={reportCategory === "detail" ? selectedType.toUpperCase() : entryModeType.toUpperCase()} 
+              value={
+                reportCategory === "detail"
+                  ? (selectedType === "daily"
+                    ? "Harian"
+                    : selectedType === "weekly"
+                    ? "Mingguan"
+                    : selectedType === "monthly"
+                    ? "Bulanan"
+                    : "Semester")
+                  : (entryModeType === "daily"
+                    ? "Gerbang"
+                    : "Pelajaran")
+              } 
               label="Jenis" 
             />
             <PreviewStat value={selectedFormat.toUpperCase()} label="Format" />

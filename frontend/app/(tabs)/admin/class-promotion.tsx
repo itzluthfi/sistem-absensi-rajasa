@@ -224,7 +224,7 @@ export default function ClassPromotionScreen() {
                 <Ionicons name="business-outline" size={16} color="#3B82F6" />
                 <Text style={[styles.pickerText, !sourceClass && styles.pickerPlaceholder]}>
                   {sourceClass
-                    ? `${sourceClass.class_name} (${sourceClass.academic_year || "N/A"})`
+                    ? `${sourceClass.class_name} (${sourceClass.academic_year || "Tidak Ada"})`
                     : "Pilih Kelas Asal"}
                 </Text>
                 <Ionicons name="chevron-down-outline" size={14} color="#9CA3AF" />
@@ -241,7 +241,7 @@ export default function ClassPromotionScreen() {
                 <Ionicons name="trending-up-outline" size={16} color="#10B981" />
                 <Text style={[styles.pickerText, !targetClass && styles.pickerPlaceholder]}>
                   {targetClass
-                    ? `${targetClass.class_name} (${targetClass.academic_year || "N/A"})`
+                    ? `${targetClass.class_name} (${targetClass.academic_year || "Tidak Ada"})`
                     : "Pilih Kelas Tujuan"}
                 </Text>
                 <Ionicons name="chevron-down-outline" size={14} color="#9CA3AF" />
@@ -373,7 +373,7 @@ export default function ClassPromotionScreen() {
                     <View style={{ flex: 1 }}>
                       <Text style={styles.classNameText}>{item.class_name}</Text>
                       <Text style={styles.classSubText}>
-                        {item.major?.major_name || "N/A"} • TA: {item.academic_year || "N/A"}
+                        {item.major?.major_name || "Tidak Ada"} • TA: {item.academic_year || "Tidak Ada"}
                       </Text>
                     </View>
                     <Ionicons name="chevron-forward-outline" size={16} color="#9CA3AF" />

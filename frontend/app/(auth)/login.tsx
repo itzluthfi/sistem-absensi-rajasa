@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Alert,
   Platform,
@@ -31,6 +31,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  
+  const passwordRef = useRef<any>(null);
 
   // Forgot Password state
   const [showForgotModal, setShowForgotModal] = useState(false);
@@ -140,9 +142,12 @@ export default function LoginScreen() {
                 error={errors.email}
                 placeholder="Email, NIS, atau NIP"
                 keyboardType="default"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                returnKeyType="next"
               />
 
               <FuturisticInput
+                inputRef={passwordRef}
                 label="Kata Sandi"
                 leftIcon="lock-closed-outline"
                 value={password}
@@ -155,6 +160,8 @@ export default function LoginScreen() {
                 secureTextEntry={!showPassword}
                 rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 onRightIconPress={() => setShowPassword((current) => !current)}
+                onSubmitEditing={handleLogin}
+                returnKeyType="done"
               />
 
               {/* Forgot Password Trigger Link */}
@@ -223,9 +230,12 @@ export default function LoginScreen() {
                 error={errors.email}
                 placeholder="Email, NIS, atau NIP"
                 keyboardType="default"
+                onSubmitEditing={() => passwordRef.current?.focus()}
+                returnKeyType="next"
               />
 
               <FuturisticInput
+                inputRef={passwordRef}
                 label="Kata Sandi"
                 leftIcon="lock-closed-outline"
                 value={password}
@@ -238,6 +248,8 @@ export default function LoginScreen() {
                 secureTextEntry={!showPassword}
                 rightIcon={showPassword ? 'eye-off-outline' : 'eye-outline'}
                 onRightIconPress={() => setShowPassword((current) => !current)}
+                onSubmitEditing={handleLogin}
+                returnKeyType="done"
               />
 
               {/* Forgot Password Trigger Link */}
@@ -329,6 +341,9 @@ function FuturisticInput({
   rightIcon,
   onRightIconPress,
   leftIcon,
+  inputRef,
+  onSubmitEditing,
+  returnKeyType,
 }: {
   label: string;
   value: string;
@@ -340,6 +355,9 @@ function FuturisticInput({
   rightIcon?: keyof typeof Ionicons.glyphMap;
   onRightIconPress?: () => void;
   leftIcon?: keyof typeof Ionicons.glyphMap;
+  inputRef?: React.RefObject<any>;
+  onSubmitEditing?: () => void;
+  returnKeyType?: 'default' | 'go' | 'next' | 'search' | 'send' | 'done';
 }) {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -363,6 +381,7 @@ function FuturisticInput({
           />
         )}
         <TextInput
+          ref={inputRef}
           style={styles.input}
           placeholder={placeholder}
           placeholderTextColor="#9CA3AF"
@@ -374,6 +393,8 @@ function FuturisticInput({
           secureTextEntry={secureTextEntry}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
+          onSubmitEditing={onSubmitEditing}
+          returnKeyType={returnKeyType}
         />
         {rightIcon && (
           <TouchableOpacity style={styles.rightIcon} onPress={onRightIconPress}>

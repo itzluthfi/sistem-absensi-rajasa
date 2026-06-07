@@ -34,11 +34,23 @@ export default function TabsLayout() {
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     loadNotificationCount();
+    AsyncStorage.getItem('sidebar_collapsed').then(val => {
+      if (val === 'true') {
+        setSidebarCollapsed(true);
+      }
+    });
   }, []);
+
+  const handleToggleSidebar = async () => {
+    const nextVal = !sidebarCollapsed;
+    setSidebarCollapsed(nextVal);
+    await AsyncStorage.setItem('sidebar_collapsed', String(nextVal));
+  };
 
   const loadNotificationCount = async () => {
     try {
@@ -221,13 +233,13 @@ export default function TabsLayout() {
       title: 'MANAJEMEN DATA',
       show: isSuperAdmin || isAdmin,
       items: [
-        { name: 'users', label: 'Data User', icon: 'people-outline', activeIcon: 'people', href: '/admin/users', show: true },
+        { name: 'users', label: 'Data Pengguna', icon: 'people-outline', activeIcon: 'people', href: '/admin/users', show: true },
         { name: 'students', label: 'Data Siswa', icon: 'school-outline', activeIcon: 'school', href: '/admin/students', show: true },
         { name: 'teachers', label: 'Data Guru', icon: 'person-outline', activeIcon: 'person', href: '/admin/teachers', show: true },
         { name: 'classes', label: 'Data Kelas', icon: 'business-outline', activeIcon: 'business', href: '/admin/classes', show: true },
         { name: 'schedules', label: 'Data Jadwal', icon: 'calendar-outline', activeIcon: 'calendar', href: '/admin/schedules', show: true },
         { name: 'class-promotion', label: 'Kenaikan Kelas', icon: 'trending-up-outline', activeIcon: 'trending-up', href: '/admin/class-promotion', show: true },
-        { name: 'gps-settings', label: 'Pengaturan GPS', icon: 'locate-outline', activeIcon: 'locate', href: '/admin/gps-settings', show: true },
+        { name: 'gps-settings', label: 'Pengaturan GPS Lokasi absen', icon: 'locate-outline', activeIcon: 'locate', href: '/admin/gps-settings', show: true },
         { name: 'notification-logs', label: 'Log Notifikasi', icon: 'list-circle-outline', activeIcon: 'list-circle', href: '/admin/notification-logs', show: true },
       ]
     },
@@ -374,7 +386,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="admin/users"
         options={{
-          title: 'Data User',
+          title: 'Data Pengguna',
           href: null,
         }}
       />
@@ -409,7 +421,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="admin/gps-settings"
         options={{
-          title: 'Pengaturan GPS',
+          title: 'Pengaturan GPS Lokasi Absen',
           href: null,
         }}
       />
@@ -481,53 +493,61 @@ export default function TabsLayout() {
   return (
     <View style={styles.desktopLayout}>
       {/* Sidebar Navigation */}
-      <View style={styles.sidebarContainer}>
-        <View style={[styles.sidebarTopSection, { flex: 1 }]}>
+      <View style={[styles.sidebarContainer, sidebarCollapsed && { width: 78, padding: 12, alignItems: 'center' }]}>
+        <View style={[styles.sidebarTopSection, { flex: 1, width: '100%' }, sidebarCollapsed && { alignItems: 'center' }]}>
           {/* School branding */}
-          <View style={styles.sidebarHeader}>
+          <View style={[styles.sidebarHeader, sidebarCollapsed && { flexDirection: 'column', alignItems: 'center', marginBottom: 16, gap: 8, paddingHorizontal: 0 }]}>
             <Image
               source={require('../../assets/images/logo.png')}
               style={styles.sidebarLogo}
               resizeMode="contain"
             />
-            <View>
-              <Text style={styles.sidebarTitle}>SMKS Rajasa</Text>
-              <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor()}20`, marginTop: 2 }]}>
-                <Text style={[styles.roleText, { color: getRoleColor() }]}>{getRoleLabel()}</Text>
+            {!sidebarCollapsed && (
+              <View>
+                <Text style={styles.sidebarTitle}>SMKS Rajasa</Text>
+                <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor()}20`, marginTop: 2 }]}>
+                  <Text style={[styles.roleText, { color: getRoleColor() }]}>{getRoleLabel()}</Text>
+                </View>
               </View>
-            </View>
+            )}
           </View>
 
           {/* User profile card */}
-          <View style={styles.sidebarUserCard}>
+          <View style={[styles.sidebarUserCard, sidebarCollapsed && { flexDirection: 'column', padding: 6, gap: 0, marginBottom: 16 }]}>
             <View style={styles.avatarLarge}>
               <Text style={styles.avatarLargeText}>{user?.name?.charAt(0)?.toUpperCase() || 'U'}</Text>
             </View>
-            <View style={styles.sidebarUserTexts}>
-              <Text style={styles.sidebarUserName} numberOfLines={1}>{user?.name}</Text>
-              <Text style={styles.sidebarUserEmail} numberOfLines={1}>{user?.email}</Text>
-            </View>
+            {!sidebarCollapsed && (
+              <View style={styles.sidebarUserTexts}>
+                <Text style={styles.sidebarUserName} numberOfLines={1}>{user?.name}</Text>
+                <Text style={styles.sidebarUserEmail} numberOfLines={1}>{user?.email}</Text>
+              </View>
+            )}
           </View>
 
           {/* Grouped Menu Sections */}
           <ScrollView
-            style={[styles.sidebarMenu, { flex: 1 }]}
+            style={[styles.sidebarMenu, { flex: 1, width: '100%' }]}
             contentContainerStyle={{ gap: 20 }}
             showsVerticalScrollIndicator={false}
           >
             {sections.map((section) => {
               if (section.show === false) return null;
               return (
-                <View key={section.title} style={styles.sidebarSection}>
-                  <Text style={styles.sidebarSectionHeader}>{section.title}</Text>
-                  <View style={{ gap: 4 }}>
+                <View key={section.title} style={[styles.sidebarSection, sidebarCollapsed && { alignItems: 'center', marginBottom: 8 }]}>
+                  {!sidebarCollapsed && <Text style={styles.sidebarSectionHeader}>{section.title}</Text>}
+                  <View style={{ gap: 4, width: '100%' }}>
                     {section.items.map((item) => {
                       if (item.show === false) return null;
                       const active = isActive(item.href);
                       return (
                         <TouchableOpacity
                           key={item.name}
-                          style={[styles.sidebarMenuItem, active && styles.sidebarMenuItemActive]}
+                          style={[
+                            styles.sidebarMenuItem,
+                            active && styles.sidebarMenuItemActive,
+                            sidebarCollapsed && { justifyContent: 'center', paddingHorizontal: 0 }
+                          ]}
                           onPress={() => router.push(item.href as any)}
                         >
                           <Ionicons
@@ -535,9 +555,11 @@ export default function TabsLayout() {
                             size={18}
                             color={active ? '#3B82F6' : '#4B5563'}
                           />
-                          <Text style={[styles.sidebarMenuText, active && styles.sidebarMenuTextActive]}>
-                            {item.label}
-                          </Text>
+                          {!sidebarCollapsed && (
+                            <Text style={[styles.sidebarMenuText, active && styles.sidebarMenuTextActive]}>
+                              {item.label}
+                            </Text>
+                          )}
                         </TouchableOpacity>
                       );
                     })}
@@ -549,9 +571,9 @@ export default function TabsLayout() {
         </View>
 
         {/* Sidebar Footer with Logout Button */}
-        <View style={styles.sidebarFooter}>
+        <View style={[styles.sidebarFooter, sidebarCollapsed && { padding: 0, alignItems: 'center' }]}>
           <TouchableOpacity 
-            style={styles.logoutButton} 
+            style={[styles.logoutButton, sidebarCollapsed && { justifyContent: 'center', paddingHorizontal: 0 }]} 
             onPress={async () => {
               const { logout } = useAuthStore.getState();
               await logout();
@@ -559,7 +581,7 @@ export default function TabsLayout() {
             }}
           >
             <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Keluar</Text>
+            {!sidebarCollapsed && <Text style={styles.logoutText}>Keluar</Text>}
           </TouchableOpacity>
         </View>
       </View>
@@ -568,7 +590,25 @@ export default function TabsLayout() {
       <View style={styles.desktopContent}>
         {/* Desktop Mini Header */}
         <View style={styles.desktopHeader}>
-          <Text style={styles.desktopPageTitle}>Rajasa Academic System (RAS)</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity
+              onPress={handleToggleSidebar}
+              style={{
+                padding: 6,
+                borderRadius: 8,
+                backgroundColor: '#F3F4F6',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              <Ionicons
+                name="menu-outline"
+                size={20}
+                color="#1F2937"
+              />
+            </TouchableOpacity>
+            <Text style={styles.desktopPageTitle}>Rajasa Academic System (RAS)</Text>
+          </View>
           <TouchableOpacity
             style={styles.headerIconButton}
             onPress={() => router.push('/(tabs)/notifications')}

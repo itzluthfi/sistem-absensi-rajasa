@@ -49,6 +49,7 @@ export const initEcho = (token: string) => {
     echoInstance = new Echo({
       broadcaster: 'pusher',
       key: pusherKey,
+      cluster: cluster,
       wsHost: host,
       wsPort: port,
       wssPort: port,

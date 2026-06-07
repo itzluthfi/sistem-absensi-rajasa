@@ -152,22 +152,22 @@ export default function UsersAdminScreen() {
     try {
       if (modalMode === "create") {
         await usersApi.create(payload);
-        toast.success("User berhasil ditambahkan.");
+        toast.success("Pengguna berhasil ditambahkan.");
       } else {
         await usersApi.update(Number(form.id), payload);
-        toast.success("User berhasil diperbarui.");
+        toast.success("Pengguna berhasil diperbarui.");
       }
       setModalMode(null);
       await fetchRecords();
     } catch (error: any) {
-      toast.error(error.response?.data?.message || "Gagal menyimpan user.");
+      toast.error(error.response?.data?.message || "Gagal menyimpan pengguna.");
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDelete = (item: UserRecord) => {
-    Alert.alert("Hapus User", `Apakah Anda yakin ingin menghapus user ${item.name}?`, [
+    Alert.alert("Hapus Pengguna", `Apakah Anda yakin ingin menghapus pengguna ${item.name}?`, [
       { text: "Batal", style: "cancel" },
       {
         text: "Hapus",
@@ -176,9 +176,9 @@ export default function UsersAdminScreen() {
           try {
             await usersApi.delete(item.id);
             await fetchRecords();
-            toast.success("User berhasil dihapus.");
+            toast.success("Pengguna berhasil dihapus.");
           } catch (error: any) {
-            toast.error(error.response?.data?.message || "User tidak dapat dihapus.");
+            toast.error(error.response?.data?.message || "Pengguna tidak dapat dihapus.");
           }
         },
       },
@@ -189,7 +189,7 @@ export default function UsersAdminScreen() {
     <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
       <View style={styles.headerTitleContainer}>
-        <Text style={styles.headerTitle}>Master Data User</Text>
+        <Text style={styles.headerTitle}>Master Data Pengguna</Text>
         <Text style={styles.headerSubtitle}>Kelola akun pengguna, hak akses, dan status keaktifan login</Text>
       </View>
 
@@ -199,14 +199,14 @@ export default function UsersAdminScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Cari user (nama/email)"
+            placeholder="Cari pengguna (nama/email)"
             placeholderTextColor="#9CA3AF"
             style={styles.searchInput}
           />
         </View>
         <TouchableOpacity style={styles.addButton} onPress={openCreate}>
           <Ionicons name="add" size={22} color="#fff" />
-          {!isMobile && <Text style={styles.addButtonText}>Tambah User</Text>}
+          {!isMobile && <Text style={styles.addButtonText}>Tambah Pengguna</Text>}
         </TouchableOpacity>
       </View>
 
@@ -277,7 +277,7 @@ export default function UsersAdminScreen() {
                 <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Email</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran (Role)</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran / Hak Akses</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
               </View>
@@ -309,7 +309,7 @@ export default function UsersAdminScreen() {
                 <Text style={[styles.tableHeaderCell, { flex: 0.8 }]}>ID</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Nama Lengkap</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 2.5 }]}>Email</Text>
-                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran (Role)</Text>
+                <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Peran / Hak Akses</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1.2, textAlign: "center" }]}>Status</Text>
                 <Text style={[styles.tableHeaderCell, { flex: 1, textAlign: "center" }]}>Aksi</Text>
               </View>
@@ -322,8 +322,8 @@ export default function UsersAdminScreen() {
               ) : (
                 <>
                   <Ionicons name="people-outline" size={48} color="#1E3A8A" />
-                  <Text style={styles.emptyTitle}>User belum tersedia</Text>
-                  <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah user baru.</Text>
+                  <Text style={styles.emptyTitle}>Pengguna belum tersedia</Text>
+                  <Text style={styles.emptyText}>Tarik untuk memuat ulang atau tambah pengguna baru.</Text>
                 </>
               )}
             </View>
@@ -426,7 +426,7 @@ export default function UsersAdminScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {modalMode === "create" ? "Tambah" : "Edit"} User
+                {modalMode === "create" ? "Tambah" : "Edit"} Pengguna
               </Text>
               <TouchableOpacity onPress={() => setModalMode(null)} style={styles.iconButton}>
                 <Ionicons name="close" size={22} color="#6B7280" />
@@ -472,7 +472,7 @@ export default function UsersAdminScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Peran Hak Akses (Role)</Text>
+                <Text style={styles.inputLabel}>Peran / Hak Akses</Text>
                 <View style={styles.roleContainer}>
                   {roles.map((r) => (
                     <TouchableOpacity

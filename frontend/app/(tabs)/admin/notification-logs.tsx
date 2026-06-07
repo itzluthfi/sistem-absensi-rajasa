@@ -12,6 +12,7 @@ import {
   View,
   useWindowDimensions,
   Platform,
+  Modal,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { notificationLogsApi } from "../../../services/api";
@@ -366,7 +367,7 @@ export default function NotificationLogsScreen() {
                   <View style={{ flex: 1, gap: 2 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                       <Text style={styles.recipientName} numberOfLines={1}>
-                        {item.user ? item.user.name : "System (Sistem)"}
+                        {item.user ? item.user.name : "Sistem"}
                       </Text>
                       {item.user && (
                         <View style={[styles.roleBadge, { backgroundColor: `${getRoleColor(userRole)}15` }]}>
@@ -451,7 +452,7 @@ export default function NotificationLogsScreen() {
 
               {/* Filter Template Selection */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Template Rentang Waktu</Text>
+                <Text style={styles.inputLabel}>Pilihan Rentang Waktu</Text>
                 <View style={styles.templateOptions}>
                   {[
                     { label: "Semua", value: "all" },
@@ -484,7 +485,7 @@ export default function NotificationLogsScreen() {
               {clearFilter === "custom" && (
                 <View style={styles.dateInputsRow}>
                   <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.inputLabel}>Mulai Tanggal</Text>
+                    <Text style={styles.inputLabel}>Tanggal Mulai</Text>
                     <TextInput
                       style={styles.input}
                       value={clearStartDate}
@@ -494,7 +495,7 @@ export default function NotificationLogsScreen() {
                     />
                   </View>
                   <View style={[styles.inputGroup, { flex: 1 }]}>
-                    <Text style={styles.inputLabel}>Sampai Tanggal</Text>
+                    <Text style={styles.inputLabel}>Tanggal Selesai</Text>
                     <TextInput
                       style={styles.input}
                       value={clearEndDate}

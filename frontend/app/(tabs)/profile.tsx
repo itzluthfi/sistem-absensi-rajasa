@@ -57,7 +57,7 @@ export default function ProfileScreen() {
     },
     ...(isAdmin ? [{
       icon: "location-outline" as IconName,
-      label: "Pengaturan GPS Geofencing",
+      label: "Pengaturan GPS Lokasi Absen",
       subtitle: "Cari & atur lokasi & radius sekolah",
       onPress: () => router.push("/admin/gps-settings"),
     }] : []),
@@ -65,7 +65,7 @@ export default function ProfileScreen() {
     {
       icon: "lock-closed-outline",
       label: "Ubah Kata Sandi",
-      subtitle: "Fitur reset password",
+      subtitle: "Fitur ubah kata sandi",
       onPress: () => setShowChangePasswordModal(true),
     },
     {

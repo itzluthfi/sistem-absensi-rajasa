@@ -126,7 +126,7 @@ export default function TeachersAdminScreen() {
       await importExportApi.import("teachers", file);
       setImportModalVisible(false);
       await fetchRecords();
-      toast.success("Import data Excel berhasil.");
+      toast.success("Impor data Excel berhasil.");
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || "Gagal mengimpor berkas Excel.";
       const details = error.response?.data?.errors;
@@ -162,7 +162,7 @@ export default function TeachersAdminScreen() {
   const validateForm = () => {
     if (!form.full_name.trim()) return "Nama lengkap wajib diisi";
     if (modalMode === "create" && !Number(form.user_id))
-      return "User ID wajib diisi karena backend membutuhkannya";
+      return "ID Pengguna wajib diisi karena sistem membutuhkannya";
     return null;
   };
 
@@ -396,13 +396,13 @@ export default function TeachersAdminScreen() {
             <ScrollView style={styles.modalBody}>
               {modalMode === "create" && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>User ID</Text>
+                  <Text style={styles.inputLabel}>ID Pengguna</Text>
                   <TextInput
                     style={styles.input}
                     value={form.user_id}
                     onChangeText={(text) => setField("user_id", text)}
                     keyboardType="numeric"
-                    placeholder="Masukkan ID User login"
+                    placeholder="Masukkan ID Pengguna login"
                     placeholderTextColor="#9CA3AF"
                   />
                 </View>

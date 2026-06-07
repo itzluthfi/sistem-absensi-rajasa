@@ -152,7 +152,7 @@ export default function ClassesAdminScreen() {
       await importExportApi.import("classes", file);
       setImportModalVisible(false);
       await fetchRecords();
-      toast.success("Import data Excel berhasil.");
+      toast.success("Impor data Excel berhasil.");
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || "Gagal mengimpor berkas Excel.";
       const details = error.response?.data?.errors;
@@ -189,7 +189,7 @@ export default function ClassesAdminScreen() {
   const validateForm = () => {
     if (!form.class_name.trim()) return "Nama kelas wajib diisi";
     if (modalMode === "create" && !Number(form.major_id))
-      return "Major ID wajib diisi karena backend membutuhkannya";
+      return "ID Jurusan wajib diisi karena sistem membutuhkannya";
     return null;
   };
 
@@ -482,7 +482,7 @@ export default function ClassesAdminScreen() {
             <ScrollView style={styles.modalBody}>
               {modalMode === "create" && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Major ID</Text>
+                  <Text style={styles.inputLabel}>ID Jurusan</Text>
                   <TextInput
                     style={styles.input}
                     value={form.major_id}
@@ -517,7 +517,7 @@ export default function ClassesAdminScreen() {
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Homeroom Teacher ID (Wali Kelas)</Text>
+                <Text style={styles.inputLabel}>ID Wali Kelas (Guru)</Text>
                 <TextInput
                   style={styles.input}
                   value={form.homeroom_teacher_id}
