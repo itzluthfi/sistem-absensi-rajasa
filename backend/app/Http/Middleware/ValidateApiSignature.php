@@ -41,6 +41,7 @@ class ValidateApiSignature
 
         $clientId = $request->header('X-Client-ID');
         $timestamp = $request->header('X-Timestamp');
+        $deviceUuid = $request->header('X-Device-UUID', '');
         $signature = $request->header('X-Signature');
 
         if (!$clientId || !$timestamp || !$signature) {
@@ -67,7 +68,11 @@ class ValidateApiSignature
         }
 
         $secretKey = $clients[$clientId];
-        $expectedSignature = hash('sha256', $clientId . '.' . $timestamp . '.' . $secretKey);
+
+        // Hardened signature calculation: include URI, request body, and Device UUID
+        $uri = urldecode($request->getRequestUri());
+        $body = $request->getContent();
+        $expectedSignature = hash('sha256', $clientId . '.' . $timestamp . '.' . $uri . '.' . $body . '.' . $deviceUuid . '.' . $secretKey);
 
         if (!hash_equals($expectedSignature, $signature)) {
             return response()->json([

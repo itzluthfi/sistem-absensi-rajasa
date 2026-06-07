@@ -247,6 +247,18 @@ export default function StudentsAdminScreen() {
     });
   };
 
+  const handleResetDevice = (item: StudentRecord) => {
+    showConfirm("Reset Perangkat", `Reset kunci perangkat untuk siswa ${item.full_name}? Siswa akan dapat mendaftarkan perangkat HP baru saat melakukan absensi berikutnya.`, async () => {
+      try {
+        await studentsApi.resetDevice(item.id);
+        toast.success("Kunci perangkat berhasil di-reset.");
+        await fetchRecords();
+      } catch (error: any) {
+        toast.error(error.response?.data?.message || "Gagal mereset perangkat.");
+      }
+    });
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
@@ -430,6 +442,9 @@ export default function StudentsAdminScreen() {
                   <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nis || "-"}</Text>
                   <Text style={[styles.tableCell, { flex: 1.5 }]}>{item.nisn || "-"}</Text>
                   <View style={{ flex: 1, flexDirection: "row", justifyContent: "center", gap: 8 }}>
+                    <TouchableOpacity style={styles.smallButton} onPress={() => handleResetDevice(item)}>
+                      <Ionicons name="phone-portrait-outline" size={16} color="#F59E0B" />
+                    </TouchableOpacity>
                     <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
                       <Ionicons name="create-outline" size={16} color="#3B82F6" />
                     </TouchableOpacity>
@@ -456,6 +471,9 @@ export default function StudentsAdminScreen() {
                   <Text style={styles.cardMeta}>ID: {item.id}</Text>
                 </View>
                 <View style={styles.cardActions}>
+                  <TouchableOpacity style={styles.smallButton} onPress={() => handleResetDevice(item)}>
+                    <Ionicons name="phone-portrait-outline" size={18} color="#F59E0B" />
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.smallButton} onPress={() => openEdit(item)}>
                     <Ionicons name="create-outline" size={18} color="#3B82F6" />
                   </TouchableOpacity>

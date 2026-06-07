@@ -64,6 +64,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('students/promote-bulk', [StudentsController::class, 'promoteBulk']);
     });
 
+    Route::middleware('role:super_admin,admin,guru')->group(function () {
+        Route::post('students/{id}/reset-device', [StudentsController::class, 'resetDevice']);
+    });
+
     Route::middleware('role:super_admin,admin,guru,kepala_sekolah,siswa')->group(function () {
         Route::get('students', [StudentsController::class, 'index']);
         Route::get('students/{id}', [StudentsController::class, 'show']);

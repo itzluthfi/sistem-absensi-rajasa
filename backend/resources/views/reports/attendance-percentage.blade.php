@@ -6,7 +6,7 @@
     <title>Rekap Persentase Absensi SMKS Rajasa</title>
     <style>
         @page {
-            margin: 50px 45px 60px 45px;
+            margin: 30px 25px 40px 25px;
         }
         * {
             margin: 0;
@@ -15,49 +15,101 @@
         }
         body {
             font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 10px;
+            font-size: 9px;
             color: #000;
             line-height: 1.4;
         }
-        .header-box {
-            border: 2px solid #000;
-            padding: 15px;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .header-title-main {
-            font-size: 16px;
-            font-weight: bold;
-            text-transform: uppercase;
+        .kop-surat {
+            width: 100%;
+            border-collapse: collapse;
+            border: none !important;
             margin-bottom: 5px;
         }
-        .header-address {
+        .kop-surat td {
+            border: none !important;
+            padding: 0 !important;
+            vertical-align: middle;
+        }
+        .kop-logo-td {
+            width: 12%;
+            text-align: center;
+        }
+        .logo-emblem {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid #000;
+            line-height: 46px;
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            font-family: 'DejaVu Sans', Arial, sans-serif;
+            margin: 0 auto;
+        }
+        .kop-text-td {
+            width: 88%;
+            text-align: center;
+            padding-right: 50px !important;
+        }
+        .kop-title-main {
+            font-size: 10px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+        .kop-title-school {
+            font-size: 16px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+        .kop-title-status {
+            font-size: 8.5px;
+            font-weight: bold;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+        }
+        .kop-address {
+            font-size: 8px;
+            font-style: italic;
+            color: #333;
+        }
+        .kop-divider {
+            border-top: 2px solid #000;
+            border-bottom: 0.5px solid #000;
+            height: 2px;
+            margin-top: 5px;
+            margin-bottom: 12px;
+        }
+        .report-title-container {
+            text-align: center;
+            margin-bottom: 12px;
+        }
+        .report-title {
             font-size: 12px;
             font-weight: bold;
-            margin-bottom: 15px;
-        }
-        .header-title-sub {
-            font-size: 14px;
-            font-weight: bold;
             text-transform: uppercase;
-            margin-bottom: 10px;
+            text-decoration: underline;
+            margin-bottom: 3px;
         }
-        .header-academic-year {
-            font-size: 11px;
+        .report-subtitle {
+            font-size: 9.5px;
         }
         .divider {
-            border-top: 1.5px dotted #000;
-            margin: 12px 0;
+            border-top: 1px dotted #000;
+            margin: 8px 0;
             height: 0;
             width: 100%;
         }
         .metadata {
-            margin: 10px 0;
-            font-size: 11px;
-            line-height: 1.6;
+            margin: 8px 0;
+            font-size: 9.5px;
+            line-height: 1.5;
         }
         .metadata p {
-            margin-bottom: 4px;
+            margin-bottom: 3px;
         }
         .metadata strong {
             font-weight: bold;
@@ -65,8 +117,8 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
-            font-size: 10px;
+            margin-top: 10px;
+            font-size: 8.5px;
             page-break-inside: auto;
         }
         tr {
@@ -74,19 +126,22 @@
             page-break-after: auto;
         }
         th, td {
-            border: 1.5px solid #000;
-            padding: 8px 4px;
+            border: 1px solid #000;
+            padding: 5px 3px;
             vertical-align: middle;
         }
         th {
             font-weight: bold;
             text-transform: uppercase;
-            background-color: transparent;
+            background-color: #f2f2f2;
             color: #000;
             text-align: center;
         }
         td {
             color: #000;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #fafafa;
         }
         .text-center {
             text-align: center;
@@ -101,13 +156,13 @@
             width: 100%;
             border-collapse: collapse;
             border: none !important;
-            margin-top: 40px;
+            margin-top: 35px;
             page-break-inside: avoid;
         }
         .signature-table td {
             border: none !important;
             text-align: center;
-            font-size: 11px;
+            font-size: 10px;
             line-height: 1.5;
             padding: 0 20px;
         }
@@ -124,7 +179,6 @@
         .footer-page-number::after {
             content: "Halaman " counter(page) " dari " counter(pages);
         }
-    </style>
 </head>
 <body>
     @php
@@ -148,14 +202,25 @@
 
     <div class="footer-page-number"></div>
 
-    <div class="header-box">
-        <div class="header-title-main">SMKS RAJASA SURABAYA</div>
-        <div class="header-address">JL. Genteng Kali No. 27, Surabaya</div>
-        <div class="header-title-sub">LAPORAN PERSENTASE ABSENSI</div>
-        <div class="header-academic-year"><strong>Tahun Ajaran:</strong> {{ $academicYear }}</div>
-    </div>
+    <table class="kop-surat">
+        <tr>
+            <td class="kop-logo-td">
+                <div class="logo-emblem">SR</div>
+            </td>
+            <td class="kop-text-td">
+                <div class="kop-title-main">YAYASAN KARYA PEMBANGUNAN RAJASA</div>
+                <div class="kop-title-school">SMKS RAJASA SURABAYA</div>
+                <div class="kop-title-status">STATUS : TERAKREDITASI A</div>
+                <div class="kop-address">Jl. Genteng Kali No. 27, Surabaya • Telp: (031) 5344840 • Pos: 60275</div>
+            </td>
+        </tr>
+    </table>
+    <div class="kop-divider"></div>
 
-    <div class="divider"></div>
+    <div class="report-title-container">
+        <div class="report-title">LAPORAN PERSENTASE ABSENSI KEHADIRAN</div>
+        <div class="report-subtitle">Tahun Ajaran: {{ $academicYear }}</div>
+    </div>
     <div class="metadata">
         <p><strong>Nama Kelas:</strong> {{ $className }}</p>
         <p><strong>Jenis Absensi:</strong> 

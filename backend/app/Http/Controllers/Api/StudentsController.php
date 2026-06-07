@@ -302,4 +302,36 @@ class StudentsController extends BaseController
             return $this->sendError('Gagal memproses pemindahan kelas siswa: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Reset student device binding UUID
+     */
+    public function resetDevice(Request $request, $id)
+    {
+        try {
+            $user = $request->user();
+            if (!$user->hasRole(['super_admin', 'admin', 'guru', 'wali_kelas'])) {
+                return $this->sendError('Anda tidak memiliki izin untuk mereset perangkat siswa.', [], 403);
+            }
+
+            $student = Student::findOrFail($id);
+            $student->device_uuid = null;
+            $student->save();
+
+            // Audit Log
+            \App\Models\AuditLog::create([
+                'user_id' => $user->id,
+                'action' => \App\Models\AuditLog::ACTION_UPDATE,
+                'description' => "Reset device UUID for student #{$id} ({$student->full_name})",
+                'model_type' => Student::class,
+                'model_id' => $id,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent()
+            ]);
+
+            return $this->sendResponse(null, 'Perangkat siswa berhasil di-reset.');
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal mereset perangkat: ' . $e->getMessage());
+        }
+    }
 }

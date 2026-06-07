@@ -10,7 +10,7 @@ class Student extends Model
 {
     use HasFactory, Auditable;
 
-    protected $fillable = ['user_id', 'class_id', 'nisn', 'nis', 'full_name', 'gender', 'birth_place', 'birth_date', 'address', 'parent_name', 'parent_phone', 'photo', 'qr_code', 'status'];
+    protected $fillable = ['user_id', 'class_id', 'nisn', 'nis', 'full_name', 'gender', 'birth_place', 'birth_date', 'address', 'parent_name', 'parent_phone', 'photo', 'qr_code', 'status', 'device_uuid'];
 
     public function user()
     {

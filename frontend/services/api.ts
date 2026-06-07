@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
+import * as Device from 'expo-device';
+import { Platform } from 'react-native';
 
 // Configure API base URL
 export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api';
@@ -145,6 +147,30 @@ function sha256(ascii: string): string {
   return result;
 }
 
+// Get unique device UUID with persistent caching
+export const getDeviceUUID = async (): Promise<string> => {
+  try {
+    let uuid = await AsyncStorage.getItem('device_uuid');
+    if (uuid) {
+      return uuid;
+    }
+    
+    // Generate new UUID
+    if (Platform.OS === 'android' || Platform.OS === 'ios') {
+      uuid = Device.osBuildId || (Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
+    } else {
+      uuid = 'web-' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
+    
+    await AsyncStorage.setItem('device_uuid', uuid);
+    return uuid;
+  } catch (error) {
+    console.error("Gagal mendapatkan UUID perangkat:", error);
+    // Safe fallback in case storage fails
+    return 'fallback-' + Math.random().toString(36).substring(2, 15);
+  }
+};
+
 // Add auth token and security signature to requests
 api.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
@@ -158,12 +184,44 @@ api.interceptors.request.use(
     const clientId = process.env.EXPO_PUBLIC_API_CLIENT_ID || 'smks-rajasa-app';
     const secretKey = process.env.EXPO_PUBLIC_API_CLIENT_SECRET || 'rajasa_secure_secret_key_2026';
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signatureSource = `${clientId}.${timestamp}.${secretKey}`;
+    
+    // Get device UUID
+    const deviceUuid = await getDeviceUUID();
+
+    // Get URL path with query parameters
+    const fullUrl = axios.getUri(config);
+    let path = '';
+    try {
+      if (fullUrl.includes('://')) {
+        const parts = fullUrl.split('://')[1];
+        const firstSlash = parts.indexOf('/');
+        path = firstSlash !== -1 ? parts.substring(firstSlash) : '/';
+      } else {
+        path = fullUrl;
+      }
+    } catch (e) {
+      path = config.url || '';
+    }
+    const decodedPath = decodeURIComponent(path);
+
+    // Get body string (ignore multipart/form-data for file uploads)
+    let bodyString = '';
+    const contentType = config.headers ? (config.headers['Content-Type'] || config.headers['content-type'] || '') : '';
+    if (config.data && !contentType.toString().includes('multipart/form-data')) {
+      if (typeof config.data === 'string') {
+        bodyString = config.data;
+      } else {
+        bodyString = JSON.stringify(config.data);
+      }
+    }
+
+    const signatureSource = `${clientId}.${timestamp}.${decodedPath}.${bodyString}.${deviceUuid}.${secretKey}`;
     const signature = sha256(signatureSource);
 
     if (config.headers) {
       config.headers['X-Client-ID'] = clientId;
       config.headers['X-Timestamp'] = timestamp;
+      config.headers['X-Device-UUID'] = deviceUuid;
       config.headers['X-Signature'] = signature;
     }
 
@@ -271,6 +329,11 @@ export const studentsApi = {
 
   delete: async (id: number) => {
     const response = await api.delete(`/students/${id}`);
+    return response.data;
+  },
+
+  resetDevice: async (id: number) => {
+    const response = await api.post(`/students/${id}/reset-device`);
     return response.data;
   },
 

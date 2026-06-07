@@ -218,7 +218,7 @@ class ReportController extends Controller
             $to = $request->end_date ?? '-';
 
             $pdf = PDF::loadView('reports.attendance', compact('rows', 'from', 'to', 'stats'));
-            $pdf->setPaper('A4', 'landscape');
+            $pdf->setPaper('A4', 'portrait');
 
             return $pdf->download('laporan_absensi_' . now()->format('Ymd_His') . '.pdf');
         } catch (\Exception $e) {
@@ -356,6 +356,23 @@ class ReportController extends Controller
                 if ($globalTotalDays === 0) $globalTotalDays = 1;
             }
 
+            // OPTIMIZATION 1: Get presence count for all students in a single query
+            $studentIds = $students->pluck('id')->toArray();
+            $presentCounts = DB::table('attendances')
+                ->whereIn('student_id', $studentIds)
+                ->whereNull('schedule_id')
+                ->whereIn('status', ['hadir', 'telat'])
+                ->groupBy('student_id')
+                ->select('student_id', DB::raw('count(*) as count'))
+                ->pluck('count', 'student_id')
+                ->toArray();
+
+            // OPTIMIZATION 2: Pre-fetch class names if loading all classes
+            $classNamesMap = [];
+            if (!$classId) {
+                $classNamesMap = DB::table('classes')->pluck('class_name', 'id')->toArray();
+            }
+
             foreach ($students as $student) {
                 if ($classId) {
                     $tDays = $totalDays;
@@ -365,16 +382,12 @@ class ReportController extends Controller
                     if ($tDays === 0) $tDays = $globalTotalDays;
                 }
 
-                $presentCount = DB::table('attendances')
-                    ->where('student_id', $student->id)
-                    ->whereNull('schedule_id')
-                    ->whereIn('status', ['hadir', 'telat'])
-                    ->count();
+                $presentCount = $presentCounts[$student->id] ?? 0;
 
                 $percentage = round(($presentCount / $tDays) * 100, 1);
                 if ($percentage > 100) $percentage = 100.0;
 
-                $cName = $classId ? $className : (DB::table('classes')->where('id', $student->class_id)->value('class_name') ?? 'N/A');
+                $cName = $classId ? $className : ($classNamesMap[$student->class_id] ?? 'N/A');
 
                 $rows[] = (object) [
                     'nisn' => $student->nisn,
@@ -561,7 +574,7 @@ class ReportController extends Controller
             ]);
 
             $pdf = PDF::loadView('reports.attendance-percentage', compact('rows', 'className', 'reportType', 'subjectName'));
-            $pdf->setPaper('A4', 'landscape');
+            $pdf->setPaper('A4', 'portrait');
 
             return $pdf->download('rekap_kehadiran_' . str_replace(' ', '_', $className) . '_' . now()->format('Ymd_His') . '.pdf');
         } catch (\Exception $e) {

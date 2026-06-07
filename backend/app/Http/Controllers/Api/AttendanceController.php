@@ -288,6 +288,29 @@ class AttendanceController extends BaseController
     }
 
     /**
+     * Validate and bind student device UUID
+     */
+    private function validateAndBindDevice($student, $deviceUuid)
+    {
+        if (empty($deviceUuid)) {
+            return 'ID Perangkat (Device UUID) wajib disertakan untuk keperluan verifikasi keamanan.';
+        }
+
+        if (empty($student->device_uuid)) {
+            // First time check-in: Bind device
+            $student->device_uuid = $deviceUuid;
+            $student->save();
+            return true;
+        }
+
+        if ($student->device_uuid !== $deviceUuid) {
+            return 'Perangkat yang Anda gunakan tidak terdaftar untuk akun ini. Silakan hubungi Wali Kelas untuk melakukan reset perangkat.';
+        }
+
+        return true;
+    }
+
+    /**
      * Haversine formula to calculate distance between coordinates in meters
      */
     private function calculateDistance($lat1, $lon1, $lat2, $lon2)
@@ -344,6 +367,13 @@ class AttendanceController extends BaseController
                 $student = $user->student;
                 if (!$student) {
                     return $this->sendError('Data profil siswa Anda tidak ditemukan.', [], 422);
+                }
+
+                // Device UUID binding validation
+                $deviceUuid = $request->header('X-Device-UUID');
+                $deviceValidation = $this->validateAndBindDevice($student, $deviceUuid);
+                if ($deviceValidation !== true) {
+                    return $this->sendError($deviceValidation, [], 422);
                 }
             } else {
                 $student = \App\Models\Student::findOrFail($data['student_id']);
@@ -657,6 +687,14 @@ class AttendanceController extends BaseController
             }
             
             $student = $user->student;
+
+            // Device UUID binding validation
+            $deviceUuid = $request->header('X-Device-UUID');
+            $deviceValidation = $this->validateAndBindDevice($student, $deviceUuid);
+            if ($deviceValidation !== true) {
+                return $this->sendError($deviceValidation, [], 422);
+            }
+
             $today = now()->toDateString();
             
             // Check if already checked in today for school entry (schedule_id is null)
@@ -769,6 +807,14 @@ class AttendanceController extends BaseController
             }
             
             $student = $user->student;
+
+            // Device UUID binding validation
+            $deviceUuid = $request->header('X-Device-UUID');
+            $deviceValidation = $this->validateAndBindDevice($student, $deviceUuid);
+            if ($deviceValidation !== true) {
+                return $this->sendError($deviceValidation, [], 422);
+            }
+
             $today = now()->toDateString();
             
             // Check if already checked in today for school entry
@@ -877,6 +923,14 @@ class AttendanceController extends BaseController
             }
             
             $student = $user->student;
+
+            // Device UUID binding validation
+            $deviceUuid = $request->header('X-Device-UUID');
+            $deviceValidation = $this->validateAndBindDevice($student, $deviceUuid);
+            if ($deviceValidation !== true) {
+                return $this->sendError($deviceValidation, [], 422);
+            }
+
             $today = now()->toDateString();
             
             // Check if checked in today for school entry (schedule_id is null)

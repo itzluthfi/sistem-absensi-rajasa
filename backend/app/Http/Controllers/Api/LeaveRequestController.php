@@ -207,6 +207,32 @@ class LeaveRequestController extends Controller
                 'user_agent' => $request->userAgent(),
             ]);
 
+            // Send push notification to Homeroom Teacher (Wali Kelas)
+            try {
+                $studentObj = \App\Models\Student::find($studentId);
+                if ($studentObj && $studentObj->class_id) {
+                    $homeroom = \Illuminate\Support\Facades\DB::table('classes as c')
+                        ->join('teachers as t', 'c.homeroom_teacher_id', '=', 't.id')
+                        ->where('c.id', $studentObj->class_id)
+                        ->select('t.user_id')
+                        ->first();
+                    
+                    if ($homeroom && $homeroom->user_id) {
+                        $teacherUser = \App\Models\User::find($homeroom->user_id);
+                        if ($teacherUser) {
+                            $typeName = $data['permission_type'] === 'sakit' ? 'Sakit' : 'Izin';
+                            $notifMessage = "Siswa {$studentObj->full_name} mengajukan {$typeName} pada {$leave->start_date} s/d {$leave->end_date}. Alasan: {$leave->reason}.";
+                            \Illuminate\Support\Facades\Notification::send(
+                                $teacherUser,
+                                new \App\Notifications\GenericNotification($notifMessage)
+                            );
+                        }
+                    }
+                }
+            } catch (\Exception $notifEx) {
+                \Illuminate\Support\Facades\Log::warning('Failed to send leave request notification: ' . $notifEx->getMessage());
+            }
+
             return (new BaseController)->sendResponse($leave->load('student'), 'Izin berhasil diajukan', 201);
         } catch (ValidationException $e) {
             return (new BaseController)->sendValidationError($e->errors());
@@ -364,6 +390,20 @@ class LeaveRequestController extends Controller
                 'user_agent' => $request->userAgent(),
             ]);
 
+            // Send push notification to Student
+            try {
+                $studentUser = \App\Models\User::find($student->user_id);
+                if ($studentUser) {
+                    $notifMessage = "Permohonan izin Anda untuk tanggal {$leave->start_date} telah DISETUJUI oleh Wali Kelas.";
+                    \Illuminate\Support\Facades\Notification::send(
+                        $studentUser,
+                        new \App\Notifications\GenericNotification($notifMessage)
+                    );
+                }
+            } catch (\Exception $notifEx) {
+                \Illuminate\Support\Facades\Log::warning('Failed to send leave approval notification: ' . $notifEx->getMessage());
+            }
+
             return (new BaseController)->sendResponse($leave->load('student', 'approver'), 'Izin disetujui');
         } catch (\Exception $e) {
             return (new BaseController)->sendError('Gagal menyetujui izin: ' . $e->getMessage());
@@ -516,6 +556,20 @@ class LeaveRequestController extends Controller
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
+
+            // Send push notification to Student
+            try {
+                $studentUser = \App\Models\User::find($student->user_id);
+                if ($studentUser) {
+                    $notifMessage = "Permohonan izin Anda untuk tanggal {$leave->start_date} telah DITOLAK oleh Wali Kelas.";
+                    \Illuminate\Support\Facades\Notification::send(
+                        $studentUser,
+                        new \App\Notifications\GenericNotification($notifMessage)
+                    );
+                }
+            } catch (\Exception $notifEx) {
+                \Illuminate\Support\Facades\Log::warning('Failed to send leave rejection notification: ' . $notifEx->getMessage());
+            }
 
             return (new BaseController)->sendResponse($leave->load('student', 'approver'), 'Izin ditolak');
         } catch (\Exception $e) {
