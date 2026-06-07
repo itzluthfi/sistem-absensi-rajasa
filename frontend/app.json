@@ -59,7 +59,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Aplikasi membutuhkan lokasi untuk validasi area absensi"
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

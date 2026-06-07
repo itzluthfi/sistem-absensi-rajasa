@@ -22,6 +22,7 @@ import { useToast } from "../../hooks/useToast";
 import Skeleton from "../../components/ui/Skeleton";
 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 interface LeaveRequest {
   id: number;
@@ -373,17 +374,17 @@ export default function LeaveRequestScreen() {
                   onPress={() => setPermissionType("sakit")}
                 />
               </View>
-              <Input
+              <DateInput
                 label="Tanggal Mulai"
                 value={startDate}
-                onChangeText={setStartDate}
-                placeholder="YYYY-MM-DD"
+                onChangeDate={setStartDate}
+                placeholder="Pilih Tanggal Mulai"
               />
-              <Input
+              <DateInput
                 label="Tanggal Selesai"
                 value={endDate}
-                onChangeText={setEndDate}
-                placeholder="YYYY-MM-DD"
+                onChangeDate={setEndDate}
+                placeholder="Pilih Tanggal Selesai"
               />
               <Input
                 label="Alasan"
@@ -570,6 +571,111 @@ function Input({
         multiline={multiline}
         textAlignVertical={multiline ? "top" : "center"}
       />
+    </View>
+  );
+}
+
+interface DateInputProps {
+  label: string;
+  value: string;
+  onChangeDate: (date: string) => void;
+  placeholder: string;
+}
+
+function DateInput({ label, value, onChangeDate, placeholder }: DateInputProps) {
+  const [showPicker, setShowPicker] = useState(false);
+
+  // Format YYYY-MM-DD to Indonesian date format e.g. "12 Desember 2026"
+  const getFormattedDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      return d.toLocaleDateString("id-ID", {
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={styles.inputSection}>
+        <Text style={styles.inputLabel}>{label}</Text>
+        <input
+          type="date"
+          value={value}
+          onChange={(e) => onChangeDate(e.target.value)}
+          onClick={(e) => {
+            try {
+              (e.target as any).showPicker();
+            } catch (err) {
+              console.log("showPicker not supported", err);
+            }
+          }}
+          onFocus={(e) => {
+            try {
+              (e.target as any).showPicker();
+            } catch (err) {
+              console.log("showPicker not supported", err);
+            }
+          }}
+          style={{
+            backgroundColor: "#F9FAFB",
+            borderWidth: 1,
+            borderStyle: 'solid',
+            borderColor: "#D1D5DB",
+            borderRadius: 10,
+            padding: 14,
+            fontSize: 16,
+            width: '100%',
+            boxSizing: 'border-box',
+            fontFamily: 'inherit',
+            color: '#1F2937',
+          }}
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.inputSection}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <TouchableOpacity
+        style={[styles.input, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}
+        onPress={() => setShowPicker(true)}
+      >
+        <Text style={{ fontSize: 16, color: value ? "#1F2937" : "#9CA3AF", fontWeight: value ? "600" : "400" }}>
+          {value ? getFormattedDate(value) : placeholder}
+        </Text>
+        <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+      </TouchableOpacity>
+
+      {showPicker && (
+        <DateTimePicker
+          value={value ? (function() {
+            const parts = value.split('-');
+            return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          })() : new Date()}
+          mode="date"
+          display="default"
+          onChange={(event, selectedDate) => {
+            setShowPicker(false);
+            if (selectedDate) {
+              const year = selectedDate.getFullYear();
+              const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+              const day = String(selectedDate.getDate()).padStart(2, '0');
+              const dateString = `${year}-${month}-${day}`;
+              onChangeDate(dateString);
+            }
+          }}
+        />
+      )}
     </View>
   );
 }
