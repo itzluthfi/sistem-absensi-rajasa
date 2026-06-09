@@ -13,10 +13,11 @@ import {
   Image,
   useWindowDimensions,
   Platform,
+  Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { leaveRequestsApi } from "../../services/api";
+import { leaveRequestsApi, API_BASE_URL } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useToast } from "../../hooks/useToast";
 import Skeleton from "../../components/ui/Skeleton";
@@ -42,6 +43,13 @@ interface LeaveRequest {
     nis?: string;
   } | null;
 }
+
+const getAttachmentUrl = (path?: string) => {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const storageBaseUrl = API_BASE_URL.replace(/\/api$/, "");
+  return `${storageBaseUrl}/storage/${path}`;
+};
 
 export default function LeaveRequestScreen() {
   const { hasRole } = useAuthStore();
@@ -142,21 +150,37 @@ export default function LeaveRequestScreen() {
   };
 
   const handleDecision = async (id: number, decision: "approve" | "reject") => {
-    try {
-      if (decision === "approve") await leaveRequestsApi.approve(id);
-      else await leaveRequestsApi.reject(id);
-      if (decision === "approve") {
-        toast.success("Pengajuan izin disetujui.");
-      } else {
-        toast.info("Pengajuan izin ditolak.");
-      }
-      setSelectedRequest(null);
-      fetchLeaveRequests();
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.message || "Gagal memproses izin",
-      );
-    }
+    const actionText = decision === "approve" ? "menyetujui" : "menolak";
+    const titleText = decision === "approve" ? "Setujui Pengajuan" : "Tolak Pengajuan";
+
+    Alert.alert(
+      titleText,
+      `Apakah Anda yakin ingin ${actionText} pengajuan izin/sakit ini?`,
+      [
+        { text: "Batal", style: "cancel" },
+        {
+          text: decision === "approve" ? "Setujui" : "Tolak",
+          style: decision === "approve" ? "default" : "destructive",
+          onPress: async () => {
+            try {
+              if (decision === "approve") await leaveRequestsApi.approve(id);
+              else await leaveRequestsApi.reject(id);
+              if (decision === "approve") {
+                toast.success("Pengajuan izin disetujui.");
+              } else {
+                toast.info("Pengajuan izin ditolak.");
+              }
+              setSelectedRequest(null);
+              fetchLeaveRequests();
+            } catch (error: any) {
+              toast.error(
+                error.response?.data?.message || "Gagal memproses izin",
+              );
+            }
+          }
+        }
+      ]
+    );
   };
 
   const resetForm = () => {
@@ -474,6 +498,76 @@ export default function LeaveRequestScreen() {
                       "id-ID",
                     )}
                   />
+
+                  {/* Foto Lampiran Section */}
+                  <View style={{ marginTop: 16, borderTopWidth: 1, borderTopColor: "#E5E7EB", paddingTop: 16 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#475569", marginBottom: 10 }}>
+                      Lampiran / Surat Dokter / Bukti:
+                    </Text>
+                    {selectedRequest.attachment ? (
+                      <View style={{ 
+                        borderRadius: 12, 
+                        overflow: 'hidden', 
+                        borderWidth: 1, 
+                        borderColor: '#E2E8F0',
+                        backgroundColor: '#F8FAFC',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 10
+                      }}>
+                        <Image
+                          source={{ uri: getAttachmentUrl(selectedRequest.attachment) }}
+                          style={{ width: '100%', height: 200, borderRadius: 8, backgroundColor: '#F1F5F9' }}
+                          resizeMode="contain"
+                        />
+                        <TouchableOpacity
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            marginTop: 10,
+                            backgroundColor: '#EFF6FF',
+                            paddingVertical: 8,
+                            paddingHorizontal: 16,
+                            borderRadius: 8,
+                            borderWidth: 1,
+                            borderColor: '#BFDBFE',
+                            alignSelf: 'stretch',
+                            justifyContent: 'center'
+                          }}
+                          onPress={() => {
+                            const url = getAttachmentUrl(selectedRequest.attachment);
+                            if (url) {
+                              Linking.openURL(url).catch(() => {
+                                Alert.alert("Gagal", "Gagal membuka file lampiran.");
+                              });
+                            }
+                          }}
+                        >
+                          <Ionicons name="eye-outline" size={16} color="#2563EB" />
+                          <Text style={{ fontSize: 12, fontWeight: '700', color: '#2563EB' }}>
+                            Lihat Lampiran Penuh
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={{
+                        paddingVertical: 24,
+                        backgroundColor: "#F8FAFC",
+                        borderRadius: 12,
+                        borderWidth: 1.5,
+                        borderStyle: "dashed",
+                        borderColor: "#CBD5E1",
+                        alignItems: "center",
+                        justifyContent: "center"
+                      }}>
+                        <Ionicons name="image-outline" size={24} color="#94A3B8" style={{ marginBottom: 6 }} />
+                        <Text style={{ fontSize: 13, fontWeight: "800", color: "#94A3B8", letterSpacing: 0.5 }}>
+                          -- TIDAK ADA FOTO --
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </ScrollView>
                 {canApprove &&
                   selectedRequest.approval_status === "pending" && (

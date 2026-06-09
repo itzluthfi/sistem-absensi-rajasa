@@ -113,6 +113,12 @@ export default function AttendanceScreen() {
     try {
       const studentId = (user?.student_info?.id || 0) as number;
 
+      if (!activeSchedule?.active_session) {
+        toast.error("Sesi presensi tidak ditemukan atau sudah ditutup.");
+        setIsLoadingSession(false);
+        return;
+      }
+
       // Request Location for GPS validation
       const coords = await getGPSLocation();
       if (!coords) {
@@ -121,7 +127,7 @@ export default function AttendanceScreen() {
       }
 
       const result = await scanTeacherQR({
-        session_id: activeSchedule!.active_session!.id,
+        session_id: activeSchedule.active_session.id,
         student_id: studentId,
         qr_token: "", // Ignored by backend when require_qr is false
         location: coords,
@@ -534,8 +540,12 @@ export default function AttendanceScreen() {
 
   const doCloseNow = async () => {
     setShowCloseModal(false);
+    if (!activeSchedule?.active_session) {
+      toast.error("Sesi presensi tidak ditemukan atau sudah ditutup.");
+      return;
+    }
     const subjectName = activeSchedule?.subject?.subject_name || "Kelas";
-    const res = await closeAttendanceSession(activeSchedule!.active_session!.id);
+    const res = await closeAttendanceSession(activeSchedule.active_session.id);
     if (res.success) {
       toast.success(` Sesi presensi ${subjectName} berhasil ditutup.`);
       if (autoCloseTimer) { clearTimeout(autoCloseTimer); setAutoCloseTimer(null); }
@@ -547,6 +557,10 @@ export default function AttendanceScreen() {
   };
 
   const doScheduleClose = () => {
+    if (!activeSchedule?.active_session) {
+      toast.error("Sesi presensi tidak ditemukan atau sudah ditutup.");
+      return;
+    }
     const subjectName = activeSchedule?.subject?.subject_name || "Kelas";
     const h = parseInt(schedHour, 10);
     const m = parseInt(schedMinute, 10);
@@ -563,7 +577,7 @@ export default function AttendanceScreen() {
       return;
     }
     const delayMs = target.getTime() - now.getTime();
-    const sessionId = activeSchedule!.active_session!.id;
+    const sessionId = activeSchedule.active_session.id;
     // Cancel any existing timer
     if (autoCloseTimer) clearTimeout(autoCloseTimer);
     const timer = setTimeout(async () => {
@@ -718,7 +732,7 @@ export default function AttendanceScreen() {
         <View style={[styles.centeredContainer, { paddingBottom }]}>
           <FuturisticLoader text="Menghubungkan ke Sesi Kelas" />
         </View>
-      ) : activeSchedule ? (
+      ) : (activeSchedule && activeSchedule.active_session) ? (
         // ACTIVE SESSION IS OPEN
         isSiswa ? (
           // SISWA VIEW FOR ACTIVE SESSION

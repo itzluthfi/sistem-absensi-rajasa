@@ -98,29 +98,34 @@ class FcmService
         }
 
         foreach ($recipients as $token) {
-            $payload = [
-                'message' => [
-                    'token' => $token,
+            $message = [
+                'token' => $token,
+                'notification' => [
+                    'title' => $title,
+                    'body' => $body,
+                ],
+                'android' => [
+                    'priority' => 'HIGH',
                     'notification' => [
-                        'title' => $title,
-                        'body' => $body,
+                        'sound' => 'default',
                     ],
-                    'data' => $formattedData,
-                    'android' => [
-                        'notification' => [
+                ],
+                'apns' => [
+                    'payload' => [
+                        'aps' => [
                             'sound' => 'default',
-                            'priority' => 'high',
+                            'badge' => 1,
                         ],
                     ],
-                    'apns' => [
-                        'payload' => [
-                            'aps' => [
-                                'sound' => 'default',
-                                'badge' => 1,
-                            ],
-                        ],
-                    ],
-                ]
+                ],
+            ];
+
+            if (!empty($formattedData)) {
+                $message['data'] = $formattedData;
+            }
+
+            $payload = [
+                'message' => $message
             ];
 
             try {
