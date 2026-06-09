@@ -12,6 +12,7 @@ Sistem Absensi Digital berbasis mobile untuk **SMKS Rajasa Surabaya** - Aplikasi
 - [Deskripsi](#-deskripsi)
 - [Karakteristik SMKS Rajasa](#-karakteristik-smks-rajasa)
 - [Alur Absensi Hibrida](#-alur-absensi-hibrida)
+- [Fitur Keamanan, Performa & UX Terbaru](#-fitur-keamanan-performa--ux-terbaru)
 - [Tech Stack](#-tech-stack)
 - [Struktur Database](#-struktur-database)
 - [Relasi Tabel](#-relasi-tabel)
@@ -59,6 +60,39 @@ Sistem menyediakan metode absensi hibrida dinamis di dalam kelas:
 * **Opsi 2: Guru Scan QR Siswa (Cadangan)**:
   1. Siswa menekan **"Tampilkan QR Absen Saya"** di HP-nya yang menghasilkan token unik berbatas waktu.
   2. Guru mengaktifkan kamera pemindai di HP Guru untuk men-scan QR tersebut. Kehadiran tercatat instan di HP siswa.
+
+---
+
+## ⚡ Fitur Keamanan, Performa & UX Terbaru
+
+Sistem absensi ini telah ditingkatkan dengan serangkaian fitur keamanan tingkat tinggi, optimalisasi database, serta penyempurnaan pengalaman pengguna (UX):
+
+1. **🔑 Verifikasi Biometrik (Sidik Jari / Face ID)**:
+   - Sebelum siswa dapat melakukan *Daily Check-in*, memindai QR Guru, atau menampilkan QR personal mereka, aplikasi akan memicu verifikasi biometrik native (`expo-local-authentication`).
+   - Skenario ini secara absolut mencegah kecurangan penitipan HP/akun antarsiswa.
+   - Sistem secara otomatis menggunakan pola/sandi/PIN layar kunci HP jika biometrik tidak didaftarkan, dan dilewati (bypass) secara aman pada platform web browser.
+
+2. **📱 Student Device Binding (Satu Akun Satu HP)**:
+   - Saat pertama kali siswa melakukan absensi di suatu perangkat mobile, UUID perangkat tersebut akan dikunci (*bound*) ke akun siswa.
+   - Jika siswa mencoba login dan absen menggunakan ponsel lain, sistem akan memblokir tindakan tersebut dengan pesan kesalahan meminta reset perangkat.
+   - Admin atau Guru dapat mereset kunci perangkat siswa secara aman melalui tombol reset perangkat di panel kelola data siswa di admin dashboard.
+
+3. **📅 Pembatasan Persetujuan & Visibilitas Izin Berdasarkan Jadwal Mengajar**:
+   - Guru pengajar hanya dapat melihat, menyetujui, atau menolak pengajuan surat izin siswa jika guru tersebut memiliki jadwal mengajar di kelas siswa terkait pada setidaknya salah satu hari/tanggal dalam rentang pengajuan izin.
+   - Data izin siswa yang tidak diajar oleh guru pada tanggal tersebut otomatis disembunyikan dari daftar (`index`) maupun halaman detail (`show`).
+   - Admin dan Kepala Sekolah tetap dibebaskan (bypass) untuk dapat melihat dan mengelola seluruh data izin.
+
+4. **📢 Penyaluran Notifikasi Pengajuan Izin Presisi**:
+   - Saat siswa mengirim pengajuan izin baru, push notification FCM instan disalurkan secara spesifik kepada seluruh guru yang mengajar di kelas siswa tersebut pada hari/tanggal izin yang diajukan, beserta seluruh admin sistem.
+   - Siswa menerima push notification konfirmasi instan saat izin disetujui atau ditolak oleh pihak sekolah.
+
+5. **⚡ Optimalisasi Database & Pengarsipan Log Otomatis**:
+   - Menambahkan indeks komposit di tabel database utama (`attendances`) untuk performa rendering rekap dan laporan dashboard yang sangat cepat.
+   - Membuat Artisan Command `app:archive-attendances` untuk memindahkan data kehadiran lampau (di atas 6 bulan) secara berkala ke tabel `attendance_archives` demi menjaga ukuran database utama tetap ringkas dan responsif.
+
+6. **📸 Peningkatan UX Scanner & Notifikasi Instan Piket**:
+   - Dilengkapi lampu flash (torch toggle) dan garis pemindaian animasi laser pada layar kamera pemindai QR.
+   - Mengirimkan push notifikasi FCM instan ke HP siswa sesaat setelah petugas piket melakukan pemindaian kedatangan gerbang masuk sekolah sebagai bukti/karcis kehadiran terverifikasi.
 
 ---
 

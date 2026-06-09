@@ -17,7 +17,8 @@
       "bundleIdentifier": "com.smksrajasa.absensi",
       "infoPlist": {
         "NSCameraUsageDescription": "Aplikasi membutuhkan akses kamera untuk memindai QR Code absensi",
-        "NSLocationWhenInUseUsageDescription": "Aplikasi membutuhkan lokasi untuk validasi area absensi"
+        "NSLocationWhenInUseUsageDescription": "Aplikasi membutuhkan lokasi untuk validasi area absensi",
+        "NSFaceIDUsageDescription": "Aplikasi membutuhkan izin Face ID untuk verifikasi kehadiran Anda."
       }
     },
     "android": {

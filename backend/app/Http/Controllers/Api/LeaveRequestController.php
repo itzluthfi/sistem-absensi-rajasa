@@ -40,14 +40,38 @@ class LeaveRequestController extends Controller
             } elseif ($user->hasRole('guru') && !$user->hasRole(['super_admin', 'admin', 'kepala_sekolah'])) {
                 $teacher = $user->teacher;
                 if ($teacher) {
-                    // Get all class IDs taught by this teacher from schedules
-                    $classIds = \Illuminate\Support\Facades\DB::table('schedules')
-                        ->where('teacher_id', $teacher->id)
-                        ->pluck('class_id')
-                        ->unique()
-                        ->toArray();
+                    $driver = \Illuminate\Support\Facades\DB::connection()->getDriverName();
                     
-                    $query->whereIn('students.class_id', $classIds);
+                    $query->whereExists(function ($subQuery) use ($teacher, $driver) {
+                        $subQuery->select(\Illuminate\Support\Facades\DB::raw(1))
+                            ->from('schedules')
+                            ->whereColumn('schedules.class_id', 'students.class_id')
+                            ->where('schedules.teacher_id', $teacher->id);
+                            
+                        if ($driver === 'sqlite') {
+                            $subQuery->whereExists(function ($numQuery) {
+                                $numQuery->select(\Illuminate\Support\Facades\DB::raw(1))
+                                    ->from(\Illuminate\Support\Facades\DB::raw('(SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) as numbers'))
+                                    ->whereRaw('numbers.n <= (julianday(leave_requests.end_date) - julianday(leave_requests.start_date))')
+                                    ->whereRaw("CASE strftime('%w', date(leave_requests.start_date, '+' || numbers.n || ' days'))
+                                        WHEN '0' THEN 'Sunday'
+                                        WHEN '1' THEN 'Monday'
+                                        WHEN '2' THEN 'Tuesday'
+                                        WHEN '3' THEN 'Wednesday'
+                                        WHEN '4' THEN 'Thursday'
+                                        WHEN '5' THEN 'Friday'
+                                        WHEN '6' THEN 'Saturday'
+                                    END = schedules.day_name");
+                            });
+                        } else {
+                            $subQuery->whereExists(function ($numQuery) {
+                                $numQuery->select(\Illuminate\Support\Facades\DB::raw(1))
+                                    ->from(\Illuminate\Support\Facades\DB::raw('(SELECT 0 AS n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6) as numbers'))
+                                    ->whereRaw('numbers.n <= DATEDIFF(leave_requests.end_date, leave_requests.start_date)')
+                                    ->whereRaw('DAYNAME(DATE_ADD(leave_requests.start_date, INTERVAL numbers.n DAY)) = schedules.day_name');
+                            });
+                        }
+                    });
                 } else {
                     $empty = new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20);
                     return (new BaseController)->sendResponse($empty, 'Daftar izin');
@@ -116,6 +140,22 @@ class LeaveRequestController extends Controller
 
             if (!$item) {
                 return (new BaseController)->sendError('Izin tidak ditemukan.', [], 404);
+            }
+
+            // Teacher validation (check if they teach the student's class on the days of the leave request)
+            if ($user->hasRole('guru') && !$user->hasRole(['super_admin', 'admin', 'kepala_sekolah'])) {
+                $teacher = $user->teacher;
+                if (!$teacher) {
+                    return (new BaseController)->sendError('Data guru Anda tidak ditemukan.', [], 403);
+                }
+                
+                $studentClassId = \Illuminate\Support\Facades\DB::table('students')
+                    ->where('id', $item->student_id)
+                    ->value('class_id');
+                
+                if (!$this->teacherTeachesOnLeaveDays($teacher->id, $studentClassId, $item->start_date, $item->end_date)) {
+                    return (new BaseController)->sendError('Anda tidak mengajar di kelas siswa ini pada rentang tanggal surat izin tersebut.', [], 403);
+                }
             }
 
             // Log the view
@@ -207,26 +247,40 @@ class LeaveRequestController extends Controller
                 'user_agent' => $request->userAgent(),
             ]);
 
-            // Send push notification to Homeroom Teacher (Wali Kelas)
+            // Send push notification to Teaching Teachers in the range and Admins
             try {
                 $studentObj = \App\Models\Student::find($studentId);
                 if ($studentObj && $studentObj->class_id) {
-                    $homeroom = \Illuminate\Support\Facades\DB::table('classes as c')
-                        ->join('teachers as t', 'c.homeroom_teacher_id', '=', 't.id')
-                        ->where('c.id', $studentObj->class_id)
-                        ->select('t.user_id')
-                        ->first();
+                    $startDate = \Carbon\Carbon::parse($leave->start_date);
+                    $endDate = \Carbon\Carbon::parse($leave->end_date);
                     
-                    if ($homeroom && $homeroom->user_id) {
-                        $teacherUser = \App\Models\User::find($homeroom->user_id);
-                        if ($teacherUser) {
-                            $typeName = $data['permission_type'] === 'sakit' ? 'Sakit' : 'Izin';
-                            $notifMessage = "Siswa {$studentObj->full_name} mengajukan {$typeName} pada {$leave->start_date} s/d {$leave->end_date}. Alasan: {$leave->reason}.";
-                            \Illuminate\Support\Facades\Notification::send(
-                                $teacherUser,
-                                new \App\Notifications\GenericNotification($notifMessage)
-                            );
-                        }
+                    $dayNames = [];
+                    for ($date = clone $startDate; $date->lte($endDate); $date->addDay()) {
+                        $dayNames[] = $date->format('l');
+                    }
+                    $dayNames = array_unique($dayNames);
+                    
+                    $teacherUserIds = \Illuminate\Support\Facades\DB::table('schedules')
+                        ->join('teachers', 'schedules.teacher_id', '=', 'teachers.id')
+                        ->where('schedules.class_id', $studentObj->class_id)
+                        ->whereIn('schedules.day_name', $dayNames)
+                        ->pluck('teachers.user_id')
+                        ->unique()
+                        ->toArray();
+                        
+                    $teacherUsers = \App\Models\User::whereIn('id', $teacherUserIds)->get();
+                    $adminUsers = \App\Models\User::role(['super_admin', 'admin'])->get();
+                    
+                    $usersToNotify = $teacherUsers->merge($adminUsers)->unique('id');
+                    
+                    if ($usersToNotify->isNotEmpty()) {
+                        $typeName = $data['permission_type'] === 'sakit' ? 'Sakit' : 'Izin';
+                        $notifMessage = "Siswa {$studentObj->full_name} mengajukan {$typeName} pada {$leave->start_date} s/d {$leave->end_date}. Alasan: {$leave->reason}.";
+                        
+                        \Illuminate\Support\Facades\Notification::send(
+                            $usersToNotify,
+                            new \App\Notifications\GenericNotification($notifMessage)
+                        );
                     }
                 }
             } catch (\Exception $notifEx) {
@@ -253,7 +307,7 @@ class LeaveRequestController extends Controller
 
             $leave = LeaveRequest::findOrFail($id);
 
-            // Teacher validation (check if they teach the student's class)
+            // Teacher validation (check if they teach the student's class on the days of the leave request)
             if ($user->hasRole('guru') && !$user->hasRole(['super_admin', 'admin', 'kepala_sekolah'])) {
                 $teacher = $user->teacher;
                 if (!$teacher) {
@@ -264,13 +318,8 @@ class LeaveRequestController extends Controller
                     ->where('id', $leave->student_id)
                     ->value('class_id');
                 
-                $teachesClass = \Illuminate\Support\Facades\DB::table('schedules')
-                    ->where('teacher_id', $teacher->id)
-                    ->where('class_id', $studentClassId)
-                    ->exists();
-                
-                if (!$teachesClass) {
-                    return (new BaseController)->sendError('Anda tidak mengajar di kelas siswa ini.', [], 403);
+                if (!$this->teacherTeachesOnLeaveDays($teacher->id, $studentClassId, $leave->start_date, $leave->end_date)) {
+                    return (new BaseController)->sendError('Anda tidak mengajar di kelas siswa ini pada rentang tanggal surat izin tersebut.', [], 403);
                 }
             }
 
@@ -394,7 +443,7 @@ class LeaveRequestController extends Controller
             try {
                 $studentUser = \App\Models\User::find($student->user_id);
                 if ($studentUser) {
-                    $notifMessage = "Permohonan izin Anda untuk tanggal {$leave->start_date} telah DISETUJUI oleh Wali Kelas.";
+                    $notifMessage = "Permohonan izin Anda untuk tanggal {$leave->start_date} telah DISETUJUI oleh pihak sekolah.";
                     \Illuminate\Support\Facades\Notification::send(
                         $studentUser,
                         new \App\Notifications\GenericNotification($notifMessage)
@@ -422,7 +471,7 @@ class LeaveRequestController extends Controller
 
             $leave = LeaveRequest::findOrFail($id);
 
-            // Teacher validation (check if they teach the student's class)
+            // Teacher validation (check if they teach the student's class on the days of the leave request)
             if ($user->hasRole('guru') && !$user->hasRole(['super_admin', 'admin', 'kepala_sekolah'])) {
                 $teacher = $user->teacher;
                 if (!$teacher) {
@@ -433,13 +482,8 @@ class LeaveRequestController extends Controller
                     ->where('id', $leave->student_id)
                     ->value('class_id');
                 
-                $teachesClass = \Illuminate\Support\Facades\DB::table('schedules')
-                    ->where('teacher_id', $teacher->id)
-                    ->where('class_id', $studentClassId)
-                    ->exists();
-                
-                if (!$teachesClass) {
-                    return (new BaseController)->sendError('Anda tidak mengajar di kelas siswa ini.', [], 403);
+                if (!$this->teacherTeachesOnLeaveDays($teacher->id, $studentClassId, $leave->start_date, $leave->end_date)) {
+                    return (new BaseController)->sendError('Anda tidak mengajar di kelas siswa ini pada rentang tanggal surat izin tersebut.', [], 403);
                 }
             }
 
@@ -561,7 +605,7 @@ class LeaveRequestController extends Controller
             try {
                 $studentUser = \App\Models\User::find($student->user_id);
                 if ($studentUser) {
-                    $notifMessage = "Permohonan izin Anda untuk tanggal {$leave->start_date} telah DITOLAK oleh Wali Kelas.";
+                    $notifMessage = "Permohonan izin Anda untuk tanggal {$leave->start_date} telah DITOLAK oleh pihak sekolah.";
                     \Illuminate\Support\Facades\Notification::send(
                         $studentUser,
                         new \App\Notifications\GenericNotification($notifMessage)
@@ -575,5 +619,23 @@ class LeaveRequestController extends Controller
         } catch (\Exception $e) {
             return (new BaseController)->sendError('Gagal menolak izin.');
         }
+    }
+
+    private function teacherTeachesOnLeaveDays($teacherId, $classId, $startDateStr, $endDateStr)
+    {
+        $startDate = \Carbon\Carbon::parse($startDateStr);
+        $endDate = \Carbon\Carbon::parse($endDateStr);
+        
+        $dayNames = [];
+        for ($date = clone $startDate; $date->lte($endDate); $date->addDay()) {
+            $dayNames[] = $date->format('l');
+        }
+        $dayNames = array_unique($dayNames);
+        
+        return \Illuminate\Support\Facades\DB::table('schedules')
+            ->where('teacher_id', $teacherId)
+            ->where('class_id', $classId)
+            ->whereIn('day_name', $dayNames)
+            ->exists();
     }
 }

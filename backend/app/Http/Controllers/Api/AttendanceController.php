@@ -304,7 +304,7 @@ class AttendanceController extends BaseController
         }
 
         if ($student->device_uuid !== $deviceUuid) {
-            return 'Perangkat yang Anda gunakan tidak terdaftar untuk akun ini. Silakan hubungi Wali Kelas untuk melakukan reset perangkat.';
+            return 'Perangkat yang Anda gunakan tidak terdaftar untuk akun ini. Silakan hubungi Guru atau Admin untuk melakukan reset perangkat.';
         }
 
         return true;

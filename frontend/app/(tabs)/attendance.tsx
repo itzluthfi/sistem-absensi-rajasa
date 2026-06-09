@@ -14,6 +14,7 @@ import {
   Linking,
   Animated,
   Vibration,
+  Platform,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "@react-navigation/native";
@@ -30,8 +31,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FuturisticLoader from "../../components/ui/FuturisticLoader";
 import ShimmerButton from "../../components/ui/ShimmerButton";
 import { useToast } from "../../hooks/useToast";
+import { authenticateWithBiometrics } from "../../utils/biometrics";
 import NotificationBell from "../../components/ui/NotificationBell";
-import { Platform } from "react-native";
 
 export default function AttendanceScreen() {
   const { user } = useAuthStore();
@@ -111,6 +112,14 @@ export default function AttendanceScreen() {
   const handleSiswaSelfClick = async () => {
     setIsLoadingSession(true);
     try {
+      // Verifikasi biometrik sebelum melakukan Klik Mandiri mapel
+      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk presensi kelas");
+      if (!isAuthed) {
+        toast.error("Autentikasi biometrik dibatalkan.");
+        setIsLoadingSession(false);
+        return;
+      }
+
       const studentId = (user?.student_info?.id || 0) as number;
 
       if (!activeSchedule?.active_session) {
@@ -596,6 +605,25 @@ export default function AttendanceScreen() {
     toast.success(`⏰ Presensi akan otomatis ditutup pukul ${schedHour}:${schedMinute} (${mins} menit lagi).`);
   };
 
+  const handleStartScanGuru = async () => {
+    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik sebelum melakukan scan QR Guru");
+    if (isAuthed) {
+      setStudentOpsi("scan_guru");
+      setScanMode("siswa_scan_guru");
+    } else {
+      toast.error("Autentikasi biometrik dibatalkan.");
+    }
+  };
+
+  const handleShowMyQr = async () => {
+    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik sebelum menampilkan QR Code Anda");
+    if (isAuthed) {
+      setStudentOpsi("tunjuk_qr");
+    } else {
+      toast.error("Autentikasi biometrik dibatalkan.");
+    }
+  };
+
   // Camera permissions view (fullscreen for students)
   if (isSiswa && scanMode === "siswa_scan_guru") {
     if (!permission) {
@@ -841,10 +869,7 @@ export default function AttendanceScreen() {
                 {/* Opsi 1: Scan Guru */}
                 <TouchableOpacity
                   style={styles.opsiCard}
-                  onPress={() => {
-                    setStudentOpsi("scan_guru");
-                    setScanMode("siswa_scan_guru");
-                  }}
+                  onPress={handleStartScanGuru}
                 >
                   <View
                     style={[
@@ -869,7 +894,7 @@ export default function AttendanceScreen() {
                 {/* Opsi 2: Tampilkan QR */}
                 <TouchableOpacity
                   style={styles.opsiCard}
-                  onPress={() => setStudentOpsi("tunjuk_qr")}
+                  onPress={handleShowMyQr}
                 >
                   <View
                     style={[

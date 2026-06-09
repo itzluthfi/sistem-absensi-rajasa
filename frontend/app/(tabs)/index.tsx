@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuthStore } from "../../store/authStore";
 import { useToast } from "../../hooks/useToast";
+import { authenticateWithBiometrics } from "../../utils/biometrics";
 import {
   useAttendanceStore,
   type ScheduleRecord,
@@ -395,6 +396,14 @@ export default function HomeScreen() {
   const handleDailyCheckIn = async () => {
     setDailyCheckInLoading(true);
     try {
+      // Verifikasi biometrik sebelum absen masuk harian
+      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk absen masuk sekolah");
+      if (!isAuthed) {
+        toast.error("Autentikasi biometrik dibatalkan.");
+        setDailyCheckInLoading(false);
+        return;
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         toast.error("Akses lokasi ditolak. Kami memerlukan izin lokasi untuk memverifikasi Anda berada di area sekolah.");
@@ -444,6 +453,14 @@ export default function HomeScreen() {
   const handleDailyCheckOut = async () => {
     setDailyCheckOutLoading(true);
     try {
+      // Verifikasi biometrik sebelum absen pulang harian
+      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk absen pulang sekolah");
+      if (!isAuthed) {
+        toast.error("Autentikasi biometrik dibatalkan.");
+        setDailyCheckOutLoading(false);
+        return;
+      }
+
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         toast.error("Akses lokasi ditolak. Kami memerlukan izin lokasi untuk memverifikasi Anda berada di area sekolah.");
@@ -477,6 +494,13 @@ export default function HomeScreen() {
   };
 
   const fetchMyQrCode = async () => {
+    // Verifikasi biometrik sebelum menampilkan QR Code personal
+    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk menampilkan kartu QR Anda");
+    if (!isAuthed) {
+      toast.error("Autentikasi biometrik dibatalkan.");
+      return;
+    }
+
     setLoadingQr(true);
     try {
       const data = await studentsApi.getMyQRCode();
@@ -491,6 +515,13 @@ export default function HomeScreen() {
   };
 
   const handleOpenScanner = async () => {
+    // Verifikasi biometrik sebelum membuka scanner QR Gerbang
+    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk memindai QR Gerbang");
+    if (!isAuthed) {
+      toast.error("Autentikasi biometrik dibatalkan.");
+      return;
+    }
+
     if (!cameraPermission || !cameraPermission.granted) {
       const res = await requestCameraPermission();
       if (!res.granted) {

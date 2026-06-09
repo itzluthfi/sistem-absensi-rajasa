@@ -12,3 +12,8 @@ Artisan::command('inspire', function () {
 Schedule::command('app:send-attendance-reminders')
     ->timezone('Asia/Jakarta')
     ->dailyAt('07:15');
+
+// Archive old attendance records older than 6 months on the 1st of every month
+Schedule::command('app:archive-attendances --older-than-months=6')
+    ->timezone('Asia/Jakarta')
+    ->monthly();
