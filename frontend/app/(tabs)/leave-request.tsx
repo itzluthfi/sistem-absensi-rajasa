@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,7 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { leaveRequestsApi, API_BASE_URL } from "../../services/api";
+import { leaveRequestsApi, API_BASE_URL, studentsApi } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useToast } from "../../hooks/useToast";
 import Skeleton from "../../components/ui/Skeleton";
@@ -78,9 +78,37 @@ export default function LeaveRequestScreen() {
   const canApprove = hasRole(["guru", "admin", "super_admin"]);
   const isSiswa = hasRole(["siswa"]);
 
+  const [students, setStudents] = useState<any[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(null);
+  const [showStudentDropdown, setShowStudentDropdown] = useState(false);
+
+  const filteredStudents = useMemo(() => {
+    const term = studentSearch.trim().toLowerCase();
+    if (!term) return [];
+    return students.filter(
+      (s: any) =>
+        (s.full_name || "").toLowerCase().includes(term) ||
+        (s.nis || "").toLowerCase().includes(term)
+    ).slice(0, 10);
+  }, [students, studentSearch]);
+
   useEffect(() => {
     fetchLeaveRequests();
+    if (!isSiswa) {
+      fetchStudents();
+    }
   }, []);
+
+  const fetchStudents = async () => {
+    try {
+      const response = await studentsApi.getAll({ all: true });
+      const payload = response.data?.data ?? response.data ?? response ?? [];
+      setStudents(Array.isArray(payload) ? payload : []);
+    } catch (error) {
+      console.error("Gagal memuat data siswa:", error);
+    }
+  };
 
   const fetchLeaveRequests = async () => {
     setIsLoading(true);
@@ -115,6 +143,10 @@ export default function LeaveRequestScreen() {
       toast.error("Tanggal dan alasan wajib diisi.");
       return;
     }
+    if (!isSiswa && !selectedStudentId) {
+      toast.error("Silakan pilih siswa terlebih dahulu.");
+      return;
+    }
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -122,6 +154,9 @@ export default function LeaveRequestScreen() {
       formData.append("start_date", startDate);
       formData.append("end_date", endDate);
       formData.append("reason", reason.trim());
+      if (!isSiswa && selectedStudentId) {
+        formData.append("student_id", String(selectedStudentId));
+      }
       if (attachment) {
         if (Platform.OS === "web") {
           const res = await fetch(attachment.uri);
@@ -189,6 +224,9 @@ export default function LeaveRequestScreen() {
     setEndDate("");
     setReason("");
     setAttachment(null);
+    setStudentSearch("");
+    setSelectedStudentId(null);
+    setShowStudentDropdown(false);
   };
 
   return (
@@ -383,6 +421,81 @@ export default function LeaveRequestScreen() {
               onClose={() => setShowFormModal(false)}
             />
             <ScrollView style={styles.modalBody}>
+              {!isSiswa && (
+                <View style={styles.inputSection}>
+                  <Text style={styles.inputLabel}>Pilih Siswa</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Cari siswa berdasarkan nama/NIS..."
+                    placeholderTextColor="#9CA3AF"
+                    value={studentSearch}
+                    onChangeText={(text) => {
+                      setStudentSearch(text);
+                      setShowStudentDropdown(true);
+                      if (selectedStudentId) {
+                        setSelectedStudentId(null);
+                      }
+                    }}
+                    onFocus={() => setShowStudentDropdown(true)}
+                  />
+                  {showStudentDropdown && filteredStudents.length > 0 && (
+                    <View style={{
+                      backgroundColor: '#F8FAFC',
+                      borderRadius: 10,
+                      borderWidth: 1,
+                      borderColor: '#E2E8F0',
+                      marginTop: 8,
+                      maxHeight: 180,
+                    }}>
+                      <ScrollView keyboardShouldPersistTaps="handled">
+                        {filteredStudents.map((s) => (
+                          <TouchableOpacity
+                            key={s.id}
+                            style={{
+                              padding: 12,
+                              borderBottomWidth: 1,
+                              borderBottomColor: '#E2E8F0',
+                              flexDirection: 'row',
+                              justifyContent: 'space-between',
+                            }}
+                            onPress={() => {
+                              setSelectedStudentId(s.id);
+                              setStudentSearch(s.full_name);
+                              setShowStudentDropdown(false);
+                            }}
+                          >
+                            <Text style={{ fontSize: 13, fontWeight: '700', color: '#1F2937' }}>
+                              {s.full_name}
+                            </Text>
+                            <Text style={{ fontSize: 11, color: '#6B7280' }}>
+                              NIS: {s.nis || '-'}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                  {selectedStudentId && (
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 6,
+                      backgroundColor: '#ECFDF5',
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      marginTop: 8,
+                      borderWidth: 1,
+                      borderColor: '#A7F3D0'
+                    }}>
+                      <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                      <Text style={{ fontSize: 12, fontWeight: '700', color: '#065F46' }}>
+                        Terpilih: {studentSearch}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              )}
               <Text style={styles.inputLabel}>Jenis Izin</Text>
               <View style={styles.typeOptions}>
                 <TypeOption
@@ -569,9 +682,9 @@ export default function LeaveRequestScreen() {
                     )}
                   </View>
                 </ScrollView>
-                {canApprove &&
-                  selectedRequest.approval_status === "pending" && (
-                    <View style={styles.modalFooter}>
+                {canApprove && (
+                  <View style={styles.modalFooter}>
+                    {selectedRequest.approval_status !== "rejected" && (
                       <TouchableOpacity
                         style={styles.rejectButton}
                         onPress={() =>
@@ -580,6 +693,8 @@ export default function LeaveRequestScreen() {
                       >
                         <Text style={styles.rejectButtonText}>Tolak</Text>
                       </TouchableOpacity>
+                    )}
+                    {selectedRequest.approval_status !== "approved" && (
                       <TouchableOpacity
                         style={styles.approveButton}
                         onPress={() =>
@@ -588,8 +703,9 @@ export default function LeaveRequestScreen() {
                       >
                         <Text style={styles.approveButtonText}>Setujui</Text>
                       </TouchableOpacity>
-                    </View>
-                  )}
+                    )}
+                  </View>
+                )}
               </>
             )}
           </View>
@@ -918,6 +1034,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
+    ...(Platform.OS === 'web' && {
+      outlineStyle: 'none',
+    } as any),
   },
   textArea: { minHeight: 100 },
   typeOptions: { flexDirection: "row", gap: 12, marginBottom: 18 },

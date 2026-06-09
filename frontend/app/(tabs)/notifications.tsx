@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   FlatList,
   RefreshControl,
@@ -10,6 +10,8 @@ import {
   useWindowDimensions,
   ScrollView,
   DeviceEventEmitter,
+  TextInput,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,11 +38,22 @@ export default function NotificationsScreen() {
   const toast = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const insets = useSafeAreaInsets();
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const paddingBottom = 64 + safeBottom + 24;
   const { width } = useWindowDimensions();
   const isMobile = width < 600;
+
+  const filteredNotifications = useMemo(() => {
+    const term = searchQuery.trim().toLowerCase();
+    if (!term) return notifications;
+    return notifications.filter(
+      (item) =>
+        (item.title || "").toLowerCase().includes(term) ||
+        (item.message || "").toLowerCase().includes(term)
+    );
+  }, [notifications, searchQuery]);
 
   useEffect(() => {
     loadNotifications();
@@ -168,6 +181,24 @@ export default function NotificationsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: "#F9FAFB" }]}>
 
+      {/* Search Input */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBox}>
+          <Ionicons name="search-outline" size={18} color="#9CA3AF" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Cari notifikasi..."
+            placeholderTextColor="#9CA3AF"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
       {/* Action buttons */}
       {notifications.length > 0 && (
@@ -207,7 +238,7 @@ export default function NotificationsScreen() {
         </ScrollView>
       ) : (
         <FlatList
-          data={notifications}
+          data={filteredNotifications}
           keyExtractor={(item) => item.id}
           renderItem={renderNotification}
           contentContainerStyle={[styles.listContent, { paddingBottom }]}
@@ -367,5 +398,39 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 18,
     paddingHorizontal: 16,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  searchBox: {
+    height: 46,
+    borderRadius: 10,
+    backgroundColor: "#F9FAFB",
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  searchIcon: {
+    marginRight: 2,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#1F2937",
+    paddingVertical: 0,
+    ...(Platform.OS === 'web' && {
+      outlineStyle: 'none',
+    } as any),
+  },
+  clearButton: {
+    padding: 4,
   },
 });

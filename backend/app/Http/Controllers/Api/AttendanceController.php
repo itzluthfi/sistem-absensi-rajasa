@@ -63,13 +63,13 @@ class AttendanceController extends BaseController
             if ($user->hasRole('siswa') && $user->student) {
                 // Siswa can see attendance for their own class, but not other classes
                 $studentClassId = $user->student->class_id;
-                
+
                 if ($request->has('schedule_id')) {
                     // Check if schedule belongs to student's class
                     $schedule = \Illuminate\Support\Facades\DB::table('schedules')
                         ->where('id', $request->schedule_id)
                         ->first();
-                        
+
                     if (!$schedule || $schedule->class_id != $studentClassId) {
                         // Not student's class schedule, restrict to own student_id
                         $query->where('attendances.student_id', $user->student->id);
@@ -172,7 +172,7 @@ class AttendanceController extends BaseController
     {
         try {
             $user = $request->user();
-            
+
             $item = \Illuminate\Support\Facades\DB::table('attendances')
                 ->leftJoin('students', 'attendances.student_id', '=', 'students.id')
                 ->leftJoin('classes', 'attendances.class_id', '=', 'classes.id')
@@ -316,16 +316,16 @@ class AttendanceController extends BaseController
     private function calculateDistance($lat1, $lon1, $lat2, $lon2)
     {
         $earthRadius = 6371000; // in meters
-        
+
         $latDelta = deg2rad($lat2 - $lat1);
         $lonDelta = deg2rad($lon2 - $lon1);
-        
+
         $a = sin($latDelta / 2) * sin($latDelta / 2) +
-             cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
-             sin($lonDelta / 2) * sin($lonDelta / 2);
-             
+            cos(deg2rad($lat1)) * cos(deg2rad($lat2)) *
+            sin($lonDelta / 2) * sin($lonDelta / 2);
+
         $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
-        
+
         return $earthRadius * $c; // distance in meters
     }
 
@@ -350,7 +350,7 @@ class AttendanceController extends BaseController
             // Validate that session is active and matches today
             $session = \App\Models\AttendanceSession::findOrFail($data['session_id']);
             $today = now()->toDateString();
-            
+
             if (!$session->is_active || $session->attendance_date->toDateString() !== $today) {
                 return $this->sendError('Sesi absensi sudah tidak aktif atau berbeda hari.', [], 422);
             }
@@ -379,15 +379,15 @@ class AttendanceController extends BaseController
                 $student = \App\Models\Student::findOrFail($data['student_id']);
             }
             $schedule = $session->schedule;
-            
+
             if ($student->class_id !== $schedule->class_id) {
                 return $this->sendError('Anda tidak terdaftar di kelas untuk mata pelajaran ini.', [], 422);
             }
 
-            // GPS Validation (Multi-Location Geofencing from gps_locations table)
+            // GPS Validation (Multi-Location Absensi from gps_locations table)
             if ($request->has('location') && isset($data['location']['latitude']) && isset($data['location']['longitude'])) {
-                $userLat = (double) $data['location']['latitude'];
-                $userLng = (double) $data['location']['longitude'];
+                $userLat = (float) $data['location']['latitude'];
+                $userLng = (float) $data['location']['longitude'];
 
                 $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
 
@@ -395,8 +395,8 @@ class AttendanceController extends BaseController
                 if ($activeLocations->isEmpty()) {
                     $activeLocations = collect([[
                         'name'          => 'Sekolah',
-                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
                         'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                     ]])->map(fn($a) => (object) $a);
                 }
@@ -420,7 +420,8 @@ class AttendanceController extends BaseController
                 if (!$withinAny) {
                     return $this->sendError(
                         'Anda berada di luar semua zona absensi (' . round($minDistance) . 'm dari titik terdekat: ' . $nearestName . '). Absensi ditolak.',
-                        [], 422
+                        [],
+                        422
                     );
                 }
             }
@@ -440,10 +441,10 @@ class AttendanceController extends BaseController
             $now = now();
             $startTime = \Carbon\Carbon::parse($schedule->start_time);
             $toleranceTime = (clone $startTime)->addMinutes(15);
-            
+
             $status = 'hadir';
             $lateMinutes = 0;
-            
+
             if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
                 $status = 'telat';
                 $lateMinutes = (int) $startTime->diffInMinutes($now);
@@ -485,7 +486,7 @@ class AttendanceController extends BaseController
             }
 
             return $this->sendResponse(
-                $attendance->load(['student', 'class']), 
+                $attendance->load(['student', 'class']),
                 'Absensi berhasil dicatat sebagai ' . ($status === 'telat' ? 'Terlambat (' . $lateMinutes . ' menit)' : 'Hadir tepat waktu.')
             );
         } catch (ValidationException $e) {
@@ -549,10 +550,10 @@ class AttendanceController extends BaseController
             $now = now();
             $startTime = \Carbon\Carbon::parse($schedule->start_time);
             $toleranceTime = (clone $startTime)->addMinutes(15);
-            
+
             $status = 'hadir';
             $lateMinutes = 0;
-            
+
             if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
                 $status = 'telat';
                 $lateMinutes = (int) $startTime->diffInMinutes($now);
@@ -675,17 +676,17 @@ class AttendanceController extends BaseController
     {
         try {
             $user = $request->user();
-            
+
             // Check daily entrance attendance mode setting (scan vs click)
             $mode = DB::table('settings')->where('key', 'school_entry_attendance_mode')->value('value') ?? 'scan';
             if ($mode === 'scan') {
                 return $this->sendError('Absen masuk mandiri dinonaktifkan. Anda harus melakukan scan kartu QR di petugas piket pintu gerbang.', [], 422);
             }
-            
+
             if (!$user->hasRole('siswa') || !$user->student) {
                 return $this->sendError('Hanya siswa yang dapat melakukan absen masuk sekolah.', [], 403);
             }
-            
+
             $student = $user->student;
 
             // Device UUID binding validation
@@ -696,29 +697,29 @@ class AttendanceController extends BaseController
             }
 
             $today = now()->toDateString();
-            
+
             // Check if already checked in today for school entry (schedule_id is null)
             $existing = Attendance::where('student_id', $student->id)
                 ->whereNull('schedule_id')
                 ->where('date', $today)
                 ->first();
-                
+
             if ($existing) {
                 return $this->sendError('Anda sudah melakukan absen masuk sekolah hari ini.', [], 422);
             }
-            
-            // GPS Geofencing (Multi-Location Geofencing from gps_locations table)
+
+            // GPS Absensi (Multi-Location Absensi from gps_locations table)
             if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
-                $userLat = (double) $request->location['latitude'];
-                $userLng = (double) $request->location['longitude'];
+                $userLat = (float) $request->location['latitude'];
+                $userLng = (float) $request->location['longitude'];
 
                 $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
 
                 if ($activeLocations->isEmpty()) {
                     $activeLocations = collect([[
                         'name'          => 'Sekolah',
-                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
                         'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                     ]])->map(fn($a) => (object) $a);
                 }
@@ -742,23 +743,24 @@ class AttendanceController extends BaseController
                 if (!$withinAny) {
                     return $this->sendError(
                         'Anda berada di luar semua zona absensi (' . round($minDistance) . 'm dari titik terdekat: ' . $nearestName . ').',
-                        [], 422
+                        [],
+                        422
                     );
                 }
             }
-            
+
             // Morning limit for tardiness: 07:00 AM
             $now = now();
             $schoolStartTime = \Carbon\Carbon::parse('07:00:00');
-            
+
             $status = 'hadir';
             $lateMinutes = 0;
-            
+
             if ($now->format('H:i:s') > $schoolStartTime->format('H:i:s')) {
                 $status = 'telat';
                 $lateMinutes = (int) $schoolStartTime->diffInMinutes($now);
             }
-            
+
             $attendance = Attendance::create([
                 'attendance_session_id' => null,
                 'schedule_id' => null,
@@ -773,7 +775,7 @@ class AttendanceController extends BaseController
                 'device_info' => $request->input('device_info', 'Expo Mobile Client'),
                 'notes' => 'Absen Masuk Sekolah Harian Mandiri',
             ]);
-            
+
             // Audit Log
             AuditLog::create([
                 'user_id' => $user->id,
@@ -784,7 +786,7 @@ class AttendanceController extends BaseController
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
-            
+
             return $this->sendResponse(
                 $attendance->load(['student', 'class']),
                 'Absen masuk sekolah berhasil dicatat sebagai ' . ($status === 'telat' ? 'Terlambat (' . $lateMinutes . ' menit)' : 'Hadir tepat waktu.')
@@ -801,11 +803,11 @@ class AttendanceController extends BaseController
     {
         try {
             $user = $request->user();
-            
+
             if (!$user->hasRole('siswa') || !$user->student) {
                 return $this->sendError('Hanya siswa yang dapat melakukan absen masuk sekolah.', [], 403);
             }
-            
+
             $student = $user->student;
 
             // Device UUID binding validation
@@ -816,29 +818,29 @@ class AttendanceController extends BaseController
             }
 
             $today = now()->toDateString();
-            
+
             // Check if already checked in today for school entry
             $existing = Attendance::where('student_id', $student->id)
                 ->whereNull('schedule_id')
                 ->where('date', $today)
                 ->first();
-                
+
             if ($existing) {
                 return $this->sendError('Anda sudah melakukan absen masuk sekolah hari ini.', [], 422);
             }
-            
-            // GPS Geofencing validation
+
+            // GPS Absensi validation
             if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
-                $userLat = (double) $request->location['latitude'];
-                $userLng = (double) $request->location['longitude'];
+                $userLat = (float) $request->location['latitude'];
+                $userLng = (float) $request->location['longitude'];
 
                 $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
 
                 if ($activeLocations->isEmpty()) {
                     $activeLocations = collect([[
                         'name'          => 'Sekolah',
-                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
                         'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                     ]])->map(fn($a) => (object) $a);
                 }
@@ -856,21 +858,21 @@ class AttendanceController extends BaseController
                     return $this->sendError('Anda berada di luar jangkauan area sekolah. Silakan mendekat ke gerbang sekolah.', [], 422);
                 }
             } else {
-                return $this->sendError('Koordinat GPS lokasi Anda diperlukan untuk verifikasi geofencing.', [], 422);
+                return $this->sendError('Koordinat GPS lokasi Anda diperlukan untuk verifikasi Absensi.', [], 422);
             }
-            
+
             // Cutoff time: 07:00:00 WIB
             $now = now();
             $schoolStartTime = \Carbon\Carbon::parse('07:00:00');
-            
+
             $status = 'hadir';
             $lateMinutes = 0;
-            
+
             if ($now->format('H:i:s') > $schoolStartTime->format('H:i:s')) {
                 $status = 'telat';
                 $lateMinutes = (int) $schoolStartTime->diffInMinutes($now);
             }
-            
+
             $activePeriod = DB::table('academic_periods')->where('is_active', true)->first();
             $academicPeriodId = $activePeriod ? $activePeriod->id : null;
 
@@ -889,7 +891,7 @@ class AttendanceController extends BaseController
                 'device_info' => $request->input('device_info', 'Expo Mobile Client'),
                 'notes' => 'Absen Masuk Sekolah Harian via Scan QR Piket',
             ]);
-            
+
             // Audit Log
             AuditLog::create([
                 'user_id' => $user->id,
@@ -900,7 +902,7 @@ class AttendanceController extends BaseController
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
-            
+
             // Push Notification to Student
             try {
                 $studentUser = $student->user;
@@ -934,11 +936,11 @@ class AttendanceController extends BaseController
     {
         try {
             $user = $request->user();
-            
+
             if (!$user->hasRole('siswa') || !$user->student) {
                 return $this->sendError('Hanya siswa yang dapat melakukan absen pulang sekolah.', [], 403);
             }
-            
+
             $student = $user->student;
 
             // Device UUID binding validation
@@ -949,34 +951,34 @@ class AttendanceController extends BaseController
             }
 
             $today = now()->toDateString();
-            
+
             // Check if checked in today for school entry (schedule_id is null)
             $attendance = Attendance::where('student_id', $student->id)
                 ->whereNull('schedule_id')
                 ->where('date', $today)
                 ->where('status', '!=', 'ditolak')
                 ->first();
-                
+
             if (!$attendance) {
                 return $this->sendError('Anda belum melakukan absen masuk sekolah hari ini.', [], 422);
             }
-            
+
             if ($attendance->checkout_time) {
                 return $this->sendError('Anda sudah melakukan absen pulang hari ini.', [], 422);
             }
 
-            // GPS Geofencing (Multi-Location Geofencing from gps_locations table)
+            // GPS Absensi (Multi-Location Absensi from gps_locations table)
             if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
-                $userLat = (double) $request->location['latitude'];
-                $userLng = (double) $request->location['longitude'];
+                $userLat = (float) $request->location['latitude'];
+                $userLng = (float) $request->location['longitude'];
 
                 $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
 
                 if ($activeLocations->isEmpty()) {
                     $activeLocations = collect([[
                         'name'          => 'Sekolah',
-                        'latitude'      => (double) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (double) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
                         'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                     ]])->map(fn($a) => (object) $a);
                 }
@@ -1000,7 +1002,8 @@ class AttendanceController extends BaseController
                 if (!$withinAny) {
                     return $this->sendError(
                         'Anda berada di luar semua zona absensi (' . round($minDistance) . 'm dari titik terdekat: ' . $nearestName . ').',
-                        [], 422
+                        [],
+                        422
                     );
                 }
             }
@@ -1009,22 +1012,22 @@ class AttendanceController extends BaseController
             $schedules = \App\Models\Schedule::where('class_id', $student->class_id)
                 ->where('day_name', now()->format('l'))
                 ->get();
-                
+
             $checkoutThreshold = '14:00:00';
             if ($schedules->isNotEmpty()) {
                 $checkoutThreshold = $schedules->max('end_time');
             }
-            
+
             $now = now();
             $currentTimeStr = $now->format('H:i:s');
-            
+
             if ($currentTimeStr < $checkoutThreshold) {
                 return $this->sendError('Absen pulang belum dibuka. Anda baru bisa absen pulang setelah jam pelajaran terakhir berakhir (pukul ' . substr($checkoutThreshold, 0, 5) . ').', [], 422);
             }
-            
+
             $attendance->checkout_time = $now->format('H:i:s');
             $attendance->save();
-            
+
             // Audit Log
             AuditLog::create([
                 'user_id' => $user->id,
@@ -1035,7 +1038,7 @@ class AttendanceController extends BaseController
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
-            
+
             return $this->sendResponse(
                 $attendance->load(['student', 'class']),
                 'Absen pulang sekolah berhasil dicatat.'
@@ -1052,40 +1055,40 @@ class AttendanceController extends BaseController
     {
         try {
             $user = $request->user();
-            
+
             // Only admin, petugas, or teachers can scan
             if (!$user->hasRole(['super_admin', 'admin', 'petugas', 'guru'])) {
                 return $this->sendError('Akses ditolak. Anda tidak memiliki izin untuk memindai kehadiran gerbang.', [], 403);
             }
-            
+
             $request->validate([
                 'student_identifier' => 'required|string', // NISN or Student ID/NIS
             ]);
-            
+
             $identifier = $request->student_identifier;
-            
+
             // Find student by NISN, NIS, or ID
             $student = \App\Models\Student::where('nisn', $identifier)
                 ->orWhere('nis', $identifier)
                 ->orWhere('id', $identifier)
                 ->first();
-                
+
             if (!$student) {
                 return $this->sendError('Siswa tidak ditemukan. Pastikan kartu QR Code valid.', [], 404);
             }
-            
+
             if ($student->status !== 'active') {
                 return $this->sendError('Siswa sudah tidak aktif.', [], 422);
             }
-            
+
             $today = now()->toDateString();
-            
+
             // Check if already checked in today for school entrance (schedule_id is null)
             $existing = Attendance::where('student_id', $student->id)
                 ->whereNull('schedule_id')
                 ->where('date', $today)
                 ->first();
-                
+
             if ($existing) {
                 $studentClass = DB::table('classes')->where('id', $student->class_id)->first();
                 return $this->sendError($student->full_name . ' sudah melakukan absen masuk harian.', [
@@ -1101,19 +1104,19 @@ class AttendanceController extends BaseController
                     'status' => $existing->status
                 ], 422);
             }
-            
+
             // Cutoff time: 07:00:00 WIB
             $now = now();
             $schoolStartTime = \Carbon\Carbon::parse('07:00:00');
-            
+
             $status = 'hadir';
             $lateMinutes = 0;
-            
+
             if ($now->format('H:i:s') > $schoolStartTime->format('H:i:s')) {
                 $status = 'telat';
                 $lateMinutes = (int) $schoolStartTime->diffInMinutes($now);
             }
-            
+
             // Create Daily Attendance Check-in
             $attendance = Attendance::create([
                 'attendance_session_id' => null,
@@ -1128,7 +1131,7 @@ class AttendanceController extends BaseController
                 'notes' => 'Di-scan oleh petugas piket: ' . $user->name,
                 'location' => $request->input('location'),
             ]);
-            
+
             // Audit Log
             AuditLog::create([
                 'user_id' => $user->id,
@@ -1139,7 +1142,7 @@ class AttendanceController extends BaseController
                 'ip_address' => $request->ip(),
                 'user_agent' => $request->userAgent(),
             ]);
-            
+
             // Push Notification to Student
             try {
                 $studentUser = $student->user;
@@ -1158,7 +1161,7 @@ class AttendanceController extends BaseController
             }
 
             $class = DB::table('classes')->where('id', $student->class_id)->first();
-            
+
             return $this->sendResponse([
                 'attendance' => [
                     'id' => $attendance->id,
@@ -1193,13 +1196,13 @@ class AttendanceController extends BaseController
             if (!$user->hasRole('petugas')) {
                 return $this->sendError('Akses ditolak. Hanya petugas piket yang memiliki kelas pengawasan.', [], 403);
             }
-            
+
             $classes = DB::table('class_petugas as cp')
                 ->join('classes as c', 'cp.class_id', '=', 'c.id')
                 ->select('c.*')
                 ->where('cp.user_id', $user->id)
                 ->get();
-                
+
             return $this->sendResponse($classes, 'Daftar kelas pengawasan petugas piket.');
         } catch (\Exception $e) {
             return $this->sendError('Gagal mengambil kelas pengawasan: ' . $e->getMessage());

@@ -274,8 +274,8 @@ class LeaveRequestController extends Controller
                 }
             }
 
-            if ($leave->approval_status !== 'pending') {
-                return (new BaseController)->sendError('Izin sudah diproses sebelumnya.', [], 422);
+            if ($leave->approval_status === 'approved') {
+                return (new BaseController)->sendError('Izin sudah disetujui sebelumnya.', [], 422);
             }
 
             $oldStatus = $leave->approval_status;
@@ -443,8 +443,8 @@ class LeaveRequestController extends Controller
                 }
             }
 
-            if ($leave->approval_status !== 'pending') {
-                return (new BaseController)->sendError('Izin sudah diproses sebelumnya.', [], 422);
+            if ($leave->approval_status === 'rejected') {
+                return (new BaseController)->sendError('Izin sudah ditolak sebelumnya.', [], 422);
             }
 
             $oldStatus = $leave->approval_status;

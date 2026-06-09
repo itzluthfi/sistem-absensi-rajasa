@@ -1,4 +1,10 @@
-import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  useImperativeHandle,
+  forwardRef,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,7 +53,7 @@ interface SearchResult {
 // ─── Leaflet Map with flyTo support ──────────────────────────────────────────
 const LeafletMap = forwardRef(function LeafletMap(
   { locations }: { locations: GpsLocation[] },
-  ref: any
+  ref: any,
 ) {
   const webViewRef = useRef<any>(null);
   const iframeRef = useRef<any>(null);
@@ -58,7 +64,10 @@ const LeafletMap = forwardRef(function LeafletMap(
       const js = `map.flyTo([${lat}, ${lng}], ${zoom}, {animate:true, duration:0.8}); void 0;`;
       if (Platform.OS === "web") {
         try {
-          iframeRef.current?.contentWindow?.postMessage({ type: "flyTo", lat, lng, zoom }, "*");
+          iframeRef.current?.contentWindow?.postMessage(
+            { type: "flyTo", lat, lng, zoom },
+            "*",
+          );
         } catch {}
       } else {
         webViewRef.current?.injectJavaScript(js);
@@ -92,7 +101,7 @@ const LeafletMap = forwardRef(function LeafletMap(
     });
     L.marker([${loc.latitude}, ${loc.longitude}], {icon: pin${i}}).addTo(map)
       .bindPopup('<b>${loc.name.replace(/'/g, "\\'")}</b><br>Lat: ${loc.latitude.toFixed(6)}<br>Lng: ${loc.longitude.toFixed(6)}<br>Radius: ${loc.radius_meters}m');
-  `
+  `,
     )
     .join("\n");
 
@@ -164,8 +173,13 @@ interface LeafletMapSelectorProps {
 }
 
 const LeafletMapSelector = forwardRef(function LeafletMapSelector(
-  { initialLat, initialLng, initialRadius, onCoordsChange }: LeafletMapSelectorProps,
-  ref: any
+  {
+    initialLat,
+    initialLng,
+    initialRadius,
+    onCoordsChange,
+  }: LeafletMapSelectorProps,
+  ref: any,
 ) {
   const webViewRef = useRef<any>(null);
   const iframeRef = useRef<any>(null);
@@ -350,8 +364,15 @@ function LocationCard({
       style={[styles.locCard, !loc.is_active && styles.locCardInactive]}
     >
       <View style={styles.locCardTop}>
-        <View style={[styles.locDot, { backgroundColor: loc.is_active ? "#10B981" : "#9CA3AF" }]} />
-        <Text style={styles.locName} numberOfLines={1}>{loc.name}</Text>
+        <View
+          style={[
+            styles.locDot,
+            { backgroundColor: loc.is_active ? "#10B981" : "#9CA3AF" },
+          ]}
+        />
+        <Text style={styles.locName} numberOfLines={1}>
+          {loc.name}
+        </Text>
         <View style={styles.locActions}>
           {/* Focus/fly-to button */}
           <TouchableOpacity
@@ -362,7 +383,10 @@ function LocationCard({
           </TouchableOpacity>
           {/* Active toggle */}
           <TouchableOpacity
-            style={[styles.iconBtn, { backgroundColor: loc.is_active ? "#D1FAE5" : "#F3F4F6" }]}
+            style={[
+              styles.iconBtn,
+              { backgroundColor: loc.is_active ? "#D1FAE5" : "#F3F4F6" },
+            ]}
             onPress={() => onToggle(loc.id)}
           >
             <Ionicons
@@ -405,7 +429,9 @@ function LocationCard({
         </View>
       </View>
       {loc.is_active && (
-        <Text style={styles.tapHint}>Ketuk kartu atau ikon 🎯 untuk fokus ke peta</Text>
+        <Text style={styles.tapHint}>
+          Ketuk kartu atau ikon 🎯 untuk fokus ke peta
+        </Text>
       )}
     </TouchableOpacity>
   );
@@ -417,7 +443,7 @@ export default function GpsSettingsScreen() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width >= 768;
+  const isDesktop = Platform.OS === "web" && width >= 768;
   const paddingBottom = 24 + (insets.bottom > 0 ? insets.bottom + 8 : 16);
 
   const mapRef = useRef<any>(null);
@@ -430,7 +456,9 @@ export default function GpsSettingsScreen() {
 
   // Modal configuration states
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
-  const [editingLocationId, setEditingLocationId] = useState<number | null>(null);
+  const [editingLocationId, setEditingLocationId] = useState<number | null>(
+    null,
+  );
   const [newName, setNewName] = useState("");
   const [newLat, setNewLat] = useState("");
   const [newLng, setNewLng] = useState("");
@@ -440,7 +468,8 @@ export default function GpsSettingsScreen() {
 
   // System configuration states
   const [entryMode, setEntryMode] = useState<"scan" | "click">("scan");
-  const [enableDailyCheckoutState, setEnableDailyCheckoutState] = useState(false);
+  const [enableDailyCheckoutState, setEnableDailyCheckoutState] =
+    useState(false);
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
 
   // Search state
@@ -459,11 +488,13 @@ export default function GpsSettingsScreen() {
       if (res.success && Array.isArray(res.data)) {
         setLocations(res.data);
       }
-      
+
       const settingsRes = await settingsApi.getSystemSettings();
       if (settingsRes?.data) {
         setEntryMode(settingsRes.data.mode ?? "scan");
-        setEnableDailyCheckoutState(settingsRes.data.enable_daily_checkout ?? false);
+        setEnableDailyCheckoutState(
+          settingsRes.data.enable_daily_checkout ?? false,
+        );
       }
     } catch (e) {
       toast.error("Tidak dapat memuat data lokasi GPS / konfigurasi sistem.");
@@ -478,12 +509,16 @@ export default function GpsSettingsScreen() {
       const res = await settingsApi.updateSystemSettings({ mode: newMode });
       if (res.success) {
         setEntryMode(newMode);
-        toast.success(`Mode absensi masuk diubah ke: ${newMode === 'scan' ? 'Scan Gerbang' : 'Klik Mandiri'}`);
+        toast.success(
+          `Mode absensi masuk diubah ke: ${newMode === "scan" ? "Scan Gerbang" : "Klik Mandiri"}`,
+        );
       } else {
         toast.error(res.message || "Gagal mengubah mode absensi masuk.");
       }
     } catch (e: any) {
-      toast.error(e.response?.data?.message || "Gagal memperbarui mode absensi.");
+      toast.error(
+        e.response?.data?.message || "Gagal memperbarui mode absensi.",
+      );
     } finally {
       setIsUpdatingSettings(false);
     }
@@ -492,15 +527,22 @@ export default function GpsSettingsScreen() {
   const handleToggleCheckout = async (newVal: boolean) => {
     setIsUpdatingSettings(true);
     try {
-      const res = await settingsApi.updateSystemSettings({ enable_daily_checkout: newVal });
+      const res = await settingsApi.updateSystemSettings({
+        enable_daily_checkout: newVal,
+      });
       if (res.success) {
         setEnableDailyCheckoutState(newVal);
-        toast.success(`Absensi pulang ${newVal ? 'diaktifkan' : 'dinonaktifkan'}.`);
+        toast.success(
+          `Absensi pulang ${newVal ? "diaktifkan" : "dinonaktifkan"}.`,
+        );
       } else {
         toast.error(res.message || "Gagal mengubah konfigurasi absen pulang.");
       }
     } catch (e: any) {
-      toast.error(e.response?.data?.message || "Gagal memperbarui konfigurasi absen pulang.");
+      toast.error(
+        e.response?.data?.message ||
+          "Gagal memperbarui konfigurasi absen pulang.",
+      );
     } finally {
       setIsUpdatingSettings(false);
     }
@@ -514,7 +556,10 @@ export default function GpsSettingsScreen() {
   }, []);
 
   // ─── Dual-strategy Nominatim Search ────────────────────────────────────────
-  const nominatimFetch = async (text: string, withCountry: boolean): Promise<SearchResult[]> => {
+  const nominatimFetch = async (
+    text: string,
+    withCountry: boolean,
+  ): Promise<SearchResult[]> => {
     const params = new URLSearchParams({
       q: text,
       format: "json",
@@ -570,10 +615,14 @@ export default function GpsSettingsScreen() {
       } else {
         setSearchResults([]);
         setShowResults(false);
-        setNoResultsMsg("Tidak ditemukan. Coba kata kunci lain atau isi koordinat manual.");
+        setNoResultsMsg(
+          "Tidak ditemukan. Coba kata kunci lain atau isi koordinat manual.",
+        );
       }
     } catch {
-      setNoResultsMsg("Gagal menghubungi layanan pencarian. Periksa koneksi internet.");
+      setNoResultsMsg(
+        "Gagal menghubungi layanan pencarian. Periksa koneksi internet.",
+      );
     } finally {
       setIsSearching(false);
     }
@@ -623,7 +672,7 @@ export default function GpsSettingsScreen() {
         const loc = locations.find((l) => l.id === id);
         const newActive = !loc?.is_active;
         setLocations((prev) =>
-          prev.map((l) => (l.id === id ? { ...l, is_active: newActive } : l))
+          prev.map((l) => (l.id === id ? { ...l, is_active: newActive } : l)),
         );
         toast.info(newActive ? "Zona diaktifkan." : "Zona dinonaktifkan.");
       } else {
@@ -665,7 +714,9 @@ export default function GpsSettingsScreen() {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        toast.error("Izin lokasi ditolak. Silakan aktifkan izin lokasi di pengaturan perangkat.");
+        toast.error(
+          "Izin lokasi ditolak. Silakan aktifkan izin lokasi di pengaturan perangkat.",
+        );
         return;
       }
       const loc = await Location.getCurrentPositionAsync({
@@ -684,7 +735,9 @@ export default function GpsSettingsScreen() {
         toast.error("Gagal mendeteksi lokasi saat ini.");
       }
     } catch (error: any) {
-      toast.error("Gagal mendapatkan lokasi saat ini: " + (error?.message || error));
+      toast.error(
+        "Gagal mendapatkan lokasi saat ini: " + (error?.message || error),
+      );
     } finally {
       setIsRetrievingLocation(false);
     }
@@ -706,7 +759,7 @@ export default function GpsSettingsScreen() {
       toast.error("Longitude tidak valid. Contoh: 112.737750");
       return;
     }
-    
+
     setIsSaving(true);
     try {
       if (modalMode === "create") {
@@ -734,7 +787,7 @@ export default function GpsSettingsScreen() {
         });
         if (res.success) {
           setLocations((prev) =>
-            prev.map((l) => (l.id === editingLocationId ? res.data : l))
+            prev.map((l) => (l.id === editingLocationId ? res.data : l)),
           );
           setModalMode(null);
           toast.success(`Zona "${res.data.name}" berhasil diperbarui!`);
@@ -798,7 +851,12 @@ export default function GpsSettingsScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top > 0 ? insets.top : 16 }]}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: insets.top > 0 ? insets.top : 16 },
+        ]}
+      >
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="arrow-back" size={22} color="#1F2937" />
         </TouchableOpacity>
@@ -818,12 +876,27 @@ export default function GpsSettingsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Map Preview Skeleton */}
-          <View style={[styles.mapCard, isDesktop && { maxWidth: 850, alignSelf: 'center', width: '100%' }]}>
+          <View
+            style={[
+              styles.mapCard,
+              isDesktop && {
+                maxWidth: 850,
+                alignSelf: "center",
+                width: "100%",
+              },
+            ]}
+          >
             <View style={styles.mapHeader}>
               <Ionicons name="map" size={16} color="#2563EB" />
               <Text style={styles.mapHeaderTitle}>Peta Semua Zona Aktif</Text>
             </View>
-            <View style={[styles.mapWrapper, { padding: 0 }, isDesktop && { height: 380 }]}>
+            <View
+              style={[
+                styles.mapWrapper,
+                { padding: 0 },
+                isDesktop && { height: 380 },
+              ]}
+            >
               <Skeleton width="100%" height="100%" borderRadius={0} />
             </View>
           </View>
@@ -838,7 +911,12 @@ export default function GpsSettingsScreen() {
           {[1, 2, 3].map((i) => (
             <View key={i} style={styles.locCard}>
               <View style={styles.locCardTop}>
-                <Skeleton width={12} height={12} borderRadius={6} style={{ marginRight: 8 }} />
+                <Skeleton
+                  width={12}
+                  height={12}
+                  borderRadius={6}
+                  style={{ marginRight: 8 }}
+                />
                 <Skeleton width={150} height={16} borderRadius={4} />
                 <View style={styles.locActions}>
                   <Skeleton width={32} height={32} borderRadius={8} />
@@ -848,7 +926,9 @@ export default function GpsSettingsScreen() {
                 </View>
               </View>
               <View style={styles.locCardBody}>
-                <View style={{ flexDirection: "row", gap: 6, alignItems: "center" }}>
+                <View
+                  style={{ flexDirection: "row", gap: 6, alignItems: "center" }}
+                >
                   <Skeleton width={12} height={12} borderRadius={6} />
                   <Skeleton width={140} height={12} borderRadius={4} />
                 </View>
@@ -863,7 +943,16 @@ export default function GpsSettingsScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Map Preview */}
-          <View style={[styles.mapCard, isDesktop && { maxWidth: 850, alignSelf: 'center', width: '100%' }]}>
+          <View
+            style={[
+              styles.mapCard,
+              isDesktop && {
+                maxWidth: 850,
+                alignSelf: "center",
+                width: "100%",
+              },
+            ]}
+          >
             <View style={styles.mapHeader}>
               <Ionicons name="map" size={16} color="#2563EB" />
               <Text style={styles.mapHeaderTitle}>Peta Semua Zona Aktif</Text>
@@ -875,7 +964,8 @@ export default function GpsSettingsScreen() {
               <LeafletMap ref={mapRef} locations={locations} />
             </View>
             <Text style={styles.mapHint}>
-              Ketuk kartu lokasi di bawah untuk fokus ke titik tersebut di peta ↑
+              Ketuk kartu lokasi di bawah untuk fokus ke titik tersebut di peta
+              ↑
             </Text>
           </View>
 
@@ -890,11 +980,14 @@ export default function GpsSettingsScreen() {
               <Ionicons name="location-outline" size={48} color="#D1D5DB" />
               <Text style={styles.emptyTitle}>Belum Ada Lokasi</Text>
               <Text style={styles.emptyDesc}>
-                Tekan tombol "Tambah" di atas untuk menambahkan titik lokasi geofencing sekolah.
+                Tekan tombol "Tambah" di atas untuk menambahkan titik lokasi
+                Absensi sekolah.
               </Text>
               <TouchableOpacity style={styles.emptyAddBtn} onPress={openAdd}>
                 <Ionicons name="add-circle" size={18} color="#fff" />
-                <Text style={styles.emptyAddBtnText}>Tambah Lokasi Pertama</Text>
+                <Text style={styles.emptyAddBtnText}>
+                  Tambah Lokasi Pertama
+                </Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -916,58 +1009,108 @@ export default function GpsSettingsScreen() {
             <Ionicons name="settings" size={16} color="#2563EB" />
             <Text style={styles.sectionTitle}>Pengaturan Sistem</Text>
           </View>
-          
+
           <View style={styles.settingsCard}>
             <View style={styles.settingsRow}>
               <View style={{ flex: 1, paddingRight: 12 }}>
                 <Text style={styles.settingsLabel}>Mode Absensi Masuk</Text>
                 <Text style={styles.settingsDesc}>
-                  {entryMode === 'scan'
-                    ? 'Diabsenkan oleh Petugas piket menggunakan scan kartu QR gerbang masuk.'
-                    : 'Siswa dapat mengklik absen mandiri dengan verifikasi GPS radius geofence.'}
+                  {entryMode === "scan"
+                    ? "Diabsenkan oleh Petugas piket menggunakan scan kartu QR gerbang masuk."
+                    : "Siswa dapat mengklik absen mandiri dengan verifikasi GPS radius geofence."}
                 </Text>
               </View>
               <View style={styles.toggleRow}>
                 <TouchableOpacity
-                  style={[styles.toggleBtn, entryMode === 'scan' && styles.toggleBtnActive]}
-                  onPress={() => handleToggleEntryMode('scan')}
+                  style={[
+                    styles.toggleBtn,
+                    entryMode === "scan" && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => handleToggleEntryMode("scan")}
                   disabled={isUpdatingSettings}
                 >
-                  <Text style={[styles.toggleBtnText, entryMode === 'scan' && styles.toggleBtnTextActive]}>Scan</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      entryMode === "scan" && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    Scan
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.toggleBtn, entryMode === 'click' && styles.toggleBtnActive]}
-                  onPress={() => handleToggleEntryMode('click')}
+                  style={[
+                    styles.toggleBtn,
+                    entryMode === "click" && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => handleToggleEntryMode("click")}
                   disabled={isUpdatingSettings}
                 >
-                  <Text style={[styles.toggleBtnText, entryMode === 'click' && styles.toggleBtnTextActive]}>Click</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      entryMode === "click" && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    Click
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View style={[styles.settingsRow, { borderTopWidth: 1, borderTopColor: '#E5E7EB', paddingTop: 16, marginTop: 16 }]}>
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  borderTopWidth: 1,
+                  borderTopColor: "#E5E7EB",
+                  paddingTop: 16,
+                  marginTop: 16,
+                },
+              ]}
+            >
               <View style={{ flex: 1, paddingRight: 12 }}>
                 <Text style={styles.settingsLabel}>Absensi Pulang Harian</Text>
                 <Text style={styles.settingsDesc}>
                   {enableDailyCheckoutState
-                    ? 'Siswa wajib melakukan absen pulang di akhir jam sekolah.'
-                    : 'Absen pulang harian dinonaktifkan (tidak perlu absen pulang).'}
+                    ? "Siswa wajib melakukan absen pulang di akhir jam sekolah."
+                    : "Absen pulang harian dinonaktifkan (tidak perlu absen pulang)."}
                 </Text>
               </View>
               <View style={styles.toggleRow}>
                 <TouchableOpacity
-                  style={[styles.toggleBtn, !enableDailyCheckoutState && styles.toggleBtnActiveDanger]}
+                  style={[
+                    styles.toggleBtn,
+                    !enableDailyCheckoutState && styles.toggleBtnActiveDanger,
+                  ]}
                   onPress={() => handleToggleCheckout(false)}
                   disabled={isUpdatingSettings}
                 >
-                  <Text style={[styles.toggleBtnText, !enableDailyCheckoutState && styles.toggleBtnTextActive]}>Off</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      !enableDailyCheckoutState && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    Off
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.toggleBtn, enableDailyCheckoutState && styles.toggleBtnActive]}
+                  style={[
+                    styles.toggleBtn,
+                    enableDailyCheckoutState && styles.toggleBtnActive,
+                  ]}
                   onPress={() => handleToggleCheckout(true)}
                   disabled={isUpdatingSettings}
                 >
-                  <Text style={[styles.toggleBtnText, enableDailyCheckoutState && styles.toggleBtnTextActive]}>On</Text>
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      enableDailyCheckoutState && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    On
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -978,7 +1121,8 @@ export default function GpsSettingsScreen() {
             <Ionicons name="information-circle" size={18} color="#2563EB" />
             <Text style={styles.infoText}>
               Siswa berhasil absen jika lokasinya masuk ke dalam{" "}
-              <Text style={{ fontWeight: "800" }}>salah satu</Text> zona aktif yang terdaftar.
+              <Text style={{ fontWeight: "800" }}>salah satu</Text> zona aktif
+              yang terdaftar.
             </Text>
           </View>
         </ScrollView>
@@ -1000,7 +1144,9 @@ export default function GpsSettingsScreen() {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>
-                  {modalMode === "create" ? "Tambah Zona Geofencing" : "Edit Zona Geofencing"}
+                  {modalMode === "create"
+                    ? "Tambah Zona Absensi"
+                    : "Edit Zona Absensi"}
                 </Text>
                 <Text style={styles.modalSub}>
                   {modalMode === "create"
@@ -1031,7 +1177,12 @@ export default function GpsSettingsScreen() {
                 <Text style={styles.fieldLabel}>
                   CARI LOKASI / ALAMAT SEKOLAH
                 </Text>
-                <View style={[styles.searchBox, searchFocused && styles.searchBoxFocused]}>
+                <View
+                  style={[
+                    styles.searchBox,
+                    searchFocused && styles.searchBoxFocused,
+                  ]}
+                >
                   <Ionicons
                     name="search-outline"
                     size={19}
@@ -1053,7 +1204,11 @@ export default function GpsSettingsScreen() {
                     onSubmitEditing={() => executeSearch(searchQuery)}
                   />
                   {isSearching ? (
-                    <ActivityIndicator size="small" color="#2563EB" style={{ marginRight: 12 }} />
+                    <ActivityIndicator
+                      size="small"
+                      color="#2563EB"
+                      style={{ marginRight: 12 }}
+                    />
                   ) : searchQuery.length > 0 ? (
                     <TouchableOpacity
                       onPress={() => {
@@ -1077,7 +1232,9 @@ export default function GpsSettingsScreen() {
                         key={item.place_id}
                         style={[
                           styles.dropdownItem,
-                          idx === searchResults.length - 1 && { borderBottomWidth: 0 },
+                          idx === searchResults.length - 1 && {
+                            borderBottomWidth: 0,
+                          },
                         ]}
                         onPress={() => selectPlace(item)}
                         activeOpacity={0.7}
@@ -1096,7 +1253,11 @@ export default function GpsSettingsScreen() {
                 {/* No Results Message */}
                 {noResultsMsg ? (
                   <View style={styles.noResultBox}>
-                    <Ionicons name="alert-circle-outline" size={15} color="#F59E0B" />
+                    <Ionicons
+                      name="alert-circle-outline"
+                      size={15}
+                      color="#F59E0B"
+                    />
                     <Text style={styles.noResultText}>{noResultsMsg}</Text>
                   </View>
                 ) : null}
@@ -1104,13 +1265,15 @@ export default function GpsSettingsScreen() {
 
               {/* ── Interactive Map Selector ───────────────────────────── */}
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>PILIH TITIK PADA PETA (GESER MARKER / KLIK)</Text>
+                <Text style={styles.fieldLabel}>
+                  PILIH TITIK PADA PETA (GESER MARKER / KLIK)
+                </Text>
                 <View style={styles.modalMapWrapper}>
                   {modalMode !== null && (
                     <LeafletMapSelector
                       ref={modalMapRef}
                       initialLat={parseFloat(newLat) || -7.245583}
-                      initialLng={parseFloat(newLng) || 112.737750}
+                      initialLng={parseFloat(newLng) || 112.73775}
                       initialRadius={newRadius}
                       onCoordsChange={handleMapCoordsChange}
                     />
@@ -1131,7 +1294,9 @@ export default function GpsSettingsScreen() {
                   <Ionicons name="location" size={18} color="#2563EB" />
                 )}
                 <Text style={styles.currentLocBtnText}>
-                  {isRetrievingLocation ? "Mengakses GPS..." : "Gunakan Lokasi Saat Ini"}
+                  {isRetrievingLocation
+                    ? "Mengakses GPS..."
+                    : "Gunakan Lokasi Saat Ini"}
                 </Text>
               </TouchableOpacity>
 
@@ -1217,7 +1382,9 @@ export default function GpsSettingsScreen() {
                     ]}
                   />
                 </View>
-                <Text style={styles.radiusHint}>Ideal untuk sekolah: 100 – 200 meter</Text>
+                <Text style={styles.radiusHint}>
+                  Ideal untuk sekolah: 100 – 200 meter
+                </Text>
               </View>
 
               {/* Save Button */}
@@ -1232,7 +1399,9 @@ export default function GpsSettingsScreen() {
                   <>
                     <Ionicons name="save-outline" size={20} color="#fff" />
                     <Text style={styles.saveBtnText}>
-                      {modalMode === "create" ? "SIMPAN ZONA BARU" : "SIMPAN PERUBAHAN"}
+                      {modalMode === "create"
+                        ? "SIMPAN ZONA BARU"
+                        : "SIMPAN PERUBAHAN"}
                     </Text>
                   </>
                 )}
@@ -1249,7 +1418,8 @@ export default function GpsSettingsScreen() {
             <Ionicons name="trash-outline" size={48} color="#EF4444" />
             <Text style={styles.confirmTitle}>Hapus Lokasi</Text>
             <Text style={styles.confirmText}>
-              Apakah Anda yakin ingin menghapus titik lokasi "{locations.find(l => l.id === deleteConfirmId)?.name || 'ini'}"?
+              Apakah Anda yakin ingin menghapus titik lokasi "
+              {locations.find((l) => l.id === deleteConfirmId)?.name || "ini"}"?
             </Text>
             <View style={styles.confirmButtons}>
               <TouchableOpacity
@@ -1305,7 +1475,12 @@ const styles = StyleSheet.create({
   },
   addHeaderBtnText: { color: "#fff", fontSize: 13, fontWeight: "700" },
 
-  centered: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12 },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
   loadingText: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
 
   scrollContent: { padding: 16, gap: 12 },
@@ -1330,7 +1505,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
   },
-  mapHeaderTitle: { flex: 1, fontSize: 14, fontWeight: "700", color: "#1F2937" },
+  mapHeaderTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1F2937",
+  },
   mapBadge: {
     backgroundColor: "#EFF6FF",
     borderRadius: 20,
@@ -1339,7 +1519,12 @@ const styles = StyleSheet.create({
   },
   mapBadgeText: { fontSize: 11, fontWeight: "700", color: "#2563EB" },
   mapWrapper: { height: 250, backgroundColor: "#EFF6FF" },
-  mapLoading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#EFF6FF" },
+  mapLoading: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+  },
   mapEmpty: { flex: 1, justifyContent: "center", alignItems: "center", gap: 8 },
   mapEmptyText: { fontSize: 13, color: "#9CA3AF" },
   mapHint: {
@@ -1359,7 +1544,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 2,
   },
-  sectionTitle: { fontSize: 13, fontWeight: "800", color: "#374151", textTransform: "uppercase" },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#374151",
+    textTransform: "uppercase",
+  },
 
   locCard: {
     backgroundColor: "#fff",
@@ -1375,7 +1565,12 @@ const styles = StyleSheet.create({
     borderLeftColor: "#2563EB",
   },
   locCardInactive: { borderLeftColor: "#E5E7EB", opacity: 0.7 },
-  locCardTop: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
+  locCardTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
   locDot: { width: 10, height: 10, borderRadius: 5 },
   locName: { flex: 1, fontSize: 15, fontWeight: "700", color: "#111827" },
   locActions: { flexDirection: "row", gap: 6 },
@@ -1386,7 +1581,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  locCardBody: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  locCardBody: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   locCoordRow: { flexDirection: "row", alignItems: "center", gap: 4 },
   locCoord: {
     fontSize: 12,
@@ -1403,7 +1602,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   locRadiusText: { fontSize: 12, fontWeight: "700", color: "#2563EB" },
-  tapHint: { fontSize: 10, color: "#9CA3AF", marginTop: 8, fontStyle: "italic" },
+  tapHint: {
+    fontSize: 10,
+    color: "#9CA3AF",
+    marginTop: 8,
+    fontStyle: "italic",
+  },
 
   emptyCard: {
     backgroundColor: "#fff",
@@ -1413,7 +1617,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   emptyTitle: { fontSize: 16, fontWeight: "800", color: "#374151" },
-  emptyDesc: { fontSize: 13, color: "#9CA3AF", textAlign: "center", lineHeight: 18 },
+  emptyDesc: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    textAlign: "center",
+    lineHeight: 18,
+  },
   emptyAddBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -1484,32 +1693,27 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#F9FAFB",
-    borderWidth: 1.5,
-    borderColor: "#E5E7EB",
-    borderRadius: 14,
-    height: 52,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    height: 46,
     paddingRight: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    elevation: 1,
   },
   searchBoxFocused: {
     borderColor: "#2563EB",
     backgroundColor: "#fff",
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  searchIcon: { marginLeft: 14, marginRight: 8 },
+  searchIcon: { marginLeft: 12, marginRight: 6 },
   searchInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 14,
     color: "#111827",
     fontWeight: "500",
     paddingVertical: 0,
+    ...(Platform.OS === "web" &&
+      ({
+        outlineStyle: "none",
+      } as any)),
   },
   clearBtn: {
     width: 36,
@@ -1608,6 +1812,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#111827",
     fontWeight: "500",
+    ...(Platform.OS === "web" &&
+      ({
+        outlineStyle: "none",
+      } as any)),
   },
   coordRow: { flexDirection: "row", marginBottom: 0 },
 
@@ -1653,7 +1861,12 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   saveBtnDisabled: { backgroundColor: "#93C5FD" },
-  saveBtnText: { color: "#fff", fontSize: 14, fontWeight: "800", letterSpacing: 0.5 },
+  saveBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
 
   // Delete Confirmation Modal
   confirmOverlay: {
