@@ -407,7 +407,13 @@ class AttendanceSessionController extends BaseController
             if (!$session) {
                 return $this->sendError('Sesi absensi tidak ditemukan.', [], 404);
             }
- 
+
+            // Calculate meeting number chronologically (by ID order for the schedule)
+            $meetingNumber = DB::table('attendance_sessions')
+                ->where('schedule_id', $session->schedule_id)
+                ->where('id', '<=', $session->id)
+                ->count();
+
             // Fetch attendances for this session
             $attendancesRaw = DB::table('attendances as a')
                 ->join('students as s', 'a.student_id', '=', 's.id')
@@ -418,7 +424,7 @@ class AttendanceSessionController extends BaseController
                 )
                 ->where('a.attendance_session_id', $id)
                 ->get();
- 
+
             $attendances = $attendancesRaw->map(function ($item) {
                 $mapped = new \stdClass();
                 $mapped->id = $item->id;
@@ -435,15 +441,15 @@ class AttendanceSessionController extends BaseController
                 $mapped->late_minutes = $item->late_minutes;
                 $mapped->created_at = $item->created_at;
                 $mapped->updated_at = $item->updated_at;
- 
+
                 $mapped->student = new \stdClass();
                 $mapped->student->id = $item->student_id;
                 $mapped->student->full_name = $item->student_full_name;
                 $mapped->student->nis = $item->student_nis;
- 
+
                 return $mapped;
             });
- 
+
             $mappedSession = new \stdClass();
             $mappedSession->id = $session->id;
             $mappedSession->schedule_id = $session->schedule_id;
@@ -454,9 +460,10 @@ class AttendanceSessionController extends BaseController
             $mappedSession->close_time = $session->close_time;
             $mappedSession->is_active = (bool) $session->is_active;
             $mappedSession->require_qr = (bool) $session->require_qr;
+            $mappedSession->meeting_number = $meetingNumber;
             $mappedSession->created_at = $session->created_at;
             $mappedSession->updated_at = $session->updated_at;
- 
+
             $mappedSession->schedule = new \stdClass();
             $mappedSession->schedule->id = $session->schedule_id;
             $mappedSession->schedule->class_id = $session->class_id;

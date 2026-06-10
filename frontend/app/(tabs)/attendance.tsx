@@ -15,6 +15,7 @@ import {
   Animated,
   Vibration,
   Platform,
+  TextInput,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "@react-navigation/native";
@@ -49,32 +50,34 @@ export default function AttendanceScreen() {
     deleteAttendance,
   } = useAttendanceStore();
 
+  // Reject Attendance modal states
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectAttendanceId, setRejectAttendanceId] = useState<number | null>(null);
+  const [rejectStudentName, setRejectStudentName] = useState<string>("");
+  const [isRejecting, setIsRejecting] = useState(false);
+
+  // Search query state
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // Manual Attendance modal states
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualStudentId, setManualStudentId] = useState<number | null>(null);
+  const [manualStudentName, setManualStudentName] = useState("");
+  const [isMarkingManual, setIsMarkingManual] = useState(false);
+
+  const handleOpenManualModal = (studentId: number, studentName: string) => {
+    setManualStudentId(studentId);
+    setManualStudentName(studentName);
+    setShowManualModal(true);
+  };
+
   const handleRejectAttendance = (
     attendanceId: number,
     studentName: string,
   ) => {
-    Alert.alert(
-      "Tolak Presensi",
-      `Batalkan presensi siswa ${studentName || ""}? Status kehadiran siswa akan diubah menjadi Ditolak.`,
-      [
-        { text: "Batal", style: "cancel" },
-        {
-          text: "Tolak",
-          style: "destructive",
-          onPress: async () => {
-            const res = await deleteAttendance(attendanceId);
-            if (res.success) {
-              toast.info("Presensi siswa berhasil ditolak.");
-              if (activeSchedule?.active_session) {
-                fetchSessionDetail(activeSchedule.active_session.id);
-              }
-            } else {
-              toast.error(res.message || "Gagal menolak presensi.");
-            }
-          },
-        },
-      ],
-    );
+    setRejectAttendanceId(attendanceId);
+    setRejectStudentName(studentName);
+    setShowRejectModal(true);
   };
 
   const playWebSuccessSound = () => {
@@ -358,6 +361,16 @@ export default function AttendanceScreen() {
     }).filter((item) => item.student.full_name !== 'Unknown Student')
       .sort((a, b) => (a.student?.full_name || '').localeCompare(b.student?.full_name || ''));
   }, [classStudents, sessionDetail]);
+
+  const filteredAttendances = useMemo(() => {
+    if (!searchQuery) return mappedAttendances;
+    const q = searchQuery.toLowerCase();
+    return mappedAttendances.filter(
+      (item) =>
+        (item.student?.full_name || "").toLowerCase().includes(q) ||
+        (item.student?.nis || "").toLowerCase().includes(q)
+    );
+  }, [mappedAttendances, searchQuery]);
 
   const fetchSessionDetail = async (sessionId: number) => {
     try {
@@ -800,9 +813,18 @@ export default function AttendanceScreen() {
                   SESI ABSENSI MATA PELAJARAN AKTIF
                 </Text>
               </View>
-              <Text style={styles.sessionSubject}>
-                {activeSchedule.subject?.subject_name}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                <Text style={styles.sessionSubject}>
+                  {activeSchedule.subject?.subject_name}
+                </Text>
+                {sessionDetail?.meeting_number !== undefined && (
+                  <View style={{ backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#A7F3D0', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                    <Text style={{ color: '#059669', fontSize: 11, fontWeight: '800' }}>
+                      Pertemuan Ke-{sessionDetail.meeting_number}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.sessionClass}>
                 {activeSchedule.class?.class_name} • Jam:{" "}
                 {activeSchedule.start_time.substring(0, 5)} -{" "}
@@ -1006,9 +1028,18 @@ export default function AttendanceScreen() {
                     SESI ABSENSI KELAS SEDANG BERLANGSUNG
                   </Text>
                 </View>
-                <Text style={styles.sessionSubject}>
-                  {activeSchedule.subject?.subject_name}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
+                  <Text style={styles.sessionSubject}>
+                    {activeSchedule.subject?.subject_name}
+                  </Text>
+                  {sessionDetail?.meeting_number !== undefined && (
+                    <View style={{ backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#BFDBFE', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 }}>
+                      <Text style={{ color: '#2563EB', fontSize: 11, fontWeight: '800' }}>
+                        Pertemuan Ke-{sessionDetail.meeting_number}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.sessionClass}>
                   {activeSchedule.class?.class_name} • Jam:{" "}
                   {activeSchedule.start_time.substring(0, 5)} -{" "}
@@ -1293,17 +1324,54 @@ export default function AttendanceScreen() {
                 </TouchableOpacity>
               </View>
 
+              {/* Search Bar Input */}
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#F3F4F6',
+                borderRadius: 10,
+                paddingHorizontal: 12,
+                height: 40,
+                marginBottom: 12,
+                borderWidth: 1,
+                borderColor: '#E5E7EB',
+              }}>
+                <Ionicons name="search" size={16} color="#9CA3AF" style={{ marginRight: 8 }} />
+                <TextInput
+                  placeholder="Cari nama atau NIS siswa..."
+                  placeholderTextColor="#9CA3AF"
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  style={{
+                    flex: 1,
+                    fontSize: 13,
+                    color: '#1F2937',
+                    padding: 0,
+                    outlineStyle: 'none',
+                  } as any}
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchQuery("")}>
+                    <Ionicons name="close-circle" size={16} color="#9CA3AF" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
               {/* Students list */}
-              {mappedAttendances.length === 0 ? (
+              {filteredAttendances.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Ionicons name="people-outline" size={48} color="#1E3A8A" />
-                  <Text style={styles.emptyTitle}>Belum ada siswa</Text>
+                  <Text style={styles.emptyTitle}>
+                    {searchQuery ? "Siswa Tidak Ditemukan" : "Belum ada siswa"}
+                  </Text>
                   <Text style={styles.emptyText}>
-                    Tidak ada siswa terdaftar di kelas untuk mata pelajaran ini.
+                    {searchQuery 
+                      ? `Tidak ada siswa dengan nama/NIS "${searchQuery}" di kelas ini.` 
+                      : "Tidak ada siswa terdaftar di kelas untuk mata pelajaran ini."}
                   </Text>
                 </View>
               ) : (
-                mappedAttendances.map((item: any) => (
+                filteredAttendances.map((item: any) => (
                   <View key={item.id} style={styles.attendanceListItem}>
                     <View style={styles.studentProfileCircle}>
                       <Text style={styles.profileInitials}>
@@ -1348,18 +1416,43 @@ export default function AttendanceScreen() {
                           : `Telat (${item.late_minutes}m)`}
                       </Text>
                     </View>
-                    {item.status !== "ditolak" && item.status !== "belum_absen" && (
+                    
+                    {/* Action buttons (Tolak vs Hadirkan) */}
+                    {item.status !== "ditolak" && item.status !== "belum_absen" ? (
                       <TouchableOpacity
                         style={{
                           marginLeft: 8,
-                          padding: 6,
+                          paddingVertical: 4,
+                          paddingHorizontal: 8,
                           backgroundColor: "#FEE2E2",
                           borderRadius: 8,
                           alignSelf: "center",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 4,
                         }}
                         onPress={() => handleRejectAttendance(Number(item.id), item.student?.full_name)}
                       >
-                        <Ionicons name="trash-outline" size={14} color="#EF4444" />
+                        <Ionicons name="close-circle-outline" size={14} color="#EF4444" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#EF4444" }}>Tolak</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={{
+                          marginLeft: 8,
+                          paddingVertical: 4,
+                          paddingHorizontal: 8,
+                          backgroundColor: "#D1FAE5",
+                          borderRadius: 8,
+                          alignSelf: "center",
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                        onPress={() => handleOpenManualModal(Number(item.student_id), item.student?.full_name)}
+                      >
+                        <Ionicons name="checkmark-circle-outline" size={14} color="#059669" />
+                        <Text style={{ fontSize: 11, fontWeight: "700", color: "#059669" }}>Hadirkan</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -1675,6 +1768,140 @@ export default function AttendanceScreen() {
                   <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>
                     {closeMode === 'now' ? 'Tutup Sekarang' : `Set Waktu ${schedHour}:${schedMinute}`}
                   </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── REJECT ATTENDANCE MODAL ──────────────────────────────── */}
+      <Modal visible={showRejectModal} transparent animationType="slide" onRequestClose={() => setShowRejectModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { width: isMobile ? '92%' : 420, padding: 0, overflow: 'hidden' }]}>
+
+            {/* Modal Header */}
+            <View style={{ backgroundColor: '#1E293B', paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="alert-circle" size={20} color="#F87171" />
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>Tolak Presensi Siswa</Text>
+              <TouchableOpacity onPress={() => setShowRejectModal(false)}>
+                <Ionicons name="close" size={22} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ padding: 20 }}>
+              <Text style={{ fontSize: 14, color: '#1E293B', fontWeight: '700', marginBottom: 8 }}>
+                Batalkan presensi siswa: {rejectStudentName}?
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 20, lineHeight: 18 }}>
+                Status kehadiran siswa akan diubah menjadi <Text style={{ fontWeight: '700', color: '#EF4444' }}>Ditolak</Text>. Tindakan ini akan dicatat dalam log audit.
+              </Text>
+
+              {/* Action Buttons */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setShowRejectModal(false)}
+                  disabled={isRejecting}
+                  style={{ flex: 1, backgroundColor: '#F1F5F9', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#64748B' }}>Batal</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (rejectAttendanceId === null) return;
+                    setIsRejecting(true);
+                    const res = await deleteAttendance(rejectAttendanceId);
+                    setIsRejecting(false);
+                    setShowRejectModal(false);
+                    if (res.success) {
+                      toast.info("Presensi siswa berhasil ditolak.");
+                      if (activeSchedule?.active_session) {
+                        fetchSessionDetail(activeSchedule.active_session.id);
+                      }
+                    } else {
+                      toast.error(res.message || "Gagal menolak presensi.");
+                    }
+                  }}
+                  disabled={isRejecting}
+                  style={{ flex: 2, backgroundColor: '#EF4444', borderRadius: 10, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                >
+                  {isRejecting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="close-circle" size={16} color="#fff" />
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>Ya, Tolak</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── MANUAL ATTENDANCE CONFIRMATION MODAL ─────────────────── */}
+      <Modal visible={showManualModal} transparent animationType="slide" onRequestClose={() => setShowManualModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { width: isMobile ? '92%' : 420, padding: 0, overflow: 'hidden' }]}>
+
+            {/* Modal Header */}
+            <View style={{ backgroundColor: '#1E293B', paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: '800', flex: 1 }}>Hadirkan Siswa Manual</Text>
+              <TouchableOpacity onPress={() => setShowManualModal(false)}>
+                <Ionicons name="close" size={22} color="#94A3B8" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ padding: 20 }}>
+              <Text style={{ fontSize: 14, color: '#1E293B', fontWeight: '700', marginBottom: 8 }}>
+                Catat kehadiran siswa: {manualStudentName}?
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748B', marginBottom: 20, lineHeight: 18 }}>
+                Siswa akan langsung ditandai sebagai <Text style={{ fontWeight: '700', color: '#10B981' }}>Hadir</Text> untuk sesi pelajaran ini. Tindakan ini akan dicatat dengan catatan "Dihadirkan Manual oleh Guru".
+              </Text>
+
+              {/* Action Buttons */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={() => setShowManualModal(false)}
+                  disabled={isMarkingManual}
+                  style={{ flex: 1, backgroundColor: '#F1F5F9', borderRadius: 10, paddingVertical: 12, alignItems: 'center' }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#64748B' }}>Batal</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    if (manualStudentId === null || !activeSchedule?.active_session) return;
+                    setIsMarkingManual(true);
+                    const res = await scanStudentQR({
+                      session_id: activeSchedule.active_session.id,
+                      student_id: manualStudentId,
+                      notes: "Dihadirkan Manual oleh Guru",
+                    });
+                    setIsMarkingManual(false);
+                    setShowManualModal(false);
+                    if (res.success) {
+                      toast.success(`Berhasil mencatat kehadiran ${manualStudentName}.`);
+                      fetchSessionDetail(activeSchedule.active_session.id);
+                    } else {
+                      toast.error(res.message || "Gagal mencatat kehadiran manual.");
+                    }
+                  }}
+                  disabled={isMarkingManual}
+                  style={{ flex: 2, backgroundColor: '#10B981', borderRadius: 10, paddingVertical: 12, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6 }}
+                >
+                  {isMarkingManual ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#fff' }}>Ya, Hadirkan</Text>
+                    </>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
