@@ -6,14 +6,15 @@
     <title>Laporan Absensi SMKS Rajasa</title>
     <style>
         @page {
-            margin: 45pt 40pt 50pt 40pt;
+            margin: 0;
         }
-        * {
+        html, body, p, table, tr, th, td {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
         body {
+            margin: 45pt 40pt 50pt 40pt;
             font-family: 'DejaVu Sans', Arial, sans-serif;
             font-size: 9px;
             color: #000;
@@ -171,9 +172,9 @@
         }
         .footer-page-number {
             position: fixed;
-            bottom: -35pt;
-            left: 0;
-            right: 0;
+            bottom: 20pt;
+            left: 40pt;
+            right: 40pt;
             height: 20pt;
             text-align: center;
             font-size: 9px;
