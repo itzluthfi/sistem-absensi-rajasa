@@ -207,12 +207,31 @@
     <table class="kop-surat">
         <tr>
             <td class="kop-logo-td">
-                <div class="logo-emblem">SR</div>
+                @php
+                    $logoPath = null;
+                    if (file_exists(public_path('assets/logo.png'))) {
+                        $logoPath = public_path('assets/logo.png');
+                    } elseif (file_exists(base_path('public/assets/logo.png'))) {
+                        $logoPath = base_path('public/assets/logo.png');
+                    } elseif (file_exists(base_path('public_html/assets/logo.png'))) {
+                        $logoPath = base_path('public_html/assets/logo.png');
+                    }
+
+                    $logoBase64 = null;
+                    if ($logoPath) {
+                        $logoBase64 = base64_encode(file_get_contents($logoPath));
+                    }
+                @endphp
+
+                @if($logoBase64)
+                    <img src="data:image/png;base64,{{ $logoBase64 }}" style="width: 55px; height: auto; display: block; margin: 0 auto;">
+                @else
+                    <div class="logo-emblem">SR</div>
+                @endif
             </td>
             <td class="kop-text-td">
                 <div class="kop-title-main">YAYASAN KARYA PEMBANGUNAN RAJASA</div>
                 <div class="kop-title-school">SMKS RAJASA SURABAYA</div>
-                <div class="kop-title-status">STATUS : TERAKREDITASI A</div>
                 <div class="kop-address">Jl. Genteng Kali No. 27, Surabaya • Telp: (031) 5344840 • Pos: 60275</div>
             </td>
         </tr>

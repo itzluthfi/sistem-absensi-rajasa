@@ -201,11 +201,6 @@ export default function ReportsScreen() {
       toast.error("Akun ini tidak memiliki izin mengunduh laporan.");
       return;
     }
-    
-    if (reportCategory === "percentage" && !selectedClassId) {
-      toast.error("Silakan pilih kelas terlebih dahulu.");
-      return;
-    }
 
     setIsExporting(true);
     try {
@@ -617,7 +612,7 @@ export default function ReportsScreen() {
         <TouchableOpacity
           style={[
             styles.exportButton,
-            (!canExport || isExporting || (reportCategory === "percentage" && !selectedClassId)) && styles.exportButtonDisabled,
+            (!canExport || isExporting) && styles.exportButtonDisabled,
           ]}
           onPress={handleExport}
           disabled={isExporting}
