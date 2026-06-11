@@ -341,6 +341,16 @@ class AttendanceController extends BaseController
     public function qrScan(Request $request)
     {
         try {
+            // Auto-close any active sessions whose close time has passed
+            DB::table('attendance_sessions')
+                ->where('is_active', true)
+                ->whereNotNull('close_time')
+                ->where('close_time', '<=', now())
+                ->update([
+                    'is_active' => false,
+                    'updated_at' => now(),
+                ]);
+
             $user = $request->user();
 
             $data = $request->validate([
@@ -353,12 +363,12 @@ class AttendanceController extends BaseController
                 'notes' => 'nullable|string',
             ]);
 
-            // Validate that session is active and matches today
+            // Validate that session is active
             $session = \App\Models\AttendanceSession::findOrFail($data['session_id']);
             $today = now()->toDateString();
 
-            if (!$session->is_active || $session->attendance_date->toDateString() !== $today) {
-                return $this->sendError('Sesi absensi sudah tidak aktif atau berbeda hari.', [], 422);
+            if (!$session->is_active) {
+                return $this->sendError('Sesi absensi sudah tidak aktif.', [], 422);
             }
 
             // Validate secure session token ONLY if session requires QR
@@ -452,9 +462,12 @@ class AttendanceController extends BaseController
             $status = 'hadir';
             $lateMinutes = 0;
 
-            if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
-                $status = 'telat';
-                $lateMinutes = (int) $startTime->diffInMinutes($now);
+            // Lateness only applies if the session's date is today
+            if ($session->attendance_date->toDateString() === $today) {
+                if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
+                    $status = 'telat';
+                    $lateMinutes = (int) $startTime->diffInMinutes($now);
+                }
             }
 
             $attendanceData = [
@@ -462,7 +475,7 @@ class AttendanceController extends BaseController
                 'schedule_id' => $schedule->id,
                 'student_id' => $student->id,
                 'class_id' => $student->class_id,
-                'date' => $today,
+                'date' => $session->attendance_date->toDateString(),
                 'time' => $now->format('H:i:s'),
                 'status' => $status,
                 'late_minutes' => $lateMinutes,
@@ -509,6 +522,16 @@ class AttendanceController extends BaseController
     public function qrStudentScan(Request $request)
     {
         try {
+            // Auto-close any active sessions whose close time has passed
+            DB::table('attendance_sessions')
+                ->where('is_active', true)
+                ->whereNotNull('close_time')
+                ->where('close_time', '<=', now())
+                ->update([
+                    'is_active' => false,
+                    'updated_at' => now(),
+                ]);
+
             $user = $request->user();
 
             // Only teacher or admin can scan student
@@ -526,8 +549,8 @@ class AttendanceController extends BaseController
             $session = \App\Models\AttendanceSession::findOrFail($data['session_id']);
             $today = now()->toDateString();
 
-            if (!$session->is_active || $session->attendance_date->toDateString() !== $today) {
-                return $this->sendError('Sesi absensi sudah tidak aktif atau berbeda hari.', [], 422);
+            if (!$session->is_active) {
+                return $this->sendError('Sesi absensi sudah tidak aktif.', [], 422);
             }
 
             $schedule = $session->schedule;
@@ -561,9 +584,12 @@ class AttendanceController extends BaseController
             $status = 'hadir';
             $lateMinutes = 0;
 
-            if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
-                $status = 'telat';
-                $lateMinutes = (int) $startTime->diffInMinutes($now);
+            // Lateness only applies if the session's date is today
+            if ($session->attendance_date->toDateString() === $today) {
+                if ($now->format('H:i:s') > $toleranceTime->format('H:i:s')) {
+                    $status = 'telat';
+                    $lateMinutes = (int) $startTime->diffInMinutes($now);
+                }
             }
 
             $attendanceData = [
@@ -571,7 +597,7 @@ class AttendanceController extends BaseController
                 'schedule_id' => $schedule->id,
                 'student_id' => $student->id,
                 'class_id' => $student->class_id,
-                'date' => $today,
+                'date' => $session->attendance_date->toDateString(),
                 'time' => $now->format('H:i:s'),
                 'status' => $status,
                 'late_minutes' => $lateMinutes,

@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuthStore } from "../../store/authStore";
 import { useToast } from "../../hooks/useToast";
 import { authenticateWithBiometrics } from "../../utils/biometrics";
@@ -193,6 +194,10 @@ export default function HomeScreen() {
   const [scheduleViewMode, setScheduleViewMode] = useState<"calendar" | "list">("list");
   const [openPresensiModalVisible, setOpenPresensiModalVisible] = useState(false);
   const [selectedScheduleForSession, setSelectedScheduleForSession] = useState<number | null>(null);
+  const [sessionDate, setSessionDate] = useState<string>("");
+  const [sessionHour, setSessionHour] = useState<string>("10");
+  const [sessionMinute, setSessionMinute] = useState<string>("15");
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
 
   const todayEng = useMemo(() => {
     const daysEng = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -865,21 +870,55 @@ export default function HomeScreen() {
 
   const handleOpenPresensi = (scheduleId: number) => {
     setSelectedScheduleForSession(scheduleId);
+    
+    // Find the schedule to compute default end time
+    const schedule = mergedSchedules.find((s: any) => s.id === scheduleId);
+    
+    // Set default date to today
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const todayDate = `${year}-${month}-${day}`;
+    setSessionDate(todayDate);
+
+    // Default time: end_time + 15 minutes
+    if (schedule && schedule.end_time) {
+      const [hours, minutes] = schedule.end_time.split(":");
+      const schedEnd = new Date();
+      schedEnd.setHours(Number(hours), Number(minutes), 0, 0);
+      const defaultTime = new Date(schedEnd.getTime() + 15 * 60000);
+      
+      const finalTime = defaultTime.getTime() <= Date.now() 
+        ? new Date(Date.now() + 15 * 60000) 
+        : defaultTime;
+        
+      setSessionHour(String(finalTime.getHours()).padStart(2, "0"));
+      setSessionMinute(String(finalTime.getMinutes()).padStart(2, "0"));
+    } else {
+      const finalTime = new Date(Date.now() + 15 * 60000);
+      setSessionHour(String(finalTime.getHours()).padStart(2, "0"));
+      setSessionMinute(String(finalTime.getMinutes()).padStart(2, "0"));
+    }
+
     setOpenPresensiModalVisible(true);
   };
 
   const renderOpenPresensiModal = () => {
     if (!selectedScheduleForSession) return null;
 
+    const schedule = mergedSchedules.find((s: any) => s.id === selectedScheduleForSession);
+
     const handleSelectMode = async (requireQr: boolean) => {
       const scheduleId = selectedScheduleForSession;
-      // Find subject name for notification
-      const schedule = mergedSchedules.find((s: any) => s.id === scheduleId);
       const subjectName = schedule?.subject?.subject_name || "Kelas";
       setOpenPresensiModalVisible(false);
       setSelectedScheduleForSession(null);
       
-      const result = await openAttendanceSession(scheduleId, requireQr);
+      // Construct the closing time: sessionDate + " " + sessionHour + ":" + sessionMinute + ":00"
+      const closeTimeFormatted = `${sessionDate} ${sessionHour.padStart(2, "0")}:${sessionMinute.padStart(2, "0")}:00`;
+      
+      const result = await openAttendanceSession(scheduleId, requireQr, closeTimeFormatted, sessionDate);
       if (result.success) {
         toast.success(`Presensi ${subjectName} berhasil dibuka! Siswa sudah bisa absen.`);
         await fetchTodaySchedulesWithParams();
@@ -893,7 +932,7 @@ export default function HomeScreen() {
     return (
       <Modal
         visible={openPresensiModalVisible}
-        animationType="fade"
+        animationType="slide"
         transparent
         onRequestClose={() => {
           setOpenPresensiModalVisible(false);
@@ -901,105 +940,271 @@ export default function HomeScreen() {
         }}
       >
         <View style={[styles.modalOverlay, { justifyContent: 'center', alignItems: 'center' }]}>
-          <View style={[styles.modalContent, { width: isMobile ? '90%' : 400, borderRadius: 16, padding: 24, maxHeight: '80%' }]}>
-            <View style={[styles.modalHeader, { borderBottomWidth: 0, paddingBottom: 0, paddingHorizontal: 0, paddingTop: 0, marginBottom: 12 }]}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Ionicons name="finger-print-outline" size={24} color="#2563EB" />
-                <Text style={[styles.modalTitle, { fontSize: 18 }]}>Pilih Metode Presensi</Text>
+          <View style={[styles.modalContent, { width: Platform.OS !== 'web' ? '92%' : 420, borderRadius: 16, padding: 24, maxHeight: '95%' }]}>
+            <ScrollView contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
+              <View style={[styles.modalHeader, { borderBottomWidth: 0, paddingBottom: 0, paddingHorizontal: 0, paddingTop: 0, marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="finger-print-outline" size={24} color="#2563EB" />
+                  <Text style={[styles.modalTitle, { fontSize: 18 }]}>Buka Presensi Kelas</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => {
+                    setOpenPresensiModalVisible(false);
+                    setSelectedScheduleForSession(null);
+                  }}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="close" size={22} color="#6B7280" />
+                </TouchableOpacity>
               </View>
+
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 13, color: "#1F2937", fontWeight: "700" }}>
+                  Mata Pelajaran: {schedule?.subject?.subject_name}
+                </Text>
+                <Text style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                  Kelas: {schedule?.class?.class_name} • Jam: {schedule?.start_time?.slice(0,5)} - {schedule?.end_time?.slice(0,5)}
+                </Text>
+              </View>
+
+              {/* 1. Pemilih Tanggal */}
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 6 }}>
+                  Pilih Tanggal Presensi:
+                </Text>
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="date"
+                    value={sessionDate}
+                    onChange={(e) => setSessionDate(e.target.value)}
+                    style={{
+                      backgroundColor: "#F8FAFC",
+                      borderWidth: 1.5,
+                      borderColor: "#E2E8F0",
+                      borderRadius: 10,
+                      padding: 10,
+                      fontSize: 14,
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      color: '#1F2937',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(true)}
+                    style={{
+                      backgroundColor: '#F8FAFC',
+                      borderWidth: 1.5,
+                      borderColor: '#E2E8F0',
+                      borderRadius: 10,
+                      padding: 12,
+                      flexDirection: 'row',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ fontSize: 14, color: '#1F2937', fontWeight: '600' }}>
+                      {sessionDate}
+                    </Text>
+                    <Ionicons name="calendar-outline" size={18} color="#6B7280" />
+                  </TouchableOpacity>
+                )}
+                {Platform.OS !== 'web' && showDatePicker && (
+                  <DateTimePicker
+                    value={(function() {
+                      const parts = sessionDate.split('-');
+                      return parts.length === 3 ? new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])) : new Date();
+                    })()}
+                    mode="date"
+                    display="default"
+                    onChange={(event, selectedDate) => {
+                      setShowDatePicker(false);
+                      if (selectedDate) {
+                        const year = selectedDate.getFullYear();
+                        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                        const day = String(selectedDate.getDate()).padStart(2, '0');
+                        setSessionDate(`${year}-${month}-${day}`);
+                      }
+                    }}
+                  />
+                )}
+              </View>
+
+              {/* 2. Pemilih Waktu Tutup */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 8 }}>
+                  Pilih Waktu Tutup Presensi:
+                </Text>
+                
+                <View style={{ alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1E293B', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 }}>
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] }}>
+                      {sessionHour.padStart(2, '0')}
+                    </Text>
+                    <Text style={{ fontSize: 20, fontWeight: '800', color: '#3B82F6' }}>:</Text>
+                    <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] }}>
+                      {sessionMinute.padStart(2, '0')}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Jam / Menit +/- Buttons */}
+                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 12 }}>
+                  <View style={{ alignItems: 'center', gap: 4 }}>
+                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: '700' }}>JAM</Text>
+                    <View style={{ flexDirection: 'row', gap: 4 }}>
+                      <TouchableOpacity
+                        onPress={() => setSessionHour(h => String(Math.max(0, parseInt(h,10)-1)).padStart(2,'0'))}
+                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
+                      >
+                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>-</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setSessionHour(h => String(Math.min(23, parseInt(h,10)+1)).padStart(2,'0'))}
+                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
+                      >
+                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'center', gap: 4 }}>
+                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: '700' }}>MENIT</Text>
+                    <View style={{ flexDirection: 'row', gap: 4 }}>
+                      <TouchableOpacity
+                        onPress={() => setSessionMinute(m => String(Math.max(0, parseInt(m,10)-5)).padStart(2,'0'))}
+                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
+                      >
+                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>-</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => setSessionMinute(m => String(Math.min(59, parseInt(m,10)+5)).padStart(2,'0'))}
+                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
+                      >
+                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Presets */}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                  {[
+                    schedule?.end_time ? `${schedule.end_time.slice(0,5)}` : null,
+                    '+15',
+                    '+30',
+                    '+45',
+                    '+60',
+                  ].filter(Boolean).map((preset) => {
+                    const isEndTime = preset && !preset.startsWith('+');
+                    return (
+                      <TouchableOpacity
+                        key={preset!}
+                        onPress={() => {
+                          if (isEndTime) {
+                            const parts = preset!.split(':');
+                            setSessionHour(parts[0]);
+                            setSessionMinute(parts[1]);
+                          } else {
+                            const addMins = parseInt(preset!.replace('+', ''), 10);
+                            const now = new Date();
+                            const future = new Date(now.getTime() + addMins * 60000);
+                            setSessionHour(String(future.getHours()).padStart(2, '0'));
+                            setSessionMinute(String(future.getMinutes()).padStart(2, '0'));
+                          }
+                        }}
+                        style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#BFDBFE' }}
+                      >
+                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#2563EB' }}>
+                          {isEndTime ? `⏰ Akhir Jam (${preset})` : `+${preset!.replace('+','')} mnt`}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* 3. Metode Presensi Options */}
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#475569', marginBottom: 8 }}>
+                Pilih Metode dan Buka Presensi:
+              </Text>
+              <View style={{ gap: 10 }}>
+                {/* Option 1: Hanya Klik Tombol */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#F8FAFC",
+                    borderWidth: 1.5,
+                    borderColor: "#E2E8F0",
+                    borderRadius: 12,
+                    padding: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                  onPress={() => handleSelectMode(false)}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#DBEAFE", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="checkmark-circle-outline" size={18} color="#2563EB" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#1F2937" }}>
+                      Hanya Klik Tombol (Buka)
+                    </Text>
+                    <Text style={{ fontSize: 10, color: "#6B7280" }}>
+                      Siswa absen mandiri tanpa scan QR.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Option 2: Wajib Scan QR Code */}
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: "#F8FAFC",
+                    borderWidth: 1.5,
+                    borderColor: "#E2E8F0",
+                    borderRadius: 12,
+                    padding: 12,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                  onPress={() => handleSelectMode(true)}
+                >
+                  <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "#D1FAE5", alignItems: "center", justifyContent: "center" }}>
+                    <Ionicons name="qr-code-outline" size={18} color="#10B981" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: "800", color: "#1F2937" }}>
+                      Wajib Scan QR Code (Buka)
+                    </Text>
+                    <Text style={{ fontSize: 10, color: "#6B7280" }}>
+                      Siswa harus memindai kode QR di kelas.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
+                style={{
+                  marginTop: 16,
+                  height: 40,
+                  borderRadius: 10,
+                  borderWidth: 1.5,
+                  borderColor: "#D1D5DB",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#fff",
+                }}
                 onPress={() => {
                   setOpenPresensiModalVisible(false);
                   setSelectedScheduleForSession(null);
                 }}
-                style={styles.iconButton}
               >
-                <Ionicons name="close" size={22} color="#6B7280" />
+                <Text style={{ fontSize: 13, fontWeight: "700", color: "#4B5563" }}>
+                  Batal
+                </Text>
               </TouchableOpacity>
-            </View>
-
-            <View style={{ marginBottom: 24 }}>
-              <Text style={{ fontSize: 13, color: "#4B5563", lineHeight: 20 }}>
-                Tentukan metode pencatatan kehadiran yang wajib dilakukan oleh siswa untuk kelas ini:
-              </Text>
-            </View>
-
-            <View style={{ gap: 12 }}>
-              {/* Option 1: Hanya Klik Tombol */}
-              <TouchableOpacity
-                style={{
-                  backgroundColor: "#F8FAFC",
-                  borderWidth: 1.5,
-                  borderColor: "#E2E8F0",
-                  borderRadius: 12,
-                  padding: 16,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-                onPress={() => handleSelectMode(false)}
-              >
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#DBEAFE", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="checkmark-circle-outline" size={20} color="#2563EB" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#1F2937" }}>
-                    Hanya Klik Tombol
-                  </Text>
-                  <Text style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
-                    Siswa cukup menekan tombol "Kirim Kehadiran" tanpa scan.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Option 2: Wajib Scan QR Code */}
-              <TouchableOpacity
-                style={{
-                  backgroundColor: "#F8FAFC",
-                  borderWidth: 1.5,
-                  borderColor: "#E2E8F0",
-                  borderRadius: 12,
-                  padding: 16,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-                onPress={() => handleSelectMode(true)}
-              >
-                <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "#D1FAE5", alignItems: "center", justifyContent: "center" }}>
-                  <Ionicons name="qr-code-outline" size={20} color="#10B981" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 14, fontWeight: "800", color: "#1F2937" }}>
-                    Wajib Scan QR Code
-                  </Text>
-                  <Text style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
-                    Siswa harus memindai kode QR yang Anda tunjukkan di kelas.
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={{
-                marginTop: 20,
-                height: 44,
-                borderRadius: 10,
-                borderWidth: 1.5,
-                borderColor: "#D1D5DB",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#fff",
-              }}
-              onPress={() => {
-                setOpenPresensiModalVisible(false);
-                setSelectedScheduleForSession(null);
-              }}
-            >
-              <Text style={{ fontSize: 14, fontWeight: "700", color: "#4B5563" }}>
-                Batal
-              </Text>
-            </TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>

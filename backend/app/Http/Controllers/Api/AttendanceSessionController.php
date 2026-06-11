@@ -15,6 +15,21 @@ use Illuminate\Validation\ValidationException;
 class AttendanceSessionController extends BaseController
 {
     /**
+     * Auto-close any active sessions whose close time has passed
+     */
+    private function autoCloseExpiredSessions()
+    {
+        DB::table('attendance_sessions')
+            ->where('is_active', true)
+            ->whereNotNull('close_time')
+            ->where('close_time', '<=', now())
+            ->update([
+                'is_active' => false,
+                'updated_at' => now(),
+            ]);
+    }
+
+    /**
      * Helper to load an attendance session with its schedule, subject, class, and teacher using raw joins.
      */
     private function getSessionWithRelations($sessionId)
@@ -88,6 +103,8 @@ class AttendanceSessionController extends BaseController
     public function index(Request $request)
     {
         try {
+            $this->autoCloseExpiredSessions();
+            
             $user = $request->user();
             $today = now()->toDateString();
             
@@ -99,7 +116,7 @@ class AttendanceSessionController extends BaseController
                     $studentClassId = $student->class_id;
                 }
             }
- 
+
             $teacherId = null;
             if ($user->hasRole('guru')) {
                 $teacher = DB::table('teachers')->where('user_id', $user->id)->first();
@@ -107,7 +124,7 @@ class AttendanceSessionController extends BaseController
                     $teacherId = $teacher->id;
                 }
             }
- 
+
             $query = DB::table('attendance_sessions as ats')
                 ->leftJoin('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
                 ->leftJoin('subjects as sub', 'sc.subject_id', '=', 'sub.id')
@@ -126,17 +143,30 @@ class AttendanceSessionController extends BaseController
                     'sub.subject_name',
                     'cl.class_name',
                     'tc.full_name as teacher_full_name'
-                )
-                ->where('ats.attendance_date', $today);
- 
+                );
+
+            if ($request->has('schedule_id')) {
+                $query->where('ats.schedule_id', $request->schedule_id);
+            } else {
+                if ($request->has('active') && filter_var($request->active, FILTER_VALIDATE_BOOLEAN) === true) {
+                    $query->where('ats.is_active', true);
+                } else {
+                    if ($request->has('date')) {
+                        $query->where('ats.attendance_date', $request->date);
+                    } else {
+                        $query->where('ats.attendance_date', $today);
+                    }
+                }
+            }
+
             if ($studentClassId) {
                 $query->where('sc.class_id', $studentClassId);
             } elseif ($teacherId) {
                 $query->where('sc.teacher_id', $teacherId);
             }
- 
-            if ($request->has('active')) {
-                $query->where('ats.is_active', filter_var($request->active, FILTER_VALIDATE_BOOLEAN));
+
+            if ($request->has('active') && filter_var($request->active, FILTER_VALIDATE_BOOLEAN) === false) {
+                $query->where('ats.is_active', false);
             }
  
             $rawSessions = $query->orderBy('ats.is_active', 'desc')
@@ -195,6 +225,8 @@ class AttendanceSessionController extends BaseController
     public function store(Request $request)
     {
         try {
+            $this->autoCloseExpiredSessions();
+
             $user = $request->user();
  
             // Validate that user is teacher or admin
@@ -205,6 +237,8 @@ class AttendanceSessionController extends BaseController
             $data = $request->validate([
                 'schedule_id' => 'required|exists:schedules,id',
                 'require_qr' => 'nullable|boolean',
+                'attendance_date' => 'nullable|date',
+                'close_time' => 'nullable|date_format:Y-m-d H:i:s|after:now',
             ]);
  
             $schedule = DB::table('schedules')->where('id', $data['schedule_id'])->first();
@@ -220,50 +254,79 @@ class AttendanceSessionController extends BaseController
                 }
             }
  
-            $today = now()->toDateString();
+            $attendanceDate = $request->input('attendance_date', now()->toDateString());
+            
+            // Calculate close time
+            $closeTime = null;
+            if ($request->filled('close_time')) {
+                $closeTime = \Carbon\Carbon::parse($request->input('close_time'));
+            } else {
+                // Default: schedule end_time + 15 minutes
+                $scheduleEndTime = $schedule->end_time; // e.g. '10:00:00'
+                $defaultClose = \Carbon\Carbon::parse($attendanceDate . ' ' . $scheduleEndTime)->addMinutes(15);
+                if ($defaultClose->isPast()) {
+                    $defaultClose = now()->addMinutes(15);
+                }
+                $closeTime = $defaultClose;
+            }
+
             $activePeriod = DB::table('academic_periods')->where('is_active', true)->first();
  
+            // Check if there is already a session for the same schedule on the target date
+            $existingSession = DB::table('attendance_sessions')
+                ->where('schedule_id', $schedule->id)
+                ->where('attendance_date', $attendanceDate)
+                ->first();
+
             DB::beginTransaction();
  
-            // Close any existing active session for the same schedule today
-            DB::table('attendance_sessions')
-                ->where('schedule_id', $schedule->id)
-                ->where('attendance_date', $today)
-                ->where('is_active', true)
-                ->update([
-                    'is_active' => false,
-                    'close_time' => now(),
+            if ($existingSession) {
+                // REOPEN existing session
+                DB::table('attendance_sessions')
+                    ->where('id', $existingSession->id)
+                    ->update([
+                        'is_active' => true,
+                        'open_time' => now(),
+                        'close_time' => $closeTime,
+                        'require_qr' => $request->input('require_qr', true),
+                        'updated_at' => now(),
+                    ]);
+                $sessionId = $existingSession->id;
+                $actionType = AuditLog::ACTION_UPDATE;
+                $actionDesc = "Reopened attendance session #{$sessionId} for schedule #{$schedule->id}";
+            } else {
+                // CREATE new session
+                $sessionId = DB::table('attendance_sessions')->insertGetId([
+                    'schedule_id' => $schedule->id,
+                    'academic_period_id' => $activePeriod ? $activePeriod->id : null,
+                    'qr_token' => Str::random(48), // secure session token
+                    'attendance_date' => $attendanceDate,
+                    'open_time' => now(),
+                    'close_time' => $closeTime,
+                    'is_active' => true,
+                    'require_qr' => $request->input('require_qr', true),
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
- 
-            // Create new secure session
-            $sessionId = DB::table('attendance_sessions')->insertGetId([
-                'schedule_id' => $schedule->id,
-                'academic_period_id' => $activePeriod ? $activePeriod->id : null,
-                'qr_token' => Str::random(48), // secure session token
-                'attendance_date' => $today,
-                'open_time' => now(),
-                'close_time' => null,
-                'is_active' => true,
-                'require_qr' => $request->input('require_qr', true),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+                $actionType = AuditLog::ACTION_CREATE;
+                $actionDesc = "Opened attendance session #{$sessionId} for schedule #{$schedule->id}";
 
-            // Link any pre-existing attendances (e.g. from approved leave requests) for today's schedule to the new session
-            DB::table('attendances')
-                ->where('schedule_id', $schedule->id)
-                ->where('date', $today)
-                ->whereNull('attendance_session_id')
-                ->update([
-                    'attendance_session_id' => $sessionId,
-                    'updated_at' => now()
-                ]);
+                // Link any pre-existing attendances (e.g. from approved leave requests) for target date's schedule to the new session
+                DB::table('attendances')
+                    ->where('schedule_id', $schedule->id)
+                    ->where('date', $attendanceDate)
+                    ->whereNull('attendance_session_id')
+                    ->update([
+                        'attendance_session_id' => $sessionId,
+                        'updated_at' => now()
+                    ]);
+            }
 
             // Audit Log
             DB::table('audit_logs')->insert([
                 'user_id' => $user->id,
-                'action' => AuditLog::ACTION_CREATE,
-                'description' => "Opened attendance session #{$sessionId} for schedule #{$schedule->id}",
+                'action' => $actionType,
+                'description' => $actionDesc,
                 'model_type' => AttendanceSession::class,
                 'model_id' => $sessionId,
                 'ip_address' => $request->ip(),

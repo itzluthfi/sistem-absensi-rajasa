@@ -517,7 +517,7 @@ export const attendanceSessionsApi = {
     return response.data;
   },
 
-  create: async (data: { schedule_id: number; require_qr?: boolean }) => {
+  create: async (data: { schedule_id: number; require_qr?: boolean; close_time?: string; attendance_date?: string }) => {
     const response = await api.post('/attendance-sessions', data);
     return response.data;
   },

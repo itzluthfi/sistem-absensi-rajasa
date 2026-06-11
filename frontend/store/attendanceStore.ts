@@ -86,7 +86,7 @@ interface AttendanceActions {
   fetchAttendances: (params?: any) => Promise<void>;
   fetchTodaySchedules: (params?: any) => Promise<void>;
   createAttendance: (data: AttendancePayload) => Promise<{ success: boolean; message: string; data?: AttendanceRecord }>;
-  openAttendanceSession: (scheduleId: number, requireQr?: boolean) => Promise<{ success: boolean; message: string; data?: AttendanceSession }>;
+  openAttendanceSession: (scheduleId: number, requireQr?: boolean, closeTime?: string, attendanceDate?: string) => Promise<{ success: boolean; message: string; data?: AttendanceSession }>;
   closeAttendanceSession: (sessionId: number) => Promise<{ success: boolean; message: string }>;
   scanTeacherQR: (data: { session_id: number; student_id: number; qr_token: string; location?: Location; device_info?: string; notes?: string }) => Promise<{ success: boolean; message: string; data?: AttendanceRecord }>;
   scanStudentQR: (data: { session_id: number; student_id: number; notes?: string }) => Promise<{ success: boolean; message: string; data?: AttendanceRecord }>;
@@ -151,10 +151,15 @@ export const useAttendanceStore = create<AttendanceStore>((set, get) => ({
     }
   },
 
-  openAttendanceSession: async (scheduleId, requireQr = true) => {
+  openAttendanceSession: async (scheduleId, requireQr = true, closeTime, attendanceDate) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await attendanceSessionsApi.create({ schedule_id: scheduleId, require_qr: requireQr });
+      const response = await attendanceSessionsApi.create({ 
+        schedule_id: scheduleId, 
+        require_qr: requireQr,
+        close_time: closeTime,
+        attendance_date: attendanceDate
+      });
       const session = response.data;
       set((state) => ({
         currentSession: session,

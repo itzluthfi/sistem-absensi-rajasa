@@ -14,16 +14,42 @@ class ScheduleController extends BaseController
     public function today(Request $request)
     {
         try {
+            // Auto-close any active sessions whose close time has passed
+            DB::table('attendance_sessions')
+                ->where('is_active', true)
+                ->whereNotNull('close_time')
+                ->where('close_time', '<=', now())
+                ->update([
+                    'is_active' => false,
+                    'updated_at' => now(),
+                ]);
+
             $user = $request->user();
             // Force Asia/Jakarta timezone (school locale) and allow client overrides for timezone robustness
             $todayEnglish = $request->input('day') ?: now()->setTimezone('Asia/Jakarta')->format('l');
             $today = $request->input('date') ?: now()->setTimezone('Asia/Jakarta')->toDateString();
             
+            // Find all active sessions for this student's class (or teacher) to fetch schedules regardless of day
+            $activeSessionQuery = DB::table('attendance_sessions as ats')
+                ->join('schedules as sc', 'ats.schedule_id', '=', 'sc.id')
+                ->where('ats.is_active', true);
+            
+            if ($user->hasRole('siswa') && $user->student) {
+                $activeSessionQuery->where('sc.class_id', $user->student->class_id);
+            } elseif ($user->hasRole('guru') && $user->teacher) {
+                $activeSessionQuery->where('sc.teacher_id', $user->teacher->id);
+            }
+            
+            $activeScheduleIds = $activeSessionQuery->pluck('sc.id')->toArray();
+
             $query = DB::table('schedules')
                 ->leftJoin('subjects', 'schedules.subject_id', '=', 'subjects.id')
                 ->leftJoin('classes', 'schedules.class_id', '=', 'classes.id')
                 ->leftJoin('teachers', 'schedules.teacher_id', '=', 'teachers.id')
-                ->where('schedules.day_name', $todayEnglish);
+                ->where(function($q) use ($todayEnglish, $activeScheduleIds) {
+                    $q->where('schedules.day_name', $todayEnglish)
+                      ->orWhereIn('schedules.id', $activeScheduleIds);
+                });
 
             // Apply role-based filters
             if ($user->hasRole('siswa') && $user->student) {
@@ -60,20 +86,22 @@ class ScheduleController extends BaseController
 
             $scheduleIds = $rawSchedules->pluck('id')->toArray();
 
-            // Fetch active sessions for today at once (Batching N+1)
+            // Fetch active sessions at once (regardless of date, as long as they are active)
             $activeSessions = DB::table('attendance_sessions')
                 ->whereIn('schedule_id', $scheduleIds)
-                ->where('attendance_date', $today)
                 ->where('is_active', true)
                 ->get()
                 ->keyBy('schedule_id');
 
-            // Fetch student attendances for today at once if siswa (Batching N+1)
+            // Fetch student attendances for today and active sessions' dates (Batching N+1)
             $attendances = collect();
             if ($user->hasRole('siswa') && $user->student) {
+                $activeSessionDates = $activeSessions->pluck('attendance_date')->toArray();
+                $queryDates = array_unique(array_merge([$today], $activeSessionDates));
+
                 $attendances = DB::table('attendances')
                     ->where('student_id', $user->student->id)
-                    ->where('date', $today)
+                    ->whereIn('date', $queryDates)
                     ->get();
             }
 
