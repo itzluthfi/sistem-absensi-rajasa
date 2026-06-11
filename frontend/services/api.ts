@@ -462,7 +462,7 @@ export const attendanceApi = {
   },
 
   getSummary: async (params?: any) => {
-    const response = await api.get('/attendance/summary', { params });
+    const response = await api.get('/reports/attendance/summary', { params });
     return response.data;
   },
 

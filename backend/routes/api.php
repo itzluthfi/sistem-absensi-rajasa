@@ -155,6 +155,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('reports/attendance/percent-excel', [ReportController::class, 'attendancePercentExcel']);
         Route::get('reports/attendance/percent-pdf', [ReportController::class, 'attendancePercentPdf']);
         Route::get('reports/attendance/summary', [ReportController::class, 'attendanceSummary']);
+        
+        // Alias for frontend compatibility
+        Route::get('attendance/summary', [ReportController::class, 'attendanceSummary']);
     });
 
     // ============================================
