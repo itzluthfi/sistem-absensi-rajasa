@@ -292,6 +292,12 @@ class AttendanceController extends BaseController
      */
     private function validateAndBindDevice($student, $deviceUuid)
     {
+        // Check if device binding is enabled
+        $enableDeviceBinding = DB::table('settings')->where('key', 'security_enable_device_binding')->value('value') ?? 'true';
+        if ($enableDeviceBinding !== 'true') {
+            return true; // Bypassed
+        }
+
         if (empty($deviceUuid)) {
             return 'ID Perangkat (Device UUID) wajib disertakan untuk keperluan verifikasi keamanan.';
         }
@@ -385,7 +391,8 @@ class AttendanceController extends BaseController
             }
 
             // GPS Validation (Multi-Location Absensi from gps_locations table)
-            if ($request->has('location') && isset($data['location']['latitude']) && isset($data['location']['longitude'])) {
+            $enableGeofencing = DB::table('settings')->where('key', 'security_enable_geofencing')->value('value') ?? 'true';
+            if ($enableGeofencing === 'true' && $request->has('location') && isset($data['location']['latitude']) && isset($data['location']['longitude'])) {
                 $userLat = (float) $data['location']['latitude'];
                 $userLng = (float) $data['location']['longitude'];
 
@@ -709,7 +716,8 @@ class AttendanceController extends BaseController
             }
 
             // GPS Absensi (Multi-Location Absensi from gps_locations table)
-            if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
+            $enableGeofencing = DB::table('settings')->where('key', 'security_enable_geofencing')->value('value') ?? 'true';
+            if ($enableGeofencing === 'true' && $request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
                 $userLat = (float) $request->location['latitude'];
                 $userLng = (float) $request->location['longitude'];
 
@@ -830,35 +838,38 @@ class AttendanceController extends BaseController
             }
 
             // GPS Absensi validation
-            if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
-                $userLat = (float) $request->location['latitude'];
-                $userLng = (float) $request->location['longitude'];
+            $enableGeofencing = DB::table('settings')->where('key', 'security_enable_geofencing')->value('value') ?? 'true';
+            if ($enableGeofencing === 'true') {
+                if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
+                    $userLat = (float) $request->location['latitude'];
+                    $userLng = (float) $request->location['longitude'];
 
-                $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
+                    $activeLocations = DB::table('gps_locations')->where('is_active', true)->get();
 
-                if ($activeLocations->isEmpty()) {
-                    $activeLocations = collect([[
-                        'name'          => 'Sekolah',
-                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
-                        'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
-                    ]])->map(fn($a) => (object) $a);
-                }
-
-                $withinAny = false;
-                foreach ($activeLocations as $loc) {
-                    $dist = $this->calculateDistance($userLat, $userLng, $loc->latitude, $loc->longitude);
-                    if ($dist <= $loc->radius_meters) {
-                        $withinAny = true;
-                        break;
+                    if ($activeLocations->isEmpty()) {
+                        $activeLocations = collect([[
+                            'name'          => 'Sekolah',
+                            'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
+                            'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                            'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
+                        ]])->map(fn($a) => (object) $a);
                     }
-                }
 
-                if (!$withinAny) {
-                    return $this->sendError('Anda berada di luar jangkauan area sekolah. Silakan mendekat ke gerbang sekolah.', [], 422);
+                    $withinAny = false;
+                    foreach ($activeLocations as $loc) {
+                        $dist = $this->calculateDistance($userLat, $userLng, $loc->latitude, $loc->longitude);
+                        if ($dist <= $loc->radius_meters) {
+                            $withinAny = true;
+                            break;
+                        }
+                    }
+
+                    if (!$withinAny) {
+                        return $this->sendError('Anda berada di luar jangkauan area sekolah. Silakan mendekat ke gerbang sekolah.', [], 422);
+                    }
+                } else {
+                    return $this->sendError('Koordinat GPS lokasi Anda diperlukan untuk verifikasi Absensi.', [], 422);
                 }
-            } else {
-                return $this->sendError('Koordinat GPS lokasi Anda diperlukan untuk verifikasi Absensi.', [], 422);
             }
 
             // Cutoff time: 07:00:00 WIB
@@ -968,7 +979,8 @@ class AttendanceController extends BaseController
             }
 
             // GPS Absensi (Multi-Location Absensi from gps_locations table)
-            if ($request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
+            $enableGeofencing = DB::table('settings')->where('key', 'security_enable_geofencing')->value('value') ?? 'true';
+            if ($enableGeofencing === 'true' && $request->has('location') && isset($request->location['latitude']) && isset($request->location['longitude'])) {
                 $userLat = (float) $request->location['latitude'];
                 $userLng = (float) $request->location['longitude'];
 

@@ -27,7 +27,7 @@ import {
   type ScheduleRecord,
   type AttendanceRecord,
 } from "../../store/attendanceStore";
-import { attendanceApi, attendanceSessionsApi, studentsApi, API_BASE_URL } from "../../services/api";
+import { attendanceApi, attendanceSessionsApi, studentsApi, settingsApi, API_BASE_URL } from "../../services/api";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import FuturisticLoader from "../../components/ui/FuturisticLoader";
 import ShimmerButton from "../../components/ui/ShimmerButton";
@@ -116,11 +116,13 @@ export default function AttendanceScreen() {
     setIsLoadingSession(true);
     try {
       // Verifikasi biometrik sebelum melakukan Klik Mandiri mapel
-      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk presensi kelas");
-      if (!isAuthed) {
-        toast.error("Autentikasi biometrik dibatalkan.");
-        setIsLoadingSession(false);
-        return;
+      if (securityEnableBiometrics) {
+        const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk presensi kelas");
+        if (!isAuthed) {
+          toast.error("Autentikasi biometrik dibatalkan.");
+          setIsLoadingSession(false);
+          return;
+        }
       }
 
       const studentId = (user?.student_info?.id || 0) as number;
@@ -229,6 +231,8 @@ export default function AttendanceScreen() {
     longitude: number;
   } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [securityEnableBiometrics, setSecurityEnableBiometrics] = useState(true);
+  const [securityEnableFakeGps, setSecurityEnableFakeGps] = useState(true);
 
   // Student specific Opsi choice
   const [studentOpsi, setStudentOpsi] = useState<
@@ -285,6 +289,20 @@ export default function AttendanceScreen() {
       setScanned(false);
       setStudentOpsi("menu");
       setSelectedScheduleId(null);
+
+      // Load security settings
+      const fetchSecuritySettings = async () => {
+        try {
+          const settingsRes = await settingsApi.getSystemSettings();
+          if (settingsRes?.data) {
+            setSecurityEnableBiometrics(settingsRes.data.security_enable_biometrics ?? true);
+            setSecurityEnableFakeGps(settingsRes.data.security_enable_fake_gps ?? true);
+          }
+        } catch (err) {
+          console.error("Failed to load security settings in attendance screen:", err);
+        }
+      };
+      fetchSecuritySettings();
     }, [])
   );
 
@@ -395,7 +413,7 @@ export default function AttendanceScreen() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      if (loc.mocked) {
+      if (securityEnableFakeGps && loc.mocked) {
         toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
         setLocationLoading(false);
         return false;
@@ -619,22 +637,26 @@ export default function AttendanceScreen() {
   };
 
   const handleStartScanGuru = async () => {
-    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik sebelum melakukan scan QR Guru");
-    if (isAuthed) {
-      setStudentOpsi("scan_guru");
-      setScanMode("siswa_scan_guru");
-    } else {
-      toast.error("Autentikasi biometrik dibatalkan.");
+    if (securityEnableBiometrics) {
+      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik sebelum melakukan scan QR Guru");
+      if (!isAuthed) {
+        toast.error("Autentikasi biometrik dibatalkan.");
+        return;
+      }
     }
+    setStudentOpsi("scan_guru");
+    setScanMode("siswa_scan_guru");
   };
 
   const handleShowMyQr = async () => {
-    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik sebelum menampilkan QR Code Anda");
-    if (isAuthed) {
-      setStudentOpsi("tunjuk_qr");
-    } else {
-      toast.error("Autentikasi biometrik dibatalkan.");
+    if (securityEnableBiometrics) {
+      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik sebelum menampilkan QR Code Anda");
+      if (!isAuthed) {
+        toast.error("Autentikasi biometrik dibatalkan.");
+        return;
+      }
     }
+    setStudentOpsi("tunjuk_qr");
   };
 
   // Camera permissions view (fullscreen for students)

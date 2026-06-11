@@ -111,7 +111,7 @@ export default function LoginScreen() {
                 />
                 <View style={styles.schoolTitleWrapper}>
                   <Text style={styles.heroTitle}>SMKS RAJASA</Text>
-                  <Text style={styles.heroSubtitle}>SISTEM MONITORING ABSENSI DIGITAL</Text>
+                  <Text style={styles.heroSubtitle}>Sistem Absensi Digital</Text>
                 </View>
               </View>
 
@@ -127,7 +127,7 @@ export default function LoginScreen() {
           <View style={styles.formColumn}>
             <View style={styles.glassCard}>
               <View style={styles.formCardHeader}>
-                <Text style={styles.formTitle}>OTENTIKASI MASUK</Text>
+                <Text style={styles.formTitle}>Selamat Datang Kembali</Text>
                 <Text style={styles.formSubtitle}>Gunakan kredensial resmi terdaftar Anda</Text>
               </View>
               
@@ -178,7 +178,7 @@ export default function LoginScreen() {
                 style={styles.loginBtn}
                 textStyle={styles.loginBtnText}
               >
-                MASUK KE SISTEM
+                MASUK
               </ShimmerButton>
 
               <View style={styles.footer}>
@@ -209,13 +209,13 @@ export default function LoginScreen() {
                 style={styles.logoImageClean}
                 resizeMode="contain"
               />
-              <Text style={styles.title}>SISTEM ABSENSI</Text>
-              <Text style={styles.subtitle}>SMKS RAJASA • PORTAL DIGITAL</Text>
+              <Text style={styles.title}>SMKS RAJASA</Text>
+              <Text style={styles.subtitle}>Sistem Absensi Digital</Text>
             </View>
 
             <View style={styles.glassCard}>
               <View style={styles.formCardHeader}>
-                <Text style={styles.formTitle}>OTENTIKASI MASUK</Text>
+                <Text style={styles.formTitle}>Selamat Datang Kembali</Text>
                 <Text style={styles.formSubtitle}>Gunakan kredensial resmi terdaftar Anda</Text>
               </View>
               
@@ -266,7 +266,7 @@ export default function LoginScreen() {
                 style={styles.loginBtn}
                 textStyle={styles.loginBtnText}
               >
-                MASUK KE SISTEM
+                MASUK
               </ShimmerButton>
 
               <View style={styles.footer}>

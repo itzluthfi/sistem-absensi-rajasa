@@ -437,7 +437,7 @@ export default function NotificationLogsScreen() {
       {/* Clear Logs Modal */}
       <Modal visible={showClearModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Bersihkan Log Notifikasi</Text>
               <TouchableOpacity onPress={() => setShowClearModal(false)} style={styles.iconButton}>

@@ -436,7 +436,7 @@ export default function SchedulesAdminScreen() {
       {/* Input Modal */}
       <Modal visible={!!modalMode} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{modalMode === "create" ? "Tambah" : "Edit"} Jadwal</Text>
               <TouchableOpacity onPress={() => setModalMode(null)} style={styles.iconButton}>
@@ -550,7 +550,7 @@ export default function SchedulesAdminScreen() {
       {/* Import Modal */}
       <Modal visible={importModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Impor Data Excel - Jadwal</Text>
               <TouchableOpacity onPress={() => setImportModalVisible(false)} style={styles.iconButton}>

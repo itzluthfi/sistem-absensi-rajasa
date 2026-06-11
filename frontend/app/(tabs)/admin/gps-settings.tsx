@@ -472,6 +472,17 @@ export default function GpsSettingsScreen() {
     useState(false);
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
 
+  // Security configuration states
+  const [securityEnableBiometrics, setSecurityEnableBiometrics] = useState(true);
+  const [securityEnableDeviceBinding, setSecurityEnableDeviceBinding] = useState(true);
+  const [securityEnableGeofencing, setSecurityEnableGeofencing] = useState(true);
+  const [securityEnableFakeGps, setSecurityEnableFakeGps] = useState(true);
+
+  // Security Info Modal states
+  const [showInfoModal, setShowInfoModal] = useState(false);
+  const [infoModalTitle, setInfoModalTitle] = useState("");
+  const [infoModalDesc, setInfoModalDesc] = useState("");
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
@@ -494,6 +505,18 @@ export default function GpsSettingsScreen() {
         setEntryMode(settingsRes.data.mode ?? "scan");
         setEnableDailyCheckoutState(
           settingsRes.data.enable_daily_checkout ?? false,
+        );
+        setSecurityEnableBiometrics(
+          settingsRes.data.security_enable_biometrics ?? true,
+        );
+        setSecurityEnableDeviceBinding(
+          settingsRes.data.security_enable_device_binding ?? true,
+        );
+        setSecurityEnableGeofencing(
+          settingsRes.data.security_enable_geofencing ?? true,
+        );
+        setSecurityEnableFakeGps(
+          settingsRes.data.security_enable_fake_gps ?? true,
         );
       }
     } catch (e) {
@@ -546,6 +569,46 @@ export default function GpsSettingsScreen() {
     } finally {
       setIsUpdatingSettings(false);
     }
+  };
+
+  const handleToggleSecuritySetting = async (key: string, currentValue: boolean) => {
+    setIsUpdatingSettings(true);
+    const newValue = !currentValue;
+    try {
+      const payload: any = {};
+      payload[key] = newValue;
+      const res = await settingsApi.updateSystemSettings(payload);
+      if (res.success) {
+        if (key === "security_enable_biometrics") setSecurityEnableBiometrics(newValue);
+        else if (key === "security_enable_device_binding") setSecurityEnableDeviceBinding(newValue);
+        else if (key === "security_enable_geofencing") setSecurityEnableGeofencing(newValue);
+        else if (key === "security_enable_fake_gps") setSecurityEnableFakeGps(newValue);
+        
+        let labelName = "";
+        if (key === "security_enable_biometrics") labelName = "Autentikasi Biometrik";
+        else if (key === "security_enable_device_binding") labelName = "Kunci Perangkat";
+        else if (key === "security_enable_geofencing") labelName = "Geofencing Area";
+        else if (key === "security_enable_fake_gps") labelName = "Deteksi Fake GPS";
+
+        toast.success(
+          `${labelName} ${newValue ? "diaktifkan" : "dinonaktifkan"}.`,
+        );
+      } else {
+        toast.error(res.message || "Gagal memperbarui pengaturan keamanan.");
+      }
+    } catch (e: any) {
+      toast.error(
+        e.response?.data?.message || "Gagal memperbarui konfigurasi keamanan.",
+      );
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const openInfo = (title: string, desc: string) => {
+    setInfoModalTitle(title);
+    setInfoModalDesc(desc);
+    setShowInfoModal(true);
   };
 
   useEffect(() => {
@@ -1116,6 +1179,248 @@ export default function GpsSettingsScreen() {
             </View>
           </View>
 
+          {/* Pengaturan Fitur Keamanan Absensi */}
+          <View style={styles.sectionHeader}>
+            <Ionicons name="shield-checkmark" size={16} color="#2563EB" />
+            <Text style={styles.sectionTitle}>Fitur Keamanan Absensi</Text>
+          </View>
+
+          <View style={styles.settingsCard}>
+            {/* 1. Biometrics */}
+            <View style={styles.settingsRow}>
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.settingsLabel}>Autentikasi Biometrik</Text>
+                  <TouchableOpacity onPress={() => openInfo("Autentikasi Biometrik", "Siswa wajib melakukan verifikasi sidik jari (Fingerprint) atau FaceID sebelum melakukan presensi. Opsi ini mencegah siswa menitipkan akun ke orang lain.")}>
+                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.settingsDesc}>
+                  Verifikasi sidik jari / FaceID saat presensi.
+                </Text>
+              </View>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    !securityEnableBiometrics && styles.toggleBtnActiveDanger,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_biometrics", securityEnableBiometrics)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      !securityEnableBiometrics && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    Off
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    securityEnableBiometrics && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_biometrics", securityEnableBiometrics)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      securityEnableBiometrics && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    On
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 2. Device Binding */}
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  borderTopWidth: 1,
+                  borderTopColor: "#E5E7EB",
+                  paddingTop: 16,
+                  marginTop: 16,
+                },
+              ]}
+            >
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.settingsLabel}>Kunci Perangkat (Device Binding)</Text>
+                  <TouchableOpacity onPress={() => openInfo("Kunci Perangkat (Device Binding)", "Mengunci akun siswa pada handphone (device) pertama yang mereka gunakan saat presensi. Siswa tidak akan bisa presensi menggunakan HP milik teman mereka. Guru/Admin dapat melakukan reset kunci ini pada menu daftar siswa jika diperlukan.")}>
+                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.settingsDesc}>
+                  Batasi 1 akun siswa hanya untuk 1 perangkat HP utama.
+                </Text>
+              </View>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    !securityEnableDeviceBinding && styles.toggleBtnActiveDanger,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_device_binding", securityEnableDeviceBinding)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      !securityEnableDeviceBinding && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    Off
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    securityEnableDeviceBinding && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_device_binding", securityEnableDeviceBinding)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      securityEnableDeviceBinding && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    On
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 3. Geofencing */}
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  borderTopWidth: 1,
+                  borderTopColor: "#E5E7EB",
+                  paddingTop: 16,
+                  marginTop: 16,
+                },
+              ]}
+            >
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.settingsLabel}>Pembatasan Radius (Geofencing)</Text>
+                  <TouchableOpacity onPress={() => openInfo("Pembatasan Radius (Geofencing)", "Membatasi presensi mandiri (Click) hanya ketika koordinat GPS siswa berada di dalam radius zona sekolah yang aktif. Jika dinonaktifkan, siswa dapat melakukan presensi dari mana saja.")}>
+                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.settingsDesc}>
+                  Validasi presensi hanya dalam jangkauan geofence sekolah.
+                </Text>
+              </View>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    !securityEnableGeofencing && styles.toggleBtnActiveDanger,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_geofencing", securityEnableGeofencing)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      !securityEnableGeofencing && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    Off
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    securityEnableGeofencing && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_geofencing", securityEnableGeofencing)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      securityEnableGeofencing && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    On
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* 4. Fake GPS */}
+            <View
+              style={[
+                styles.settingsRow,
+                {
+                  borderTopWidth: 1,
+                  borderTopColor: "#E5E7EB",
+                  paddingTop: 16,
+                  marginTop: 16,
+                },
+              ]}
+            >
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.settingsLabel}>Deteksi Fake GPS / Mock Location</Text>
+                  <TouchableOpacity onPress={() => openInfo("Deteksi Fake GPS / Mock Location", "Mendeteksi penggunaan aplikasi lokasi palsu (Fake GPS) pada perangkat HP siswa saat melakukan presensi. Jika terdeteksi, presensi akan langsung diblokir.")}>
+                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.settingsDesc}>
+                  Blokir presensi jika terdeteksi menggunakan lokasi palsu.
+                </Text>
+              </View>
+              <View style={styles.toggleRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    !securityEnableFakeGps && styles.toggleBtnActiveDanger,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_fake_gps", securityEnableFakeGps)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      !securityEnableFakeGps && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    Off
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.toggleBtn,
+                    securityEnableFakeGps && styles.toggleBtnActive,
+                  ]}
+                  onPress={() => handleToggleSecuritySetting("security_enable_fake_gps", securityEnableFakeGps)}
+                  disabled={isUpdatingSettings}
+                >
+                  <Text
+                    style={[
+                      styles.toggleBtnText,
+                      securityEnableFakeGps && styles.toggleBtnTextActive,
+                    ]}
+                  >
+                    On
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
           {/* Info Box */}
           <View style={styles.infoBox}>
             <Ionicons name="information-circle" size={18} color="#2563EB" />
@@ -1139,7 +1444,7 @@ export default function GpsSettingsScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { paddingBottom: 20 + insets.bottom }]}>
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1438,6 +1743,30 @@ export default function GpsSettingsScreen() {
           </View>
         </View>
       )}
+
+      {/* Security Info Explanation Modal */}
+      <Modal
+        visible={showInfoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowInfoModal(false)}
+      >
+        <View style={styles.infoModalOverlay}>
+          <View style={styles.infoModalContent}>
+            <View style={styles.infoModalHeader}>
+              <Ionicons name="shield-checkmark-outline" size={24} color="#2563EB" />
+              <Text style={styles.infoModalTitle}>{infoModalTitle}</Text>
+            </View>
+            <Text style={styles.infoModalDesc}>{infoModalDesc}</Text>
+            <TouchableOpacity
+              style={styles.infoModalCloseBtn}
+              onPress={() => setShowInfoModal(false)}
+            >
+              <Text style={styles.infoModalCloseText}>Mengerti</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1983,5 +2312,57 @@ const styles = StyleSheet.create({
   },
   toggleBtnTextActive: {
     color: "#fff",
+  },
+  infoModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10000,
+  },
+  infoModalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 18,
+    padding: 24,
+    width: "85%",
+    maxWidth: 360,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 10,
+  },
+  infoModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
+  },
+  infoModalTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#1F2937",
+  },
+  infoModalDesc: {
+    fontSize: 13,
+    color: "#4B5563",
+    lineHeight: 18,
+    marginBottom: 24,
+  },
+  infoModalCloseBtn: {
+    backgroundColor: "#2563EB",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+    shadowColor: "#2563EB",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  infoModalCloseText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
   },
 });

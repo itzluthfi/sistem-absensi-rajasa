@@ -19,12 +19,12 @@ return new class extends Migration
         });
 
         // Seed initial location from existing settings table if exists
-        $lat  = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_latitude')->value('value')  ?? -7.245583;
-        $lng  = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.73775;
+        $lat  = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_latitude')->value('value')  ?? -7.243641;
+        $lng  = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.735156;
         $rad  = \Illuminate\Support\Facades\DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100;
 
         \Illuminate\Support\Facades\DB::table('gps_locations')->insert([
-            'name'          => 'Gedung Utama SMKS Rajasa',
+            'name'          => 'SMK Rajasa',
             'latitude'      => (double) $lat,
             'longitude'     => (double) $lng,
             'radius_meters' => (int) $rad,

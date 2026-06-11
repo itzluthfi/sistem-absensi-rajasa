@@ -332,7 +332,7 @@ export default function ClassPromotionScreen() {
       {/* Class Selector Modal */}
       <Modal visible={classModalType !== null} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 Pilih Kelas {classModalType === "source" ? "Asal" : "Tujuan"}

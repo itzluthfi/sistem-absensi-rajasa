@@ -721,7 +721,14 @@ export const settingsApi = {
     return response.data;
   },
 
-  updateSystemSettings: async (data: { mode?: 'scan' | 'click'; enable_daily_checkout?: boolean }) => {
+  updateSystemSettings: async (data: { 
+    mode?: 'scan' | 'click'; 
+    enable_daily_checkout?: boolean;
+    security_enable_biometrics?: boolean;
+    security_enable_device_binding?: boolean;
+    security_enable_geofencing?: boolean;
+    security_enable_fake_gps?: boolean;
+  }) => {
     const response = await api.put('/settings/entry-mode', data);
     return response.data;
   },

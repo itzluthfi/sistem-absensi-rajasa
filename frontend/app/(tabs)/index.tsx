@@ -33,6 +33,8 @@ import FuturisticLoader from "../../components/ui/FuturisticLoader";
 import ShimmerButton from "../../components/ui/ShimmerButton";
 import NotificationBell from "../../components/ui/NotificationBell";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AnimatedCounter from "../../components/ui/AnimatedCounter";
+import AnimatedProgressBar from "../../components/ui/AnimatedProgressBar";
 
 const SUBJECT_IMAGES = [
   require("../../assets/images/gambar-kelas/A1.jpg"),
@@ -66,6 +68,23 @@ function getSubjectImage(subjectName: string, allSchedules: ScheduleRecord[]) {
 export default function HomeScreen() {
   const router = useRouter();
   const toast = useToast();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
   const { user } = useAuthStore();
   const {
     todaySchedules,
@@ -89,6 +108,13 @@ export default function HomeScreen() {
   const [enableDailyCheckout, setEnableDailyCheckout] = useState(false);
   const [entryMode, setEntryMode] = useState<"scan" | "click">("scan");
   const [dailyCheckOutLoading, setDailyCheckOutLoading] = useState(false);
+  const [schoolStats, setSchoolStats] = useState<{
+    students_count: number;
+    teachers_count: number;
+    classes_count: number;
+    today_attendance_percentage: number;
+  } | null>(null);
+  const [loadingSchoolStats, setLoadingSchoolStats] = useState(false);
 
   // States for student gate check-in scanning
   const [myQrBase64, setMyQrBase64] = useState<string | null>(null);
@@ -253,6 +279,8 @@ export default function HomeScreen() {
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const paddingBottom = 64 + safeBottom + 24;
   const [dailyCheckInLoading, setDailyCheckInLoading] = useState(false);
+  const [securityEnableBiometrics, setSecurityEnableBiometrics] = useState(true);
+  const [securityEnableFakeGps, setSecurityEnableFakeGps] = useState(true);
 
   // Subject card attendance detail states
   const [selectedSubjectSchedule, setSelectedSubjectSchedule] = useState<ScheduleRecord | null>(null);
@@ -386,9 +414,29 @@ export default function HomeScreen() {
         if (settingsRes?.data) {
           setEnableDailyCheckout(settingsRes.data.enable_daily_checkout ?? false);
           setEntryMode(settingsRes.data.mode ?? "scan");
+          setSecurityEnableBiometrics(settingsRes.data.security_enable_biometrics ?? true);
+          setSecurityEnableFakeGps(settingsRes.data.security_enable_fake_gps ?? true);
         }
       } catch (err) {
         console.error("Failed to load system settings on dashboard:", err);
+      }
+    }
+
+    if (isAdminOrSuper || isKepalaSekolah) {
+      setLoadingSchoolStats(true);
+      try {
+        const res = await attendanceApi.getSummary();
+        const statsData = res.data ?? res;
+        setSchoolStats({
+          students_count: statsData.students_count ?? 0,
+          teachers_count: statsData.teachers_count ?? 0,
+          classes_count: statsData.classes_count ?? 0,
+          today_attendance_percentage: statsData.today_attendance_percentage ?? 0,
+        });
+      } catch (err) {
+        console.error("Failed to load school stats:", err);
+      } finally {
+        setLoadingSchoolStats(false);
       }
     }
   };
@@ -397,11 +445,13 @@ export default function HomeScreen() {
     setDailyCheckInLoading(true);
     try {
       // Verifikasi biometrik sebelum absen masuk harian
-      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk absen masuk sekolah");
-      if (!isAuthed) {
-        toast.error("Autentikasi biometrik dibatalkan.");
-        setDailyCheckInLoading(false);
-        return;
+      if (securityEnableBiometrics) {
+        const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk absen masuk sekolah");
+        if (!isAuthed) {
+          toast.error("Autentikasi biometrik dibatalkan.");
+          setDailyCheckInLoading(false);
+          return;
+        }
       }
 
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -414,7 +464,7 @@ export default function HomeScreen() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      if (loc.mocked) {
+      if (securityEnableFakeGps && loc.mocked) {
         toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
         setDailyCheckInLoading(false);
         return;
@@ -454,11 +504,13 @@ export default function HomeScreen() {
     setDailyCheckOutLoading(true);
     try {
       // Verifikasi biometrik sebelum absen pulang harian
-      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk absen pulang sekolah");
-      if (!isAuthed) {
-        toast.error("Autentikasi biometrik dibatalkan.");
-        setDailyCheckOutLoading(false);
-        return;
+      if (securityEnableBiometrics) {
+        const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk absen pulang sekolah");
+        if (!isAuthed) {
+          toast.error("Autentikasi biometrik dibatalkan.");
+          setDailyCheckOutLoading(false);
+          return;
+        }
       }
 
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -471,7 +523,7 @@ export default function HomeScreen() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
-      if (loc.mocked) {
+      if (securityEnableFakeGps && loc.mocked) {
         toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
         setDailyCheckOutLoading(false);
         return;
@@ -495,10 +547,12 @@ export default function HomeScreen() {
 
   const fetchMyQrCode = async () => {
     // Verifikasi biometrik sebelum menampilkan QR Code personal
-    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk menampilkan kartu QR Anda");
-    if (!isAuthed) {
-      toast.error("Autentikasi biometrik dibatalkan.");
-      return;
+    if (securityEnableBiometrics) {
+      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk menampilkan kartu QR Anda");
+      if (!isAuthed) {
+        toast.error("Autentikasi biometrik dibatalkan.");
+        return;
+      }
     }
 
     setLoadingQr(true);
@@ -516,10 +570,12 @@ export default function HomeScreen() {
 
   const handleOpenScanner = async () => {
     // Verifikasi biometrik sebelum membuka scanner QR Gerbang
-    const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk memindai QR Gerbang");
-    if (!isAuthed) {
-      toast.error("Autentikasi biometrik dibatalkan.");
-      return;
+    if (securityEnableBiometrics) {
+      const isAuthed = await authenticateWithBiometrics("Verifikasi biometrik untuk memindai QR Gerbang");
+      if (!isAuthed) {
+        toast.error("Autentikasi biometrik dibatalkan.");
+        return;
+      }
     }
 
     if (!cameraPermission || !cameraPermission.granted) {
@@ -557,7 +613,7 @@ export default function HomeScreen() {
         accuracy: Location.Accuracy.Balanced,
       });
       
-      if (loc.mocked) {
+      if (securityEnableFakeGps && loc.mocked) {
         toast.error("Terdeteksi lokasi palsu (Fake GPS). Presensi tidak dapat dilanjutkan.");
         setTimeout(() => setScanned(false), 2000);
         return;
@@ -888,7 +944,7 @@ export default function HomeScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 14, fontWeight: "800", color: "#1F2937" }}>
-                    Hanya Klik Tombol (Default)
+                    Hanya Klik Tombol
                   </Text>
                   <Text style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>
                     Siswa cukup menekan tombol "Kirim Kehadiran" tanpa scan.
@@ -1359,7 +1415,7 @@ export default function HomeScreen() {
     return (
       <Modal visible={!!selectedSubjectSchedule} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                 <Ionicons name="stats-chart-outline" size={20} color="#2563EB" />
@@ -1393,7 +1449,7 @@ export default function HomeScreen() {
               {/* Attendance percentage indicator */}
               <View style={styles.statsRingContainer}>
                 <View style={[styles.statsRing, { borderColor: statsHistory.percentage >= 85 ? "#10B981" : "#F59E0B" }]}>
-                  <Text style={styles.statsRingNumber}>{statsHistory.percentage}%</Text>
+                  <AnimatedCounter value={statsHistory.percentage} style={styles.statsRingNumber} isPercentage />
                   <Text style={styles.statsRingLabel}>
                     {isSiswa ? "Kehadiran Saya" : "Rata-rata Kelas"}
                   </Text>
@@ -1403,19 +1459,19 @@ export default function HomeScreen() {
               {/* Attendance stats count breakdown */}
               <View style={styles.statsSummaryGrid}>
                 <View style={styles.statsSummaryCard}>
-                  <Text style={[styles.statsSummaryValue, { color: "#10B981" }]}>{statsHistory.hadir}</Text>
+                  <AnimatedCounter value={statsHistory.hadir} style={[styles.statsSummaryValue, { color: "#10B981" }]} />
                   <Text style={styles.statsSummaryLabel}>Hadir</Text>
                 </View>
                 <View style={styles.statsSummaryCard}>
-                  <Text style={[styles.statsSummaryValue, { color: "#3B82F6" }]}>{statsHistory.telat}</Text>
+                  <AnimatedCounter value={statsHistory.telat} style={[styles.statsSummaryValue, { color: "#3B82F6" }]} />
                   <Text style={styles.statsSummaryLabel}>Telat</Text>
                 </View>
                 <View style={styles.statsSummaryCard}>
-                  <Text style={[styles.statsSummaryValue, { color: "#F59E0B" }]}>{statsHistory.izin + statsHistory.sakit}</Text>
+                  <AnimatedCounter value={statsHistory.izin + statsHistory.sakit} style={[styles.statsSummaryValue, { color: "#F59E0B" }]} />
                   <Text style={styles.statsSummaryLabel}>Izin/Sakit</Text>
                 </View>
                 <View style={styles.statsSummaryCard}>
-                  <Text style={[styles.statsSummaryValue, { color: "#EF4444" }]}>{statsHistory.alpha}</Text>
+                  <AnimatedCounter value={statsHistory.alpha} style={[styles.statsSummaryValue, { color: "#EF4444" }]} />
                   <Text style={styles.statsSummaryLabel}>Alpha</Text>
                 </View>
               </View>
@@ -1559,9 +1615,7 @@ export default function HomeScreen() {
                               </View>
                               <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                                 <View style={[styles.sessionProgressPill, { backgroundColor: `${ringColor}14` }]}>
-                                  <Text style={[styles.sessionProgressPillText, { color: ringColor }]}>
-                                    {sess.stats.percentage}%
-                                  </Text>
+                                  <AnimatedCounter value={sess.stats.percentage} style={[styles.sessionProgressPillText, { color: ringColor }]} isPercentage />
                                 </View>
                                 <Ionicons
                                   name={isExpanded ? "chevron-up" : "chevron-down"}
@@ -1669,20 +1723,16 @@ export default function HomeScreen() {
                                   </Text>
                                 </View>
                               </View>
-                              <Text style={{ fontSize: 12, fontWeight: "800", color: ringColor }}>
-                                {stud.stats.percentage}%
-                              </Text>
+                              <AnimatedCounter value={stud.stats.percentage} style={{ fontSize: 12, fontWeight: "800", color: ringColor }} isPercentage />
                             </View>
 
                             {/* Linear progress bar */}
-                            <View style={styles.studentProgressBg}>
-                              <View
-                                style={[
-                                  styles.studentProgressFill,
-                                  { width: `${stud.stats.percentage}%`, backgroundColor: ringColor }
-                                ]}
-                              />
-                            </View>
+                            <AnimatedProgressBar
+                              value={stud.stats.percentage}
+                              color={ringColor}
+                              containerStyle={styles.studentProgressBg}
+                              fillStyle={styles.studentProgressFill}
+                            />
 
                             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
                               <Text style={styles.sessionStudentMeta}>
@@ -2000,7 +2050,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>
                 Statistik Sekolah Hari Ini
               </Text>
-              <View style={styles.statsGrid}>
+              <Animated.View style={[styles.statsGrid, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
                 <View style={styles.statCard}>
                   <View
                     style={[
@@ -2011,7 +2061,11 @@ export default function HomeScreen() {
                     <Ionicons name="school-outline" size={20} color="#3B82F6" />
                   </View>
                   <View style={styles.statTextContainer}>
-                    <Text style={styles.statValue}>20</Text>
+                    {loadingSchoolStats ? (
+                      <Text style={styles.statValue}>...</Text>
+                    ) : (
+                      <AnimatedCounter value={schoolStats?.students_count ?? 0} style={styles.statValue} />
+                    )}
                     <Text style={styles.statLabel}>Siswa</Text>
                   </View>
                 </View>
@@ -2026,7 +2080,11 @@ export default function HomeScreen() {
                     <Ionicons name="people-outline" size={20} color="#10B981" />
                   </View>
                   <View style={styles.statTextContainer}>
-                    <Text style={styles.statValue}>8</Text>
+                    {loadingSchoolStats ? (
+                      <Text style={styles.statValue}>...</Text>
+                    ) : (
+                      <AnimatedCounter value={schoolStats?.teachers_count ?? 0} style={styles.statValue} />
+                    )}
                     <Text style={styles.statLabel}>Guru</Text>
                   </View>
                 </View>
@@ -2045,7 +2103,11 @@ export default function HomeScreen() {
                     />
                   </View>
                   <View style={styles.statTextContainer}>
-                    <Text style={styles.statValue}>17</Text>
+                    {loadingSchoolStats ? (
+                      <Text style={styles.statValue}>...</Text>
+                    ) : (
+                      <AnimatedCounter value={schoolStats?.classes_count ?? 0} style={styles.statValue} />
+                    )}
                     <Text style={styles.statLabel}>Rombel</Text>
                   </View>
                 </View>
@@ -2064,11 +2126,15 @@ export default function HomeScreen() {
                     />
                   </View>
                   <View style={styles.statTextContainer}>
-                    <Text style={styles.statValue}>98.2%</Text>
+                    {loadingSchoolStats ? (
+                      <Text style={styles.statValue}>...</Text>
+                    ) : (
+                      <AnimatedCounter value={schoolStats?.today_attendance_percentage ?? 0} style={styles.statValue} isPercentage />
+                    )}
                     <Text style={styles.statLabel}>Kehadiran</Text>
                   </View>
                 </View>
-              </View>
+              </Animated.View>
             </View>
 
             {/* Quick Actions / Features Grid */}

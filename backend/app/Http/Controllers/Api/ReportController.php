@@ -285,6 +285,25 @@ class ReportController extends Controller
                 'alpha' => $total > 0 ? round(($stats['alpha'] / $total) * 100, 1) : 0,
             ];
  
+            // If the user has role super_admin, admin, or kepala_sekolah, add general stats:
+            if ($user->hasRole(['super_admin', 'admin', 'kepala_sekolah'])) {
+                $totalStudents = DB::table('students')->count();
+                $stats['students_count'] = $totalStudents;
+                $stats['teachers_count'] = DB::table('teachers')->count();
+                $stats['classes_count'] = DB::table('classes')->count();
+                
+                $today = now()->toDateString();
+                $todayPresent = DB::table('attendances')
+                    ->where('date', $today)
+                    ->whereNull('schedule_id')
+                    ->whereIn('status', ['hadir', 'telat'])
+                    ->count();
+                
+                $stats['today_attendance_percentage'] = $totalStudents > 0 
+                    ? round(($todayPresent / $totalStudents) * 100, 1) 
+                    : 0.0;
+            }
+ 
             return (new BaseController)->sendResponse($stats, 'Ringkasan absensi');
         } catch (\Exception $e) {
             return (new BaseController)->sendError('Gagal mengambil ringkasan.');

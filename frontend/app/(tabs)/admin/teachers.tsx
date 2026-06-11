@@ -379,7 +379,7 @@ export default function TeachersAdminScreen() {
       {/* Input Modal */}
       <Modal visible={!!modalMode} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{modalMode === "create" ? "Tambah" : "Edit"} Guru</Text>
               <TouchableOpacity onPress={() => setModalMode(null)} style={styles.iconButton}>
@@ -448,7 +448,7 @@ export default function TeachersAdminScreen() {
       {/* Import Modal */}
       <Modal visible={importModalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Impor Data Excel - Guru</Text>
               <TouchableOpacity onPress={() => setImportModalVisible(false)} style={styles.iconButton}>

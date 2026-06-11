@@ -4,8 +4,9 @@ namespace App\Exports;
 
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 
-class GenericExport implements FromCollection, WithHeadings
+class GenericExport implements FromCollection, WithHeadings, ShouldAutoSize
 {
     protected $collection;
     protected $headings;

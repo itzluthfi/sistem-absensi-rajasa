@@ -6,7 +6,7 @@
     <title>Laporan Absensi SMKS Rajasa</title>
     <style>
         @page {
-            margin: 30px 25px 40px 25px;
+            margin: 45pt 40pt 50pt 40pt;
         }
         * {
             margin: 0;
@@ -171,10 +171,10 @@
         }
         .footer-page-number {
             position: fixed;
-            bottom: -35px;
+            bottom: -35pt;
             left: 0;
             right: 0;
-            height: 20px;
+            height: 20pt;
             text-align: center;
             font-size: 9px;
             color: #555;
@@ -182,6 +182,7 @@
         .footer-page-number::after {
             content: "Halaman " counter(page) " dari " counter(pages);
         }
+    </style>
 </head>
 <body>
     @php

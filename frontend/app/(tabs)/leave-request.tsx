@@ -415,7 +415,7 @@ export default function LeaveRequestScreen() {
 
       <Modal visible={showFormModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <ModalHeader
               title="Ajukan Izin"
               onClose={() => setShowFormModal(false)}
@@ -577,7 +577,7 @@ export default function LeaveRequestScreen() {
 
       <Modal visible={!!selectedRequest} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             {selectedRequest && (
               <>
                 <ModalHeader

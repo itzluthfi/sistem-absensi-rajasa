@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,7 @@ import {
   Image,
   useWindowDimensions,
   Platform,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -21,6 +22,7 @@ import { useAuthStore } from "../store/authStore";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useToast } from "../hooks/useToast";
 import Skeleton from "../components/ui/Skeleton";
+import AnimatedCounter from "../components/ui/AnimatedCounter";
 
 type MonitorRecord = {
   id: number;
@@ -52,6 +54,9 @@ export default function LiveMonitorScreen() {
   const insets = useSafeAreaInsets();
   const safeBottom = insets.bottom > 0 ? insets.bottom + 8 : 16;
   const paddingBottom = 64 + safeBottom + 24;
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
 
   const getInitialClassId = () => {
     const isWali = user?.roles?.includes("wali_kelas");
@@ -176,6 +181,18 @@ export default function LiveMonitorScreen() {
   useEffect(() => {
     loadClasses();
     fetchLiveFeed(true);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   // Poll live feed every 5 seconds if live mode is enabled
@@ -278,7 +295,7 @@ export default function LiveMonitorScreen() {
         refreshControl={<RefreshControl refreshing={isLoading} onRefresh={() => fetchLiveFeed(true)} />}
       >
         {/* Real-time stats count block */}
-        <View style={styles.statsRow}>
+        <Animated.View style={[styles.statsRow, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
           {isLoading ? (
             <>
               <View style={[styles.statsCard, { borderLeftColor: "#10B981" }]}>
@@ -301,24 +318,24 @@ export default function LiveMonitorScreen() {
           ) : (
             <>
               <View style={[styles.statsCard, { borderLeftColor: "#10B981" }]}>
-                <Text style={styles.statsValue}>{stats.hadir}</Text>
+                <AnimatedCounter value={stats.hadir} style={styles.statsValue} />
                 <Text style={styles.statsLabel}>Hadir</Text>
               </View>
               <View style={[styles.statsCard, { borderLeftColor: "#F59E0B" }]}>
-                <Text style={styles.statsValue}>{stats.telat}</Text>
+                <AnimatedCounter value={stats.telat} style={styles.statsValue} />
                 <Text style={styles.statsLabel}>Terlambat</Text>
               </View>
               <View style={[styles.statsCard, { borderLeftColor: "#3B82F6" }]}>
-                <Text style={styles.statsValue}>{stats.izinSakit}</Text>
+                <AnimatedCounter value={stats.izinSakit} style={styles.statsValue} />
                 <Text style={styles.statsLabel}>Izin/Sakit</Text>
               </View>
               <View style={[styles.statsCard, { borderLeftColor: "#EF4444" }]}>
-                <Text style={styles.statsValue}>{stats.alpha}</Text>
+                <AnimatedCounter value={stats.alpha} style={styles.statsValue} />
                 <Text style={styles.statsLabel}>Alpha</Text>
               </View>
             </>
           )}
-        </View>
+        </Animated.View>
 
         {/* Latest Scan Showroom (Physical Scanner Gate HUD) */}
         <View style={styles.showroomCard}>

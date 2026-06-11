@@ -114,9 +114,18 @@ class SettingsController extends BaseController
             $mode = DB::table('settings')->where('key', 'school_entry_attendance_mode')->value('value') ?? 'scan';
             $enableCheckout = DB::table('settings')->where('key', 'enable_daily_checkout')->value('value') ?? 'false';
 
+            $enableBiometrics = DB::table('settings')->where('key', 'security_enable_biometrics')->value('value') ?? 'true';
+            $enableDeviceBinding = DB::table('settings')->where('key', 'security_enable_device_binding')->value('value') ?? 'true';
+            $enableGeofencing = DB::table('settings')->where('key', 'security_enable_geofencing')->value('value') ?? 'true';
+            $enableFakeGps = DB::table('settings')->where('key', 'security_enable_fake_gps')->value('value') ?? 'true';
+
             return $this->sendResponse([
                 'mode' => $mode,
                 'enable_daily_checkout' => $enableCheckout === 'true' || $enableCheckout === '1' ? true : false,
+                'security_enable_biometrics' => $enableBiometrics === 'true' || $enableBiometrics === '1' ? true : false,
+                'security_enable_device_binding' => $enableDeviceBinding === 'true' || $enableDeviceBinding === '1' ? true : false,
+                'security_enable_geofencing' => $enableGeofencing === 'true' || $enableGeofencing === '1' ? true : false,
+                'security_enable_fake_gps' => $enableFakeGps === 'true' || $enableFakeGps === '1' ? true : false,
             ], 'Pengaturan sistem berhasil diambil.');
         } catch (\Exception $e) {
             return $this->sendError('Gagal mengambil pengaturan sistem: ' . $e->getMessage());
@@ -139,6 +148,10 @@ class SettingsController extends BaseController
             $data = $request->validate([
                 'mode' => 'nullable|in:scan,click',
                 'enable_daily_checkout' => 'nullable|boolean',
+                'security_enable_biometrics' => 'nullable|boolean',
+                'security_enable_device_binding' => 'nullable|boolean',
+                'security_enable_geofencing' => 'nullable|boolean',
+                'security_enable_fake_gps' => 'nullable|boolean',
             ]);
 
             DB::beginTransaction();
@@ -157,6 +170,42 @@ class SettingsController extends BaseController
                     ->where('key', 'enable_daily_checkout')
                     ->update([
                         'value' => $data['enable_daily_checkout'] ? 'true' : 'false',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (isset($data['security_enable_biometrics'])) {
+                DB::table('settings')
+                    ->where('key', 'security_enable_biometrics')
+                    ->update([
+                        'value' => $data['security_enable_biometrics'] ? 'true' : 'false',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (isset($data['security_enable_device_binding'])) {
+                DB::table('settings')
+                    ->where('key', 'security_enable_device_binding')
+                    ->update([
+                        'value' => $data['security_enable_device_binding'] ? 'true' : 'false',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (isset($data['security_enable_geofencing'])) {
+                DB::table('settings')
+                    ->where('key', 'security_enable_geofencing')
+                    ->update([
+                        'value' => $data['security_enable_geofencing'] ? 'true' : 'false',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            if (isset($data['security_enable_fake_gps'])) {
+                DB::table('settings')
+                    ->where('key', 'security_enable_fake_gps')
+                    ->update([
+                        'value' => $data['security_enable_fake_gps'] ? 'true' : 'false',
                         'updated_at' => now(),
                     ]);
             }

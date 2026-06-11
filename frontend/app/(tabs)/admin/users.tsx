@@ -417,7 +417,7 @@ export default function UsersAdminScreen() {
       {/* Form modal */}
       <Modal visible={!!modalMode} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: insets.bottom }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
                 {modalMode === "create" ? "Tambah" : "Edit"} Pengguna

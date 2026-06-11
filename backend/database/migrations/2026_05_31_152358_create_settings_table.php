@@ -24,14 +24,14 @@ return new class extends Migration
         DB::table('settings')->insert([
             [
                 'key' => 'school_latitude',
-                'value' => '-7.245583',
+                'value' => '-7.243641',
                 'description' => 'Garis Lintang (Latitude) SMKS Rajasa Surabaya',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
                 'key' => 'school_longitude',
-                'value' => '112.737750',
+                'value' => '112.735156',
                 'description' => 'Garis Bujur (Longitude) SMKS Rajasa Surabaya',
                 'created_at' => now(),
                 'updated_at' => now(),
