@@ -402,8 +402,8 @@ class AttendanceController extends BaseController
                 if ($activeLocations->isEmpty()) {
                     $activeLocations = collect([[
                         'name'          => 'Sekolah',
-                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.257850,
+                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.743185,
                         'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                     ]])->map(fn($a) => (object) $a);
                 }
@@ -726,8 +726,8 @@ class AttendanceController extends BaseController
                 if ($activeLocations->isEmpty()) {
                     $activeLocations = collect([[
                         'name'          => 'Sekolah',
-                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.257850,
+                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.743185,
                         'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                     ]])->map(fn($a) => (object) $a);
                 }
@@ -849,8 +849,8 @@ class AttendanceController extends BaseController
                     if ($activeLocations->isEmpty()) {
                         $activeLocations = collect([[
                             'name'          => 'Sekolah',
-                            'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                            'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                            'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.257850,
+                            'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.743185,
                             'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                         ]])->map(fn($a) => (object) $a);
                     }
@@ -989,8 +989,8 @@ class AttendanceController extends BaseController
                 if ($activeLocations->isEmpty()) {
                     $activeLocations = collect([[
                         'name'          => 'Sekolah',
-                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.245583,
-                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.737750,
+                        'latitude'      => (float) DB::table('settings')->where('key', 'school_latitude')->value('value') ?? -7.257850,
+                        'longitude'     => (float) DB::table('settings')->where('key', 'school_longitude')->value('value') ?? 112.743185,
                         'radius_meters' => (int) DB::table('settings')->where('key', 'school_radius_meters')->value('value') ?? 100,
                     ]])->map(fn($a) => (object) $a);
                 }

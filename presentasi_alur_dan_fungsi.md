@@ -64,7 +64,7 @@ _(Desain: Ilustrasi peta sekolah dengan radius lingkaran geofence 100m)_
 
 1. **Deteksi Lokasi Akurat (GPS Absensi)**:
    - Siswa wajib mengaktifkan GPS pada smartphone mereka untuk melakukan absen masuk.
-   - Sistem hanya mengizinkan absen jika siswa secara fisik telah berada di area sekolah (radius **100 meter** dari koordinat SMKS Rajasa: `-7.245583, 112.737750`).
+   - Sistem hanya mengizinkan absen jika siswa secara fisik telah berada di area sekolah (radius **100 meter** dari koordinat SMKS Rajasa: `-7.257850, 112.743185`).
 2. **Kalkulasi Keterlambatan Otomatis**:
    - Jam masuk sekolah ditetapkan pukul **07:00 WIB** (fleksibel dikonfigurasi).
    - Siswa yang melakukan klik absen setelah jam 07:00 WIB akan langsung tercatat sebagai **"Terlambat"** dan sistem otomatis mengalkulasi menit keterlambatannya secara presisi ke dalam sistem.

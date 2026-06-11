@@ -473,9 +473,12 @@ export default function GpsSettingsScreen() {
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
 
   // Security configuration states
-  const [securityEnableBiometrics, setSecurityEnableBiometrics] = useState(true);
-  const [securityEnableDeviceBinding, setSecurityEnableDeviceBinding] = useState(true);
-  const [securityEnableGeofencing, setSecurityEnableGeofencing] = useState(true);
+  const [securityEnableBiometrics, setSecurityEnableBiometrics] =
+    useState(true);
+  const [securityEnableDeviceBinding, setSecurityEnableDeviceBinding] =
+    useState(true);
+  const [securityEnableGeofencing, setSecurityEnableGeofencing] =
+    useState(true);
   const [securityEnableFakeGps, setSecurityEnableFakeGps] = useState(true);
 
   // Security Info Modal states
@@ -571,7 +574,10 @@ export default function GpsSettingsScreen() {
     }
   };
 
-  const handleToggleSecuritySetting = async (key: string, currentValue: boolean) => {
+  const handleToggleSecuritySetting = async (
+    key: string,
+    currentValue: boolean,
+  ) => {
     setIsUpdatingSettings(true);
     const newValue = !currentValue;
     try {
@@ -579,16 +585,24 @@ export default function GpsSettingsScreen() {
       payload[key] = newValue;
       const res = await settingsApi.updateSystemSettings(payload);
       if (res.success) {
-        if (key === "security_enable_biometrics") setSecurityEnableBiometrics(newValue);
-        else if (key === "security_enable_device_binding") setSecurityEnableDeviceBinding(newValue);
-        else if (key === "security_enable_geofencing") setSecurityEnableGeofencing(newValue);
-        else if (key === "security_enable_fake_gps") setSecurityEnableFakeGps(newValue);
-        
+        if (key === "security_enable_biometrics")
+          setSecurityEnableBiometrics(newValue);
+        else if (key === "security_enable_device_binding")
+          setSecurityEnableDeviceBinding(newValue);
+        else if (key === "security_enable_geofencing")
+          setSecurityEnableGeofencing(newValue);
+        else if (key === "security_enable_fake_gps")
+          setSecurityEnableFakeGps(newValue);
+
         let labelName = "";
-        if (key === "security_enable_biometrics") labelName = "Autentikasi Biometrik";
-        else if (key === "security_enable_device_binding") labelName = "Kunci Perangkat";
-        else if (key === "security_enable_geofencing") labelName = "Geofencing Area";
-        else if (key === "security_enable_fake_gps") labelName = "Deteksi Fake GPS";
+        if (key === "security_enable_biometrics")
+          labelName = "Autentikasi Biometrik";
+        else if (key === "security_enable_device_binding")
+          labelName = "Kunci Perangkat";
+        else if (key === "security_enable_geofencing")
+          labelName = "Geofencing Area";
+        else if (key === "security_enable_fake_gps")
+          labelName = "Deteksi Fake GPS";
 
         toast.success(
           `${labelName} ${newValue ? "diaktifkan" : "dinonaktifkan"}.`,
@@ -815,11 +829,11 @@ export default function GpsSettingsScreen() {
       return;
     }
     if (isNaN(lat) || lat < -90 || lat > 90) {
-      toast.error("Latitude tidak valid. Contoh: -7.245583");
+      toast.error("Latitude tidak valid. Contoh: -7.257850");
       return;
     }
     if (isNaN(lng) || lng < -180 || lng > 180) {
-      toast.error("Longitude tidak valid. Contoh: 112.737750");
+      toast.error("Longitude tidak valid. Contoh: 112.743185");
       return;
     }
 
@@ -887,8 +901,8 @@ export default function GpsSettingsScreen() {
 
   const openAdd = () => {
     setNewName("");
-    setNewLat("-7.245583");
-    setNewLng("112.737750");
+    setNewLat("-7.257850");
+    setNewLng("112.743185");
     setNewRadius(100);
     setSearchQuery("");
     setSearchResults([]);
@@ -1189,10 +1203,25 @@ export default function GpsSettingsScreen() {
             {/* 1. Biometrics */}
             <View style={styles.settingsRow}>
               <View style={{ flex: 1, paddingRight: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={styles.settingsLabel}>Autentikasi Biometrik</Text>
-                  <TouchableOpacity onPress={() => openInfo("Autentikasi Biometrik", "Siswa wajib melakukan verifikasi sidik jari (Fingerprint) atau FaceID sebelum melakukan presensi. Opsi ini mencegah siswa menitipkan akun ke orang lain.")}>
-                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Text style={styles.settingsLabel}>
+                    Autentikasi Biometrik
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      openInfo(
+                        "Autentikasi Biometrik",
+                        "Siswa wajib melakukan verifikasi sidik jari (Fingerprint) atau FaceID sebelum melakukan presensi. Opsi ini mencegah siswa menitipkan akun ke orang lain.",
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={16}
+                      color="#2563EB"
+                    />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.settingsDesc}>
@@ -1205,7 +1234,12 @@ export default function GpsSettingsScreen() {
                     styles.toggleBtn,
                     !securityEnableBiometrics && styles.toggleBtnActiveDanger,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_biometrics", securityEnableBiometrics)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_biometrics",
+                      securityEnableBiometrics,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
@@ -1222,7 +1256,12 @@ export default function GpsSettingsScreen() {
                     styles.toggleBtn,
                     securityEnableBiometrics && styles.toggleBtnActive,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_biometrics", securityEnableBiometrics)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_biometrics",
+                      securityEnableBiometrics,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
@@ -1250,10 +1289,25 @@ export default function GpsSettingsScreen() {
               ]}
             >
               <View style={{ flex: 1, paddingRight: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={styles.settingsLabel}>Kunci Perangkat (Device Binding)</Text>
-                  <TouchableOpacity onPress={() => openInfo("Kunci Perangkat (Device Binding)", "Mengunci akun siswa pada handphone (device) pertama yang mereka gunakan saat presensi. Siswa tidak akan bisa presensi menggunakan HP milik teman mereka. Guru/Admin dapat melakukan reset kunci ini pada menu daftar siswa jika diperlukan.")}>
-                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Text style={styles.settingsLabel}>
+                    Kunci Perangkat (Device Binding)
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      openInfo(
+                        "Kunci Perangkat (Device Binding)",
+                        "Mengunci akun siswa pada handphone (device) pertama yang mereka gunakan saat presensi. Siswa tidak akan bisa presensi menggunakan HP milik teman mereka. Guru/Admin dapat melakukan reset kunci ini pada menu daftar siswa jika diperlukan.",
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={16}
+                      color="#2563EB"
+                    />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.settingsDesc}>
@@ -1264,15 +1318,22 @@ export default function GpsSettingsScreen() {
                 <TouchableOpacity
                   style={[
                     styles.toggleBtn,
-                    !securityEnableDeviceBinding && styles.toggleBtnActiveDanger,
+                    !securityEnableDeviceBinding &&
+                      styles.toggleBtnActiveDanger,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_device_binding", securityEnableDeviceBinding)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_device_binding",
+                      securityEnableDeviceBinding,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
                     style={[
                       styles.toggleBtnText,
-                      !securityEnableDeviceBinding && styles.toggleBtnTextActive,
+                      !securityEnableDeviceBinding &&
+                        styles.toggleBtnTextActive,
                     ]}
                   >
                     Off
@@ -1283,7 +1344,12 @@ export default function GpsSettingsScreen() {
                     styles.toggleBtn,
                     securityEnableDeviceBinding && styles.toggleBtnActive,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_device_binding", securityEnableDeviceBinding)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_device_binding",
+                      securityEnableDeviceBinding,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
@@ -1311,10 +1377,25 @@ export default function GpsSettingsScreen() {
               ]}
             >
               <View style={{ flex: 1, paddingRight: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={styles.settingsLabel}>Pembatasan Radius (Geofencing)</Text>
-                  <TouchableOpacity onPress={() => openInfo("Pembatasan Radius (Geofencing)", "Membatasi presensi mandiri (Click) hanya ketika koordinat GPS siswa berada di dalam radius zona sekolah yang aktif. Jika dinonaktifkan, siswa dapat melakukan presensi dari mana saja.")}>
-                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Text style={styles.settingsLabel}>
+                    Pembatasan Radius (Geofencing)
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      openInfo(
+                        "Pembatasan Radius (Geofencing)",
+                        "Membatasi presensi mandiri (Click) hanya ketika koordinat GPS siswa berada di dalam radius zona sekolah yang aktif. Jika dinonaktifkan, siswa dapat melakukan presensi dari mana saja.",
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={16}
+                      color="#2563EB"
+                    />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.settingsDesc}>
@@ -1327,7 +1408,12 @@ export default function GpsSettingsScreen() {
                     styles.toggleBtn,
                     !securityEnableGeofencing && styles.toggleBtnActiveDanger,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_geofencing", securityEnableGeofencing)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_geofencing",
+                      securityEnableGeofencing,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
@@ -1344,7 +1430,12 @@ export default function GpsSettingsScreen() {
                     styles.toggleBtn,
                     securityEnableGeofencing && styles.toggleBtnActive,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_geofencing", securityEnableGeofencing)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_geofencing",
+                      securityEnableGeofencing,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
@@ -1372,10 +1463,25 @@ export default function GpsSettingsScreen() {
               ]}
             >
               <View style={{ flex: 1, paddingRight: 12 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Text style={styles.settingsLabel}>Deteksi Fake GPS / Mock Location</Text>
-                  <TouchableOpacity onPress={() => openInfo("Deteksi Fake GPS / Mock Location", "Mendeteksi penggunaan aplikasi lokasi palsu (Fake GPS) pada perangkat HP siswa saat melakukan presensi. Jika terdeteksi, presensi akan langsung diblokir.")}>
-                    <Ionicons name="information-circle-outline" size={16} color="#2563EB" />
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+                >
+                  <Text style={styles.settingsLabel}>
+                    Deteksi Fake GPS / Mock Location
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() =>
+                      openInfo(
+                        "Deteksi Fake GPS / Mock Location",
+                        "Mendeteksi penggunaan aplikasi lokasi palsu (Fake GPS) pada perangkat HP siswa saat melakukan presensi. Jika terdeteksi, presensi akan langsung diblokir.",
+                      )
+                    }
+                  >
+                    <Ionicons
+                      name="information-circle-outline"
+                      size={16}
+                      color="#2563EB"
+                    />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.settingsDesc}>
@@ -1388,7 +1494,12 @@ export default function GpsSettingsScreen() {
                     styles.toggleBtn,
                     !securityEnableFakeGps && styles.toggleBtnActiveDanger,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_fake_gps", securityEnableFakeGps)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_fake_gps",
+                      securityEnableFakeGps,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
@@ -1405,7 +1516,12 @@ export default function GpsSettingsScreen() {
                     styles.toggleBtn,
                     securityEnableFakeGps && styles.toggleBtnActive,
                   ]}
-                  onPress={() => handleToggleSecuritySetting("security_enable_fake_gps", securityEnableFakeGps)}
+                  onPress={() =>
+                    handleToggleSecuritySetting(
+                      "security_enable_fake_gps",
+                      securityEnableFakeGps,
+                    )
+                  }
                   disabled={isUpdatingSettings}
                 >
                   <Text
@@ -1444,7 +1560,9 @@ export default function GpsSettingsScreen() {
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalOverlay}
         >
-          <View style={[styles.modalSheet, { paddingBottom: 20 + insets.bottom }]}>
+          <View
+            style={[styles.modalSheet, { paddingBottom: 20 + insets.bottom }]}
+          >
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View>
@@ -1577,7 +1695,7 @@ export default function GpsSettingsScreen() {
                   {modalMode !== null && (
                     <LeafletMapSelector
                       ref={modalMapRef}
-                      initialLat={parseFloat(newLat) || -7.245583}
+                      initialLat={parseFloat(newLat) || -7.25785}
                       initialLng={parseFloat(newLng) || 112.73775}
                       initialRadius={newRadius}
                       onCoordsChange={handleMapCoordsChange}
@@ -1623,7 +1741,7 @@ export default function GpsSettingsScreen() {
                   <Text style={styles.fieldLabel}>LATITUDE</Text>
                   <TextInput
                     style={styles.textField}
-                    placeholder="-7.245583"
+                    placeholder="-7.257850"
                     placeholderTextColor="#B0B7C3"
                     keyboardType="numeric"
                     value={newLat}
@@ -1641,7 +1759,7 @@ export default function GpsSettingsScreen() {
                   <Text style={styles.fieldLabel}>LONGITUDE</Text>
                   <TextInput
                     style={styles.textField}
-                    placeholder="112.737750"
+                    placeholder="112.743185"
                     placeholderTextColor="#B0B7C3"
                     keyboardType="numeric"
                     value={newLng}
@@ -1754,7 +1872,11 @@ export default function GpsSettingsScreen() {
         <View style={styles.infoModalOverlay}>
           <View style={styles.infoModalContent}>
             <View style={styles.infoModalHeader}>
-              <Ionicons name="shield-checkmark-outline" size={24} color="#2563EB" />
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={24}
+                color="#2563EB"
+              />
               <Text style={styles.infoModalTitle}>{infoModalTitle}</Text>
             </View>
             <Text style={styles.infoModalDesc}>{infoModalDesc}</Text>

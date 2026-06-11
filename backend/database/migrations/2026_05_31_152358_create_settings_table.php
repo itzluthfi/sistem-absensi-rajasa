@@ -1,10 +1,10 @@
 <?php
- 
+
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
- 
+
 return new class extends Migration
 {
     /**
@@ -19,19 +19,19 @@ return new class extends Migration
             $table->string('description')->nullable();
             $table->timestamps();
         });
- 
+
         // Seed default school GPS settings
         DB::table('settings')->insert([
             [
                 'key' => 'school_latitude',
-                'value' => '-7.243641',
+                'value' => '-7.257850',
                 'description' => 'Garis Lintang (Latitude) SMKS Rajasa Surabaya',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
             [
                 'key' => 'school_longitude',
-                'value' => '112.735156',
+                'value' => '112.743185',
                 'description' => 'Garis Bujur (Longitude) SMKS Rajasa Surabaya',
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -59,7 +59,7 @@ return new class extends Migration
             ]
         ]);
     }
- 
+
     /**
      * Reverse the migrations.
      */

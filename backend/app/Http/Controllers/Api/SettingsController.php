@@ -29,8 +29,8 @@ class SettingsController extends BaseController
                 ->keyBy('key');
 
             $data = [
-                'school_latitude' => (float) ($settings['school_latitude']->value ?? -7.245583),
-                'school_longitude' => (float) ($settings['school_longitude']->value ?? 112.737750),
+                'school_latitude' => (float) ($settings['school_latitude']->value ?? -7.257850),
+                'school_longitude' => (float) ($settings['school_longitude']->value ?? 112.743185),
                 'school_radius_meters' => (int) ($settings['school_radius_meters']->value ?? 100),
             ];
 
