@@ -98,6 +98,43 @@ export default function LoginScreen() {
     <ImageBackground source={bgSource} style={styles.backgroundImage} resizeMode="cover">
       <View style={styles.darkOverlay} />
 
+      {Platform.OS === 'web' && (
+        <View style={{
+          position: 'absolute',
+          top: 20,
+          left: 20,
+          zIndex: 999,
+        }}>
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              backgroundColor: 'rgba(255, 255, 255, 0.9)',
+              borderWidth: 1.5,
+              borderColor: '#BFDBFE',
+              paddingVertical: 8,
+              paddingHorizontal: 14,
+              borderRadius: 20,
+              gap: 6,
+              shadowColor: '#1E3A8A',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+            onPress={() => {
+              const downloadUrl = API_BASE_URL.replace('/api', '') + '/app.apk';
+              window.open(downloadUrl, '_blank');
+            }}
+          >
+            <Ionicons name="logo-android" size={16} color="#2563EB" />
+            <Text style={{ fontSize: 12, fontWeight: '700', color: '#2563EB' }}>
+              Unduh Aplikasi Android (APK)
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {isWebDesktop ? (
         <View style={styles.splitLayoutContainer}>
           {/* Left Panel: Clean School Branding */}
@@ -189,33 +226,6 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </Link>
               </View>
-
-              {Platform.OS === 'web' && (
-                <View style={{ marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EFF6FF', alignItems: 'center' }}>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: '#EFF6FF',
-                      borderWidth: 1.5,
-                      borderColor: '#BFDBFE',
-                      paddingVertical: 10,
-                      paddingHorizontal: 16,
-                      borderRadius: 12,
-                      gap: 8,
-                    }}
-                    onPress={() => {
-                      const downloadUrl = API_BASE_URL.replace('/api', '') + '/app.apk';
-                      window.open(downloadUrl, '_blank');
-                    }}
-                  >
-                    <Ionicons name="logo-android" size={18} color="#2563EB" />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#2563EB' }}>
-                      Unduh Aplikasi Android (APK)
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
 
             {/* Web System Footer */}
@@ -304,33 +314,6 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </Link>
               </View>
-
-              {Platform.OS === 'web' && (
-                <View style={{ marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EFF6FF', alignItems: 'center' }}>
-                  <TouchableOpacity
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: '#EFF6FF',
-                      borderWidth: 1.5,
-                      borderColor: '#BFDBFE',
-                      paddingVertical: 10,
-                      paddingHorizontal: 16,
-                      borderRadius: 12,
-                      gap: 8,
-                    }}
-                    onPress={() => {
-                      const downloadUrl = API_BASE_URL.replace('/api', '') + '/app.apk';
-                      window.open(downloadUrl, '_blank');
-                    }}
-                  >
-                    <Ionicons name="logo-android" size={18} color="#2563EB" />
-                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#2563EB' }}>
-                      Unduh Aplikasi Android (APK)
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
 
             {/* Mobile System Footer */}
