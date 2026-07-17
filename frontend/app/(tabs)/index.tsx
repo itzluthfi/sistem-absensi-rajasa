@@ -15,6 +15,7 @@ import {
   Platform,
   Animated,
   Vibration,
+  TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -977,6 +978,20 @@ export default function HomeScreen() {
                     type="date"
                     value={sessionDate}
                     onChange={(e) => setSessionDate(e.target.value)}
+                    onClick={(e) => {
+                      try {
+                        (e.target as any).showPicker();
+                      } catch (err) {
+                        console.log("showPicker not supported", err);
+                      }
+                    }}
+                    onFocus={(e) => {
+                      try {
+                        (e.target as any).showPicker();
+                      } catch (err) {
+                        console.log("showPicker not supported", err);
+                      }
+                    }}
                     style={{
                       backgroundColor: "#F8FAFC",
                       borderWidth: 1.5,
@@ -988,6 +1003,7 @@ export default function HomeScreen() {
                       boxSizing: 'border-box',
                       color: '#1F2937',
                       fontFamily: 'inherit',
+                      cursor: 'pointer',
                     }}
                   />
                 ) : (
@@ -1037,91 +1053,90 @@ export default function HomeScreen() {
                   Pilih Waktu Tutup Presensi:
                 </Text>
                 
-                <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#1E293B', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 8 }}>
-                    <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] }}>
-                      {sessionHour.padStart(2, '0')}
-                    </Text>
-                    <Text style={{ fontSize: 20, fontWeight: '800', color: '#3B82F6' }}>:</Text>
-                    <Text style={{ fontSize: 24, fontWeight: '800', color: '#fff', fontVariant: ['tabular-nums'] }}>
-                      {sessionMinute.padStart(2, '0')}
-                    </Text>
+                {/* Editable Time Inputs */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, color: '#64748B', fontWeight: '700', marginBottom: 4 }}>JAM</Text>
+                    <TextInput
+                      value={sessionHour}
+                      onChangeText={(val) => {
+                        const clean = val.replace(/[^0-9]/g, '').slice(0, 2);
+                        setSessionHour(clean);
+                      }}
+                      onBlur={() => {
+                        if (sessionHour) {
+                          const num = Math.min(23, Math.max(0, parseInt(sessionHour, 10)));
+                          setSessionHour(String(num).padStart(2, '0'));
+                        } else {
+                          setSessionHour('00');
+                        }
+                      }}
+                      keyboardType="number-pad"
+                      style={{
+                        backgroundColor: '#F1F5F9',
+                        borderWidth: 1.5,
+                        borderColor: '#CBD5E1',
+                        borderRadius: 8,
+                        width: 54,
+                        height: 38,
+                        textAlign: 'center',
+                        fontSize: 16,
+                        fontWeight: '800',
+                        color: '#1E293B',
+                      }}
+                    />
+                  </View>
+                  <Text style={{ fontSize: 18, fontWeight: '800', color: '#64748B', marginTop: 12 }}>:</Text>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={{ fontSize: 9, color: '#64748B', fontWeight: '700', marginBottom: 4 }}>MENIT</Text>
+                    <TextInput
+                      value={sessionMinute}
+                      onChangeText={(val) => {
+                        const clean = val.replace(/[^0-9]/g, '').slice(0, 2);
+                        setSessionMinute(clean);
+                      }}
+                      onBlur={() => {
+                        if (sessionMinute) {
+                          const num = Math.min(59, Math.max(0, parseInt(sessionMinute, 10)));
+                          setSessionMinute(String(num).padStart(2, '0'));
+                        } else {
+                          setSessionMinute('00');
+                        }
+                      }}
+                      keyboardType="number-pad"
+                      style={{
+                        backgroundColor: '#F1F5F9',
+                        borderWidth: 1.5,
+                        borderColor: '#CBD5E1',
+                        borderRadius: 8,
+                        width: 54,
+                        height: 38,
+                        textAlign: 'center',
+                        fontSize: 16,
+                        fontWeight: '800',
+                        color: '#1E293B',
+                      }}
+                    />
                   </View>
                 </View>
 
-                {/* Jam / Menit +/- Buttons */}
-                <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 16, marginBottom: 12 }}>
-                  <View style={{ alignItems: 'center', gap: 4 }}>
-                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: '700' }}>JAM</Text>
-                    <View style={{ flexDirection: 'row', gap: 4 }}>
-                      <TouchableOpacity
-                        onPress={() => setSessionHour(h => String(Math.max(0, parseInt(h,10)-1)).padStart(2,'0'))}
-                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
-                      >
-                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>-</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => setSessionHour(h => String(Math.min(23, parseInt(h,10)+1)).padStart(2,'0'))}
-                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
-                      >
-                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>+</Text>
-                      </TouchableOpacity>
-                    </View>
+                {/* Recommendation End-Time Preset Only */}
+                {schedule?.end_time && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'center' }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const parts = schedule.end_time.slice(0, 5).split(':');
+                        setSessionHour(parts[0]);
+                        setSessionMinute(parts[1]);
+                      }}
+                      style={{ backgroundColor: '#EFF6FF', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: '#BFDBFE' }}
+                    >
+                      <Text style={{ fontSize: 11, fontWeight: '700', color: '#2563EB' }}>
+                        ⏰ Akhir Jam Pelajaran ({schedule.end_time.slice(0, 5)})
+                      </Text>
+                    </TouchableOpacity>
                   </View>
-                  <View style={{ alignItems: 'center', gap: 4 }}>
-                    <Text style={{ fontSize: 9, color: '#94A3B8', fontWeight: '700' }}>MENIT</Text>
-                    <View style={{ flexDirection: 'row', gap: 4 }}>
-                      <TouchableOpacity
-                        onPress={() => setSessionMinute(m => String(Math.max(0, parseInt(m,10)-5)).padStart(2,'0'))}
-                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
-                      >
-                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>-</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        onPress={() => setSessionMinute(m => String(Math.min(59, parseInt(m,10)+5)).padStart(2,'0'))}
-                        style={{ backgroundColor: '#E2E8F0', borderRadius: 6, width: 26, height: 26, justifyContent: 'center', alignItems: 'center' }}
-                      >
-                        <Text style={{ fontSize: 14, color: '#475569', fontWeight: '700' }}>+</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-
-                {/* Presets */}
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                  {[
-                    schedule?.end_time ? `${schedule.end_time.slice(0,5)}` : null,
-                    '+15',
-                    '+30',
-                    '+45',
-                    '+60',
-                  ].filter(Boolean).map((preset) => {
-                    const isEndTime = preset && !preset.startsWith('+');
-                    return (
-                      <TouchableOpacity
-                        key={preset!}
-                        onPress={() => {
-                          if (isEndTime) {
-                            const parts = preset!.split(':');
-                            setSessionHour(parts[0]);
-                            setSessionMinute(parts[1]);
-                          } else {
-                            const addMins = parseInt(preset!.replace('+', ''), 10);
-                            const now = new Date();
-                            const future = new Date(now.getTime() + addMins * 60000);
-                            setSessionHour(String(future.getHours()).padStart(2, '0'));
-                            setSessionMinute(String(future.getMinutes()).padStart(2, '0'));
-                          }
-                        }}
-                        style={{ backgroundColor: '#EFF6FF', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1, borderColor: '#BFDBFE' }}
-                      >
-                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#2563EB' }}>
-                          {isEndTime ? `⏰ Akhir Jam (${preset})` : `+${preset!.replace('+','')} mnt`}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                )}
               </View>
 
               {/* 3. Metode Presensi Options */}

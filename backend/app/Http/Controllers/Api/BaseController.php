@@ -42,9 +42,23 @@ class BaseController extends Controller
      */
     public function sendValidationError($errors)
     {
+        $messages = [];
+        if (is_array($errors) || $errors instanceof \Illuminate\Support\MessageBag) {
+            foreach ($errors as $field => $errs) {
+                if (is_array($errs)) {
+                    foreach ($errs as $err) {
+                        $messages[] = $err;
+                    }
+                } else {
+                    $messages[] = $errs;
+                }
+            }
+        }
+        $message = !empty($messages) ? implode(' ', $messages) : 'Terjadi kesalahan validasi';
+
         return response()->json([
             'success' => false,
-            'message' => 'Terjadi kesalahan validasi',
+            'message' => $message,
             'errors' => $errors,
         ], Response::HTTP_UNPROCESSABLE_ENTITY);
     }

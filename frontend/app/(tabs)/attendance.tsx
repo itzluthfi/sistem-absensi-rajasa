@@ -35,6 +35,26 @@ import { useToast } from "../../hooks/useToast";
 import { authenticateWithBiometrics } from "../../utils/biometrics";
 import NotificationBell from "../../components/ui/NotificationBell";
 
+const formatCloseTime = (dateTimeStr: string | null | undefined) => {
+  if (!dateTimeStr) return "";
+  try {
+    if (dateTimeStr.includes(" ")) {
+      const timePart = dateTimeStr.split(" ")[1];
+      return timePart.slice(0, 5); // "HH:mm"
+    }
+    if (dateTimeStr.includes("T")) {
+      const timePart = dateTimeStr.split("T")[1];
+      return timePart.slice(0, 5); // "HH:mm"
+    }
+    if (dateTimeStr.includes(":")) {
+      return dateTimeStr.slice(0, 5);
+    }
+    return dateTimeStr;
+  } catch (e) {
+    return "";
+  }
+};
+
 export default function AttendanceScreen() {
   const { user } = useAuthStore();
   const router = useRouter();
@@ -855,6 +875,14 @@ export default function AttendanceScreen() {
               <Text style={styles.sessionTeacher}>
                 Guru: {activeSchedule.teacher?.full_name}
               </Text>
+              {(sessionDetail?.close_time || activeSchedule?.active_session?.close_time) && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                  <Ionicons name="time-outline" size={14} color="#EF4444" />
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>
+                    Sesi ditutup otomatis pada pukul {formatCloseTime(sessionDetail?.close_time || activeSchedule?.active_session?.close_time)} WIB
+                  </Text>
+                </View>
+              )}
             </View>
 
             {activeSchedule.attendance_status && activeSchedule.attendance_status !== "belum_absen" ? (
@@ -1067,6 +1095,14 @@ export default function AttendanceScreen() {
                   {activeSchedule.start_time.substring(0, 5)} -{" "}
                   {activeSchedule.end_time.substring(0, 5)}
                 </Text>
+                {(sessionDetail?.close_time || activeSchedule?.active_session?.close_time) && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                    <Ionicons name="time-outline" size={14} color="#EF4444" />
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#EF4444' }}>
+                      Sesi ditutup otomatis pada pukul {formatCloseTime(sessionDetail?.close_time || activeSchedule?.active_session?.close_time)} WIB
+                    </Text>
+                  </View>
+                )}
 
                 {/* Rotating QR Sesi / Mode Status */}
                 {scanMode === "guru_scan_siswa" ? (

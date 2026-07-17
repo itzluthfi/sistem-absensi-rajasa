@@ -17,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import ShimmerButton from '../../components/ui/ShimmerButton';
-import { authApi } from '../../services/api';
+import { authApi, API_BASE_URL } from '../../services/api';
 import { useToast } from '../../hooks/useToast';
 
 const wallpaperWeb = require('../../assets/images/wallpaper-web.png');
@@ -189,6 +189,33 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </Link>
               </View>
+
+              {Platform.OS === 'web' && (
+                <View style={{ marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EFF6FF', alignItems: 'center' }}>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#EFF6FF',
+                      borderWidth: 1.5,
+                      borderColor: '#BFDBFE',
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      borderRadius: 12,
+                      gap: 8,
+                    }}
+                    onPress={() => {
+                      const downloadUrl = API_BASE_URL.replace('/api', '') + '/app.apk';
+                      window.open(downloadUrl, '_blank');
+                    }}
+                  >
+                    <Ionicons name="logo-android" size={18} color="#2563EB" />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#2563EB' }}>
+                      Unduh Aplikasi Android (APK)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Web System Footer */}
@@ -277,6 +304,33 @@ export default function LoginScreen() {
                   </TouchableOpacity>
                 </Link>
               </View>
+
+              {Platform.OS === 'web' && (
+                <View style={{ marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#EFF6FF', alignItems: 'center' }}>
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#EFF6FF',
+                      borderWidth: 1.5,
+                      borderColor: '#BFDBFE',
+                      paddingVertical: 10,
+                      paddingHorizontal: 16,
+                      borderRadius: 12,
+                      gap: 8,
+                    }}
+                    onPress={() => {
+                      const downloadUrl = API_BASE_URL.replace('/api', '') + '/app.apk';
+                      window.open(downloadUrl, '_blank');
+                    }}
+                  >
+                    <Ionicons name="logo-android" size={18} color="#2563EB" />
+                    <Text style={{ fontSize: 13, fontWeight: '700', color: '#2563EB' }}>
+                      Unduh Aplikasi Android (APK)
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
             {/* Mobile System Footer */}
