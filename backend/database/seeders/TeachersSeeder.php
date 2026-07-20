@@ -12,7 +12,8 @@ class TeachersSeeder extends Seeder
     public function run(): void
     {
         $teachers = [
-            // Guru biasa (index 0 - 5)
+            // Guru Utama (Test Account)
+            ['name' => 'Guru Test Rajasa', 'email' => 'guru@example.com', 'nip' => 'GURU001', 'role' => 'guru'],
             ['name' => 'Pak Budi Santoso, S.T.', 'email' => 'budi@example.com', 'nip' => 'T001', 'role' => 'guru'],
             ['name' => 'Ibu Siti Aminah, S.Pd.', 'email' => 'siti@example.com', 'nip' => 'T002', 'role' => 'guru'],
             ['name' => 'Pak Bambang Hermawan, M.Pd.', 'email' => 'bambang@example.com', 'nip' => 'T003', 'role' => 'guru'],
