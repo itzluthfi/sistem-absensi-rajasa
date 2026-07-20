@@ -64,6 +64,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
   login: async (email, password) => {
     set({ isLoading: true });
     try {
+      // Clear residual tokens or user data from any previous session
+      await removeAuthToken();
+      await removeUserData();
+
       const response = await authApi.login(email, password);
       const { user, token } = response.data;
 
@@ -177,9 +181,15 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
             }
           }
           set({ user, token, isLoading: false, isAuthenticated: true, isInitialized: true });
-        } catch (apiError) {
-          // If API fails, use stored user data
-          if (storedUser) {
+        } catch (apiError: any) {
+          // If API returns 401 Unauthorized or 403 Forbidden, token is invalid/revoked.
+          // Clean up stale local storage and require fresh login!
+          if (apiError.response?.status === 401 || apiError.response?.status === 403) {
+            await removeAuthToken();
+            await removeUserData();
+            set({ user: null, token: null, isLoading: false, isAuthenticated: false, isInitialized: true });
+          } else if (storedUser) {
+            // Only fall back to stored user data for true offline/network failure
             const user = JSON.parse(storedUser);
             if (Platform.OS === 'web') {
               try {

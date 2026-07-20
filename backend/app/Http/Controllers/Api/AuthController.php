@@ -121,6 +121,24 @@ class AuthController extends BaseController
     }
 
     /**
+     * Log out the authenticated user (Revoke current Sanctum token).
+     *
+     * @param Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function logout(Request $request)
+    {
+        try {
+            if ($request->user() && $request->user()->currentAccessToken()) {
+                $request->user()->currentAccessToken()->delete();
+            }
+            return $this->sendResponse(null, 'Berhasil keluar');
+        } catch (\Exception $e) {
+            return $this->sendError('Gagal melakukan logout', [], 500);
+        }
+    }
+
+    /**
      * Register new user
      *
      * @param Request $request
