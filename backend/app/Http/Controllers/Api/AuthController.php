@@ -53,6 +53,23 @@ class AuthController extends BaseController
                 }
             }
 
+            // 4. Jika tidak ditemukan, cari berdasarkan nama user / nama lengkap (Guru / Siswa)
+            if (!$user) {
+                $user = User::where('name', $identifier)->first();
+            }
+            if (!$user) {
+                $teacher = Teacher::where('full_name', $identifier)->first();
+                if ($teacher) {
+                    $user = $teacher->user;
+                }
+            }
+            if (!$user) {
+                $student = Student::where('full_name', $identifier)->first();
+                if ($student) {
+                    $user = $student->user;
+                }
+            }
+
             if (!$user || !Hash::check($request->password, $user->password)) {
                 // Log failed login attempt
                 $this->logFailedLogin($request);
