@@ -123,17 +123,7 @@ export default function LoginScreen() {
               elevation: 3,
             }}
             onPress={() => {
-              let downloadUrl = API_BASE_URL;
-              if (downloadUrl.endsWith('/api')) {
-                downloadUrl = downloadUrl.slice(0, -4);
-              }
-              downloadUrl = downloadUrl + '/app.apk';
-              
-              // Safeguard if EXPO_PUBLIC_API_URL is configured without protocol on Vercel
-              if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
-                downloadUrl = 'https://' + downloadUrl.replace(/^\/+/, '');
-              }
-              window.open(downloadUrl, '_blank');
+              window.open('https://api-smks-rajasa.sir-l.web.id/app.apk', '_blank');
             }}
           >
             <Ionicons name="logo-android" size={16} color="#2563EB" />
