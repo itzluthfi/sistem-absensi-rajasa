@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://smks-rajasa.sir-l.web.id/sitemap.xml

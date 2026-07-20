@@ -3,7 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SMKS Rajasa API - Desktop Console</title>
+    <title>SMKS Rajasa API - Developer Portal & Console</title>
+
+    <!-- Primary SEO Meta Tags -->
+    <meta name="title" content="SMKS Rajasa API - Developer Portal & Console">
+    <meta name="description" content="Portal Pengembang & Dokumentasi API resmi Sistem Absensi Digital SMKS Rajasa Surabaya. Dokumentasi rute otentikasi JWT, GPS, dan unduhan APK.">
+    <meta name="keywords" content="API SMKS Rajasa, Presensi Rajasa, Absensi SMKS Rajasa, Developer Console Rajasa, Dokumentasi API Absensi">
+    <meta name="author" content="SMKS Rajasa Surabaya">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://api-smks-rajasa.sir-l.web.id">
+    <meta name="theme-color" content="#1e40af">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://api-smks-rajasa.sir-l.web.id">
+    <meta property="og:title" content="SMKS Rajasa API - Developer Portal & Console">
+    <meta property="og:description" content="Portal Pengembang & Dokumentasi API resmi Sistem Absensi Digital SMKS Rajasa Surabaya.">
+    <meta property="og:site_name" content="SMKS Rajasa Surabaya">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SMKS Rajasa API - Developer Portal & Console">
+    <meta name="twitter:description" content="Dokumentasi API & Portal Pengembang resmi Sistem Absensi Digital SMKS Rajasa Surabaya.">
     
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
